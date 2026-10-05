@@ -1,25 +1,28 @@
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from app.api import router
+from app.db import engine
 
 # Built frontend (frontend/dist). In Docker it is copied to /app/static.
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 STATIC_DIR = Path(os.getenv("STATIC_DIR", DEFAULT_STATIC_DIR))
 
-app = FastAPI(title="Secrethon 2026 API")
 
-api = APIRouter(prefix="/api")
-
-
-@api.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+    await engine.dispose()
 
 
-app.include_router(api)
+app = FastAPI(title="Secrethon 2026 API", lifespan=lifespan)
+app.include_router(router)
 
 if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
