@@ -1,0 +1,135 @@
+// Wire format of the FastAPI backend (backend/app/api/schemas.py). Keep in sync.
+
+export type Level = 'confirmed' | 'likely' | 'review' | 'no' | 'out_of_scope'
+/** Category labels as stored by the pipeline classifier. */
+export type Category = string | null
+
+export type ApiMonthPoint = { month: string; vacancies: number }
+
+export type ApiMapPoint = {
+  employer_id: number
+  lat: number
+  lng: number
+  locality: string | null
+  region_id: number | null
+  vacancies: number
+}
+
+export type ApiStats = {
+  as_of: string | null
+  vacancies: number
+  vpk_vacancies: number
+  confirmed_vacancies: number
+  vpk_employers: number
+  regions: number
+  median_salary: number | null
+  gur_companies: number
+  sanctioned_companies: number
+  company_relations: number
+  matched_employers: number
+  by_source: { source: string; vacancies: number; vpk_vacancies: number }[]
+  by_level: { level: Level; vacancies: number }[]
+  by_category: { category: Category; vacancies: number }[]
+  regions_list: { region_id: number; name: string; vpk_vacancies: number; employers: number }[]
+  monthly: ApiMonthPoint[]
+}
+
+export type ApiEmployer = {
+  id: number
+  name: string
+  source: string
+  inn: string | null
+  profile_url: string | null
+  vpk_vacancies: number
+  confirmed_vacancies: number
+  total_vacancies: number
+  new_30d: number
+  median_salary: number | null
+  category: Category
+  locality: string | null
+  region_id: number | null
+  region: string | null
+  last_published_at: string | null
+  gur_company_id: number | null
+  gur_name: string | null
+  sanctions_count: number
+}
+
+export type ApiRelation = {
+  kind: 'parent' | 'bank' | 'related' | 'successor' | 'supplier'
+  direction: 'out' | 'in'
+  company_id: number
+  name: string
+  inn: string | null
+  sanctions_count: number
+  employer_id: number | null
+}
+
+export type ApiGurCompany = {
+  company_id: number
+  name: string
+  name_full_uk: string
+  name_full_ru: string | null
+  inn: string | null
+  ogrn: string | null
+  address_uk: string | null
+  description_uk: string | null
+  products_uk: string[] | null
+  website: string | null
+  logo_url: string | null
+  gur_url: string | null
+  sanctions_count: number
+  sanctions_count_intl: number
+  sanctions: { jurisdiction: string; jurisdiction_name: string | null; listed_on: string | null }[]
+  relations: ApiRelation[]
+}
+
+export type ApiProfession = {
+  title: string
+  vacancies: number
+  employers: number | null
+  median_salary: number | null
+  category: Category
+}
+
+export type ApiEmployerDetail = ApiEmployer & {
+  monthly: ApiMonthPoint[]
+  professions: ApiProfession[]
+  localities: { locality: string; region: string | null; vacancies: number }[]
+  gur: ApiGurCompany | null
+}
+
+export type ApiVacancy = {
+  id: number
+  source: string
+  url: string
+  employer_id: number | null
+  employer_name: string | null
+  title: string
+  locality: string | null
+  region_id: number | null
+  region: string | null
+  salary_from: number | null
+  salary_to: number | null
+  salary_currency: string | null
+  salary_period: string | null
+  monthly_salary: number | null
+  experience: string | null
+  schedule: string | null
+  employment: string | null
+  published_at: string | null
+  level: Level
+  category: Category
+}
+
+export type ApiVacancyDetail = ApiVacancy & {
+  address: string | null
+  description: string | null
+  responsibilities: string | null
+  requirements: string | null
+  conditions: string | null
+  skills_raw: string | null
+  education: string | null
+}
+
+export type ApiVacancyPage = { total: number; items: ApiVacancy[] }

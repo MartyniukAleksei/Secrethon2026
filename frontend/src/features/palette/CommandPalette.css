@@ -1,0 +1,11 @@
+.pal-bd { position: fixed; inset: 0; z-index: 70; background: rgb(15 18 13 / .35); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+.pal { width: min(620px, 100%); background: var(--surface-raised); border: 1px solid var(--stroke); border-radius: 24px; box-shadow: var(--shadow-float); overflow: hidden; }
+.pal-in { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--stroke); }
+.pal-in svg { width: 20px; height: 20px; color: var(--label-2); }
+.pal-in input { flex: 1; height: 44px; border: 0; background: transparent; font: 500 17px var(--ff-sans); color: var(--label-1); outline: none; }
+.pal-res { max-height: 54vh; overflow-y: auto; padding: 8px; }
+.pal-grp { font-size: 12px; font-weight: 600; color: var(--label-3); padding: 10px 12px 4px; }
+.pal-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; cursor: pointer; font-size: 14.5px; font-weight: 500; }
+.pal-item small { margin-left: auto; color: var(--label-3); font-size: 12.5px; }
+.pal-item svg { width: 18px; height: 18px; color: var(--label-2); flex: none; }
+.pal-item[aria-selected="true"] { background: var(--fill-1); }

@@ -1,0 +1,67 @@
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
+
+from app.api.deps import Session
+from app.api.schemas import ProfessionOut, VacancyDetailOut, VacancyOut, VacancyPage
+from app.repository import vacancies
+from app.repository.vacancies import LevelFilter, Sort, VacancyFilter
+
+router = APIRouter(tags=["vacancies"])
+
+
+def _filter(
+    level: LevelFilter = "vpk",
+    employer_id: int | None = None,
+    region_id: int | None = None,
+    category: str | None = None,
+    title: str | None = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+) -> VacancyFilter:
+    return VacancyFilter(
+        level, employer_id, region_id, category, title, (q or "").strip() or None, days
+    )
+
+
+@router.get("/vacancies")
+async def list_vacancies(
+    session: Session,
+    level: LevelFilter = "vpk",
+    employer_id: int | None = None,
+    region_id: int | None = None,
+    category: str | None = None,
+    title: str | None = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    sort: Sort = "published",
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> VacancyPage:
+    f = _filter(level, employer_id, region_id, category, title, q, days)
+    total, rows = await vacancies.list_vacancies(session, f, sort, limit, offset)
+    return VacancyPage(total=total, items=[VacancyOut.model_validate(r) for r in rows])
+
+
+@router.get("/vacancies/{vacancy_id}")
+async def get_vacancy(vacancy_id: int, session: Session) -> VacancyDetailOut:
+    row = await vacancies.get_vacancy(session, vacancy_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="vacancy not found")
+    return VacancyDetailOut.model_validate(row)
+
+
+@router.get("/professions")
+async def list_professions(
+    session: Session,
+    level: LevelFilter = "vpk",
+    region_id: int | None = None,
+    category: str | None = None,
+    days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 60,
+) -> list[ProfessionOut]:
+    """Most demanded job titles among the filtered vacancies."""
+    f = _filter(level, None, region_id, category, None, None, days)
+    return [
+        ProfessionOut.model_validate(r) for r in await vacancies.list_professions(session, f, limit)
+    ]

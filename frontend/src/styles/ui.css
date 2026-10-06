@@ -1,0 +1,247 @@
+/* Примітиви дизайн-системи: кнопки, поля, чипи, бейджі, вкладки, картки, таблиці. */
+
+.row { display: flex; flex-wrap: wrap; gap: var(--gap-interactive); align-items: center; }
+.demo-note { font-size: 12.5px; color: var(--label-3); font-weight: 500; }
+.src { font-size: 12px; line-height: 16px; color: var(--label-3); font-weight: 500; }
+
+/* ---------- Кнопка: завжди капсула ---------- */
+.btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: var(--control-md); padding: 0 20px; border-radius: var(--r-control); border: 0;
+  font: 500 15px/1 var(--ff-sans); letter-spacing: -0.005em; text-decoration: none; cursor: pointer; white-space: nowrap;
+  color: var(--label-1); background: var(--fill-1);
+  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), color var(--dur-fast);
+}
+.btn:active { transform: scale(.96); }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn-primary { background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow-control); }
+.btn-primary:hover { background: color-mix(in srgb, var(--primary) 86%, #000); }
+.btn-secondary { background: var(--fill-1); color: var(--label-1); }
+.btn-secondary:hover { background: var(--fill-2); }
+.btn-ghost { background: transparent; color: var(--label-1); }
+.btn-ghost:hover { background: var(--fill-1); }
+.btn[aria-pressed="true"] { background: var(--selected); color: var(--selected-foreground); }
+.btn[aria-pressed="true"] svg { fill: currentColor; }
+.btn-sm { height: var(--control-sm); padding: 0 14px; font-size: 13px; gap: 6px; }
+.btn-sm svg { width: 16px; height: 16px; }
+.btn-icon { width: var(--control-md); padding: 0; }
+.btn-icon.btn-sm { width: var(--control-sm); }
+/* На картці кнопка піднята, щоб не зливатися із заливкою */
+.card .btn-secondary, .panel .btn-secondary { background: var(--surface-raised); box-shadow: var(--shadow-control); }
+.card .btn-secondary:hover, .panel .btn-secondary:hover { background: var(--fill-2); }
+.btn-secondary[aria-pressed="true"] { background: var(--selected) !important; color: var(--selected-foreground); }
+
+.link-btn {
+  all: unset; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--label-2);
+  display: inline-flex; align-items: center; gap: 2px; padding: 6px 10px; border-radius: var(--r-control);
+}
+.link-btn:hover { background: var(--fill-1); color: var(--label-1); }
+.link-btn svg { width: 15px; height: 15px; }
+.link-btn:focus-visible { outline: 2px solid var(--ring); }
+
+/* ---------- Поля: капсули-заглибини ---------- */
+.input {
+  width: 100%; height: var(--control-md); padding: 0 18px; border: 1px solid transparent; border-radius: var(--r-control);
+  background: var(--surface-sunken); color: var(--label-1); font: 450 15px/1 var(--ff-sans);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / .08);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.input::placeholder { color: var(--label-3); }
+.input:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ring) 22%, transparent); }
+.select { position: relative; }
+.select select { appearance: none; padding-right: 40px; cursor: pointer; }
+.select::after {
+  content: ""; position: absolute; right: 18px; top: 50%; width: 7px; height: 7px; pointer-events: none;
+  border-right: 1.75px solid var(--label-2); border-bottom: 1.75px solid var(--label-2); transform: translateY(-70%) rotate(45deg);
+}
+.search { position: relative; }
+.search svg { position: absolute; left: 16px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; color: var(--label-2); }
+.search .input { padding-left: 44px; }
+
+.check { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; line-height: 22px; cursor: pointer; padding: 5px 0; font-weight: 450; }
+.check input {
+  appearance: none; flex: none; width: 22px; height: 22px; margin: 0; border-radius: 50%; cursor: pointer;
+  border: 1.75px solid var(--label-3); background: transparent;
+  transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+.check input:checked {
+  background: var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8'/%3E%3C/svg%3E") center / 14px no-repeat;
+  border-color: var(--primary);
+}
+
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 15px; cursor: pointer; padding: 4px 0; font-weight: 450; }
+.switch input {
+  appearance: none; flex: none; width: 51px; height: 31px; border-radius: var(--r-control); margin: 0; cursor: pointer;
+  background: var(--fill-2); position: relative; transition: background-color var(--dur-base) var(--ease-out);
+}
+.switch input::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / .22); transition: translate var(--dur-base) var(--ease-spring);
+}
+.switch input:checked { background: var(--primary); }
+.switch input:checked::after { translate: 20px 0; }
+
+/* ---------- Чип: вмикає фільтр, інвертується, коли активний ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
+  border-radius: var(--r-control); border: 0; background: var(--fill-1); color: var(--label-1);
+  font: 500 14px/1 var(--ff-sans); cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+}
+.chip:hover { background: var(--fill-2); }
+.chip:active { transform: scale(.96); }
+.chip svg { width: 14px; height: 14px; display: none; }
+.chip[aria-pressed="true"] { background: var(--selected); color: var(--selected-foreground); }
+.chip[aria-pressed="true"] svg { display: block; }
+
+/* ---------- Бейдж: лише показує властивість ---------- */
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px;
+  border-radius: var(--r-control); font-size: 12px; line-height: 1; font-weight: 600;
+  background: var(--fill-1); color: var(--label-2); white-space: nowrap;
+}
+.badge.sm { height: 20px; }
+.badge.warning { background: var(--warning-soft); color: var(--warning); }
+.badge.info { background: var(--info-soft); color: var(--info); }
+.badge.hostile { background: var(--hostile-soft); color: var(--hostile); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+/* Впевненість у зв'язку постачання */
+.conf { font-size: 11.5px; font-weight: 600; padding: 0 8px; height: 22px; border-radius: 11px; display: inline-flex; align-items: center; white-space: nowrap; }
+.conf.high { background: var(--success-soft); color: var(--success); }
+.conf.medium { background: var(--info-soft); color: var(--info); }
+.conf.low { background: var(--fill-2); color: var(--label-2); }
+
+/* ---------- Сегментований перемикач і вкладки: один контрол ---------- */
+.segmented, .tabs {
+  display: inline-flex; padding: 4px; gap: 2px; border-radius: var(--r-control);
+  background: var(--surface-sunken); box-shadow: inset 0 1px 2px rgb(0 0 0 / .06); max-width: 100%; overflow-x: auto; scrollbar-width: none;
+}
+.segmented button, .tab {
+  all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none;
+  height: 36px; padding: 0 16px; border-radius: var(--r-control); font-size: 14px; font-weight: 500; color: var(--label-2);
+  transition: background-color var(--dur-base) var(--ease-out), color var(--dur-fast);
+}
+.segmented button:hover, .tab:hover { color: var(--label-1); background: var(--fill-1); }
+.segmented button[aria-pressed="true"], .tab[aria-selected="true"] { background: var(--selected); color: var(--selected-foreground); }
+.segmented button:focus-visible, .tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.segmented.sm button { height: 28px; padding: 0 12px; font-size: 13px; }
+
+/* ---------- Вікно-панель і картка в ньому ---------- */
+.panel { background: var(--surface); border: 1px solid var(--stroke); border-radius: var(--r-window); box-shadow: var(--shadow-window); padding: var(--pad-window); }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 8px 10px 10px; }
+.panel-head h3 { font-size: 16px; font-weight: 600; }
+.panel-head p { font-size: 13px; color: var(--label-2); }
+.card { position: relative; background: var(--fill-1); border-radius: var(--r-card); padding: var(--pad-card); }
+
+.empty { text-align: center; padding: 36px 24px; border-radius: var(--r-card); background: var(--fill-1); }
+.empty h4 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.empty p { color: var(--label-2); font-size: 15px; margin: 0 auto 18px; max-width: 40ch; }
+.empty-row { padding: 28px 12px; text-align: center; color: var(--label-2); font-size: 14.5px; }
+
+.skeleton { background: var(--fill-2); border-radius: var(--r-card); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
+
+/* ---------- Місце і показники ---------- */
+.place { display: flex; align-items: center; gap: 5px; color: var(--label-2); font-size: 14px; margin: 2px 0 12px; }
+.place svg { width: 15px; height: 15px; flex: none; }
+.place a { color: inherit; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 12px; }
+.stats dt { font-size: 12px; line-height: 16px; color: var(--label-2); }
+.stats dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+
+/* ---------- Горизонтальні стовпці ---------- */
+.bars { display: grid; gap: 12px; margin-top: 12px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; font-weight: 500; }
+.bar-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); }
+.bar-track { height: 10px; background: var(--fill-2); border-radius: 5px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 5px; }
+.bar-row b { font-weight: 600; text-align: right; min-width: 36px; }
+
+/* ---------- Таблиця ---------- */
+.table-wrap { overflow-x: auto; margin: 8px -6px 0; }
+table.data { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+table.data th { text-align: left; font-size: 12px; font-weight: 600; color: var(--label-3); padding: 8px 12px; white-space: nowrap; }
+table.data th.num, table.data td.num { text-align: right; }
+table.data td { padding: 10px 12px; border-top: 1px solid var(--stroke); font-weight: 500; white-space: nowrap; }
+table.data tbody tr { transition: background-color var(--dur-fast); }
+table.data tbody tr.clickable { cursor: pointer; }
+table.data tbody tr:hover { background: var(--fill-1); }
+table.data td:first-child, table.data th:first-child { border-radius: 12px 0 0 12px; }
+table.data td:last-child, table.data th:last-child { border-radius: 0 12px 12px 0; }
+table.data td a { color: inherit; text-decoration: none; font-weight: 600; }
+table.data td.trend svg { width: 90px; height: 24px; display: block; margin-left: auto; }
+table.data .inline-bar { display: inline-block; height: 6px; border-radius: 3px; background: var(--primary); opacity: .55; margin-right: 8px; vertical-align: middle; }
+
+/* ---------- Знак підприємства: ворожий ромб з іконкою галузі ---------- */
+.dia { display: grid; place-items: center; flex: none; }
+.dia::before { content: ""; grid-area: 1 / 1; width: 70%; height: 70%; transform: rotate(45deg); border-radius: 18%; background: var(--hostile); }
+.dia svg { grid-area: 1 / 1; position: relative; color: #fff; width: 45%; height: 45%; }
+.tile { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--fill-1); flex: none; }
+
+/* ---------- Рядок підприємства у списках ---------- */
+.co-row {
+  all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 12px; align-items: center; padding: 9px 10px; border-radius: 16px;
+}
+.co-row:hover { background: var(--fill-1); }
+.co-row[aria-current="true"] { background: var(--fill-2); box-shadow: inset 0 0 0 2px var(--label-1); }
+.co-row:focus-visible { outline: 2px solid var(--ring); }
+.co-row b { display: block; font-size: 14px; font-weight: 600; line-height: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm2 { display: block; font-size: 12.5px; color: var(--label-2); line-height: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-row .val { text-align: right; }
+.co-row .val b { font-size: 14.5px; }
+.co-row .val span { font-size: 11.5px; color: var(--label-3); display: block; }
+.co-list { display: grid; gap: 4px; padding: 0 4px 4px; }
+
+/* ---------- Ланцюг постачання ---------- */
+.chain-list { display: grid; gap: 4px; }
+.chain-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 14px; background: var(--fill-1); text-decoration: none; color: inherit; }
+.chain-row:hover { background: var(--fill-2); }
+.chain-row.static:hover { background: var(--fill-1); }
+.chain-row b { display: block; font-size: 14px; font-weight: 600; line-height: 19px; }
+.chain-row .sm2 { white-space: normal; margin-top: 2px; font-size: 12px; }
+.chain-row b { overflow-wrap: anywhere; }
+
+/* ---------- Сигнал ---------- */
+.sig-list { display: grid; gap: 4px; }
+.sig { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 12px; padding: 10px 12px; border-radius: 16px; }
+.sig:hover { background: var(--fill-1); }
+.sig:focus-visible { outline: 2px solid var(--ring); }
+.sig > i { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; }
+.sig p { font-size: 14px; line-height: 20px; font-weight: 500; }
+.sig .meta { display: flex; gap: 8px; align-items: center; margin-top: 4px; font-size: 12px; color: var(--label-3); font-weight: 500; }
+
+/* ---------- Рядок вакансії ---------- */
+.vac-rows { display: grid; gap: 4px; align-content: start; grid-auto-rows: max-content; }
+.vac-row { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 14px; border-radius: 16px; background: var(--fill-1); }
+.vac-row:hover { background: var(--fill-2); }
+.vac-row b { font-size: 15px; font-weight: 600; }
+.vac-row .pay { font-weight: 600; text-align: right; }
+.vac-row .sm2.end { text-align: right; }
+.vac-row:focus-visible { outline: 2px solid var(--ring); }
+
+/* ---------- Графіки ---------- */
+.spark-svg { width: 100%; height: 34px; display: block; }
+.spark { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.spark-area { fill: var(--primary); opacity: .12; }
+.chart-svg { width: 100%; display: block; }
+.chart-svg text { font-family: var(--ff-sans); font-size: 11.5px; fill: var(--chart-axis); font-weight: 500; }
+.chart-svg .grid line { stroke: var(--chart-grid); }
+.lg-list { display: grid; gap: 6px; font-size: 12.5px; }
+.lg-list div { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.lg-list span { color: var(--label-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Верхній рядок попапів і шторок: кнопка закриття + тип */
+.pop-top { display: flex; align-items: center; gap: 8px; margin: -2px 0 0 -4px; }
+.pop-top .kind { font-size: 12px; color: var(--label-2); font-weight: 600; }
+
+/* ---------- Тост ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); translate: -50% 16px; opacity: 0;
+  background: var(--selected); color: var(--selected-foreground); padding: 0 18px; height: 40px; display: flex; align-items: center;
+  border-radius: var(--r-control); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-float); z-index: var(--z-toast); pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-out), translate var(--dur-base) var(--ease-spring);
+}
+.toast.show { opacity: 1; translate: -50% 0; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0 4px; font-size: 14px; color: var(--label-2); }

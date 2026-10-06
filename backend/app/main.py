@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -22,6 +23,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Secrethon 2026 API", lifespan=lifespan)
+# The employer list is a few hundred KB of JSON; compress it.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.include_router(router)
 
 if STATIC_DIR.is_dir():

@@ -4,6 +4,8 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+ARG VITE_2GIS_API_KEY
+ENV VITE_2GIS_API_KEY=$VITE_2GIS_API_KEY
 RUN npm run build
 
 # --- Stage 2: backend + built static files ---
@@ -21,8 +23,6 @@ COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/app ./app
-COPY backend/alembic.ini ./
-COPY backend/migrations ./migrations
 COPY --from=frontend /frontend/dist ./static
 
 # Railway provides $PORT

@@ -1,0 +1,5 @@
+.vac-filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+.vac-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.vac-bar .search { flex: 1 1 260px; }
+.vac-bar .select { width: 230px; }
+table.data td.wrap { white-space: normal; min-width: 160px; max-width: 320px; }

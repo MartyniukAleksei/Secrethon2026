@@ -1,0 +1,17 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0; overflow: hidden; background: var(--env); color: var(--label-1);
+  font-family: var(--ff-sans); font-size: var(--text-base); line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, h4, h5, p, dl, dd { margin: 0; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Видно лише скрінрідерам */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

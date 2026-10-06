@@ -1,0 +1,174 @@
+/* ==========================================================================
+   Design tokens, Секретон 2026 (з design-system.html).
+   Компоненти беруть лише семантичні токени, тоді світла й темна теми працюють самі.
+   Темна тема вмикається класом .dark на <html>.
+   ========================================================================== */
+
+:root {
+  /* ---- Шрифти ---- */
+  --ff-display: "Unbounded", "Geologica", system-ui, sans-serif; /* лише заголовки */
+  --ff-sans: "Geologica", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* ---- Шкала шрифтів (size / line-height) ---- */
+  --text-xs: 12px;   --leading-xs: 16px;
+  --text-sm: 14px;   --leading-sm: 20px;
+  --text-base: 16px; --leading-base: 24px;
+  --text-lg: 18px;   --leading-lg: 26px;
+  --text-xl: 21px;   --leading-xl: 28px;
+  --text-2xl: 24px;  --leading-2xl: 30px;
+  --text-3xl: 32px;  --leading-3xl: 38px;
+
+  /* ---- Концентричні радіуси: вікно 32 = картка 22 + відступ 10 ---- */
+  --r-window: 32px;
+  --pad-window: 10px;
+  --r-card: 22px;
+  --pad-card: 14px;
+  --r-inner: 8px;
+  --r-control: 999px; /* усі інтерактивні контроли — капсули */
+
+  /* ---- Розміри контролів ---- */
+  --control-sm: 32px;
+  --control-md: 44px; /* мінімальна зона натискання */
+  --control-lg: 52px;
+  --gap-interactive: 8px;
+
+  /* ---- Рух ---- */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.36, .64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+
+  /* ---- Шари ---- */
+  --z-sticky: 10; --z-popover: 40; --z-modal: 60; --z-toast: 90;
+
+  /* ---- Примітиви: нейтральні з оливковим підтоном ---- */
+  --n-0: #FFFFFF;
+  --n-50: #F4F5F1;
+  --n-100: #E9EBE4;
+  --n-200: #D7DACF;
+  --n-300: #BCC0B1;
+  --n-400: #8F9482;
+  --n-500: #73786A;
+  --n-600: #595E51;
+  --n-700: #42463C;
+  --n-800: #2C2F28;
+  --n-900: #1C1F19;
+  --n-950: #141711;
+
+  /* ---- Примітиви: олива (бренд) ---- */
+  --olive-100: #E2E8CF;
+  --olive-600: #5A6C2E;
+  --olive-700: #4A5A2B;
+  --olive-900: #2A3318;
+
+  --signal-500: #FFD500;
+
+  /* ---- Середовище і поверхні: усі суцільні, глибину дає тінь ---- */
+  --env: #E6E9DF;
+  --surface: #FAFBF7;
+  --surface-raised: #FFFFFF;
+  --surface-sunken: #E9EBE4;
+  --stroke: #DDE0D6;
+  --fill-1: #EEF0E9;
+  --fill-2: #E2E5DC;
+
+  /* ---- Ієрархія тексту ---- */
+  --label-1: #1A1D17;
+  --label-2: #5B6052;
+  --label-3: #858A7B;
+
+  /* Обраний стан контролу: інверсія */
+  --selected: var(--n-900);
+  --selected-foreground: var(--n-0);
+
+  /* ---- Семантичні ---- */
+  --primary: var(--olive-700);
+  --primary-foreground: #FFFFFF;
+  --accent: var(--olive-100);
+  --accent-foreground: var(--olive-900);
+  --destructive: #B3261E;
+  --ring: var(--olive-700);
+  --highlight: var(--signal-500);
+  --highlight-foreground: var(--n-950);
+  --success: #276B43;
+  --warning: #8A5608;
+  --danger: #B3261E;
+  --info: #2F5E9E;
+  --success-soft: #DDEBE2;
+  --warning-soft: #F6E7CC;
+  --danger-soft: #F5DEDC;
+  --info-soft: #DFE7F3;
+
+  /* ---- Об'єкти противника (NATO APP-6: червоний ромб) ---- */
+  --hostile: #C62828;
+  --hostile-foreground: #FFFFFF;
+  --hostile-soft: #F6DEDE;
+
+  /* ---- Тіні ---- */
+  --shadow-window: 0 1px 2px rgb(28 31 25 / .06), 0 16px 36px -20px rgb(28 31 25 / .22);
+  --shadow-float: 0 2px 6px rgb(28 31 25 / .1), 0 16px 32px -12px rgb(28 31 25 / .28);
+  --shadow-control: 0 1px 2px rgb(28 31 25 / .18);
+
+  /* ---- Галузі ВПК: завжди ці кольори (Okabe–Ito) ---- */
+  --sector-uav: #0072B2;
+  --sector-ammo: #E69F00;
+  --sector-armor: #009E73;
+  --sector-missiles: #D55E00;
+  --sector-aviation: #6F55A8;
+  --sector-electronics: #CC79A7;
+  --sector-other: #7A7F70;
+
+  /* ---- Графіки і карта ---- */
+  --chart-grid: #E3E6DC;
+  --chart-axis: var(--label-2);
+  --map-land: #EEF0E8;
+  --map-contour: #CBBF9F;
+}
+
+.dark {
+  --env: #0F120D;
+  --surface: #1A1E17;
+  --surface-raised: #252A21;
+  --surface-sunken: #12150F;
+  --stroke: #2E3329;
+  --fill-1: #242920;
+  --fill-2: #30362B;
+
+  --label-1: #EEF1E7;
+  --label-2: #A4A998;
+  --label-3: #747A6A;
+
+  --selected: rgb(244 246 239);
+  --selected-foreground: var(--n-950);
+
+  --primary: var(--olive-600);
+  --accent: #2F3820;
+  --accent-foreground: #DDE5C3;
+  --destructive: #D9443A;
+  --ring: var(--signal-500);
+
+  --success: #6CC08F;
+  --warning: #E3B04B;
+  --danger: #F2867C;
+  --info: #8DB3EA;
+  --success-soft: #1D3326;
+  --warning-soft: #3A2E14;
+  --danger-soft: #3D1F1C;
+  --info-soft: #1C2B40;
+
+  --hostile: #E5484D;
+  --hostile-soft: #3D1C1E;
+
+  --shadow-window: 0 1px 2px rgb(0 0 0 / .4), 0 20px 40px -20px rgb(0 0 0 / .6);
+  --shadow-float: 0 2px 6px rgb(0 0 0 / .4), 0 18px 36px -12px rgb(0 0 0 / .65);
+  --shadow-control: 0 1px 2px rgb(0 0 0 / .4);
+
+  --sector-uav: #3D9BD6;
+  --sector-aviation: #A48BDB;
+  --sector-other: #9A9F8F;
+
+  --chart-grid: #2A2E25;
+  --map-land: #171B14;
+  --map-contour: #3E3A2E;
+}

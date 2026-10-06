@@ -1,0 +1,190 @@
+import { useNavigate, useSearchParams } from 'react-router'
+import { api, type VacancyQuery } from '../api/client'
+import { AskButton } from '../components/AskButton'
+import { FilterBar } from '../components/FilterBar'
+import { useData } from '../data/DataContext'
+import { useApi } from '../data/useApi'
+import { ago, fmt, money, plural, salaryRange } from '../domain/format'
+import { experienceName } from '../domain/labels'
+import { useVacancyDrawer } from '../features/vacancy/VacancyDrawerContext'
+import { useDebounced } from '../hooks/useDebounced'
+import { useFilters } from '../state/FiltersContext'
+import { CategoryBadge, LevelBadge } from '../ui/badges'
+import { Icon } from '../ui/Icon'
+import './VacanciesPage.css'
+
+const PAGE = 50
+const LEVELS: [NonNullable<VacancyQuery['level']>, string][] = [
+  ['vpk', 'Усі ВПК'],
+  ['confirmed', 'Підтверджені'],
+  ['likely', 'Ймовірні'],
+]
+
+/** Read/write URL search params; changing any filter resets the page. */
+function useParams() {
+  const [params, setParams] = useSearchParams()
+  const update = (patch: Record<string, string | null>, keepPage = false) => {
+    const next = new URLSearchParams(params)
+    Object.entries(patch).forEach(([k, v]) => (v == null || v === '' ? next.delete(k) : next.set(k, v)))
+    if (!keepPage) next.delete('page')
+    setParams(next, { replace: true })
+  }
+  return [params, update] as const
+}
+
+export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
+  const navigate = useNavigate()
+  const filters = useFilters()
+  const [params, update] = useParams()
+  const level = (params.get('level') as VacancyQuery['level']) || 'vpk'
+
+  // Shared by both tabs: the top filters plus the ВПК level.
+  const base: VacancyQuery = {
+    level,
+    region_id: filters.region === 'all' ? undefined : filters.region,
+    category: filters.category === 'all' ? undefined : filters.category,
+    days: filters.period || undefined,
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Вакансії</h1>
+          <p>Оголошення з hh.ru і «Работы России», які класифікатор відніс до ВПК. Кожне веде на оригінал.</p>
+        </div>
+        <div className="segmented">
+          <button type="button" aria-pressed={tab === 'listings'} onClick={() => navigate('/vacancies')}>Оголошення</button>
+          <button type="button" aria-pressed={tab === 'professions'} onClick={() => navigate('/vacancies/professions')}>Професії</button>
+        </div>
+      </div>
+      <div className="vac-filters">
+        <FilterBar />
+        <div className="segmented sm" aria-label="Дотичність до ВПК">
+          {LEVELS.map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={level === k} onClick={() => update({ level: k === 'vpk' ? null : k })}>{label}</button>
+          ))}
+        </div>
+      </div>
+      {tab === 'professions' ? <Professions base={base} /> : <Listings base={base} params={params} update={update} />}
+    </>
+  )
+}
+
+type Update = (patch: Record<string, string | null>, keepPage?: boolean) => void
+
+function Listings({ base, params, update }: { base: VacancyQuery; params: URLSearchParams; update: Update }) {
+  const { asOf } = useData()
+  const { open } = useVacancyDrawer()
+  const qInput = params.get('q') ?? ''
+  const q = useDebounced(qInput)
+  const title = params.get('prof') ?? undefined
+  const sort = (params.get('sort') as VacancyQuery['sort']) || 'published'
+  const page = Number(params.get('page') ?? 0) || 0
+
+  const query: VacancyQuery = { ...base, q: q || undefined, title, sort, limit: PAGE, offset: page * PAGE }
+  const state = useApi(JSON.stringify(query), (signal) => api.vacancies(query, signal))
+  const data = state.status === 'ready' ? state.data : state.status === 'loading' ? state.stale : undefined
+  const pages = data ? Math.ceil(data.total / PAGE) : 0
+  const goPage = (p: number) => update({ page: p ? String(p) : null }, true)
+
+  return (
+    <>
+      <div className="vac-bar">
+        <label className="search">
+          <span className="sr">Пошук</span>
+          <Icon name="search" />
+          <input className="input" value={qInput} onChange={(e) => update({ q: e.target.value })} placeholder="Посада, роботодавець або місто" />
+        </label>
+        <div className="select">
+          <label className="sr" htmlFor="vacSort">Сортування</label>
+          <select className="input" id="vacSort" value={sort} onChange={(e) => update({ sort: e.target.value === 'published' ? null : e.target.value })}>
+            <option value="published">Спершу нові</option>
+            <option value="salary">Спершу вища зарплата</option>
+          </select>
+        </div>
+      </div>
+      {title && (
+        <div className="row" style={{ marginBottom: 12 }}>
+          <button className="chip" type="button" aria-pressed="true" onClick={() => update({ prof: null })} aria-label={`Прибрати фільтр «${title}»`}>
+            {title}
+            <Icon name="x" style={{ display: 'block' }} />
+          </button>
+        </div>
+      )}
+      <div className="panel">
+        <div className="panel-head">
+          <p>{data ? `${fmt(data.total)} ${plural(data.total, 'оголошення', 'оголошення', 'оголошень')}` : 'Завантаження…'}</p>
+          <AskButton question="Кого найбільше наймає ВПК і за які гроші?" label="Підсумувати" />
+        </div>
+        {state.status === 'error' && <p className="empty-row">Не вдалося завантажити вакансії. Спробуй ще раз.</p>}
+        <div className="table-wrap" style={{ opacity: state.status === 'loading' ? 0.6 : 1 }}>
+          <table className="data">
+            <thead>
+              <tr><th>Посада</th><th>Роботодавець</th><th>Місто</th><th className="num">Зарплата</th><th>Досвід</th><th>Дотичність</th><th className="num">Опубліковано</th></tr>
+            </thead>
+            <tbody>
+              {data && data.items.length === 0 && (
+                <tr><td colSpan={7}><p className="empty-row">Нічого не знайдено. Зміни пошук, період або регіон.</p></td></tr>
+              )}
+              {data?.items.map((v) => (
+                <tr key={v.id} className="clickable" onClick={() => open(v.id)}>
+                  <td className="wrap"><b>{v.title}</b></td>
+                  <td className="wrap">{v.employer_name}</td>
+                  <td>{v.locality ?? '—'}</td>
+                  <td className="num">{salaryRange(v) ?? '—'}</td>
+                  <td>{experienceName(v.experience) ?? '—'}</td>
+                  <td><LevelBadge level={v.level} /></td>
+                  <td className="num">{ago(v.published_at, asOf)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!data && state.status === 'loading' && <div className="skeleton" style={{ height: 400 }} />}
+        </div>
+        {pages > 1 && (
+          <div className="pager">
+            <button className="btn btn-secondary btn-sm" type="button" disabled={page === 0} onClick={() => goPage(page - 1)}>Назад</button>
+            <span>Сторінка {page + 1} з {fmt(pages)}</span>
+            <button className="btn btn-secondary btn-sm" type="button" disabled={page + 1 >= pages} onClick={() => goPage(page + 1)}>Далі</button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function Professions({ base }: { base: VacancyQuery }) {
+  const navigate = useNavigate()
+  const query = { ...base, limit: 100 }
+  const state = useApi(`prof:${JSON.stringify(query)}`, (signal) => api.professions(query, signal))
+  const rows = state.status === 'ready' ? state.data : state.status === 'loading' ? state.stale : undefined
+  const max = rows?.[0]?.vacancies ?? 1
+
+  if (state.status === 'error') return <p className="empty-row">Не вдалося завантажити професії.</p>
+  if (rows && !rows.length) return <div className="empty"><h4>За цими фільтрами вакансій немає</h4><p>Розшир період або прибери фільтри.</p></div>
+
+  return (
+    <div className="panel" style={{ opacity: state.status === 'loading' ? 0.6 : 1 }}>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr><th>Професія</th><th>Напрям</th><th className="num">Вакансій</th><th className="num">Роботодавців</th><th className="num">Медіана</th></tr>
+          </thead>
+          <tbody>
+            {rows?.map((p) => (
+              <tr key={p.title} className="clickable" onClick={() => navigate(`/vacancies?prof=${encodeURIComponent(p.title)}`)}>
+                <td className="wrap"><b>{p.title}</b></td>
+                <td>{p.category ? <CategoryBadge category={p.category} /> : '—'}</td>
+                <td className="num"><span className="inline-bar" style={{ width: `${((p.vacancies / max) * 60).toFixed(0)}px` }} />{fmt(p.vacancies)}</td>
+                <td className="num">{fmt(p.employers ?? 0)}</td>
+                <td className="num">{money(p.median_salary)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!rows && <div className="skeleton" style={{ height: 300 }} />}
+      </div>
+    </div>
+  )
+}

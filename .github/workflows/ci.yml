@@ -20,7 +20,7 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -40,10 +40,6 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - name: Apply migrations
-        run: uv run alembic upgrade head
-      - name: Models match migrations
-        run: uv run alembic check
       - run: uv run pytest
 
   frontend:
@@ -67,7 +63,7 @@ jobs:
     needs: [backend, frontend]
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -83,8 +79,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build production image
         run: docker build -t secrethon2026 .
-      - name: Run migrations as Railway pre-deploy does
-        run: docker run --rm --network host -e DATABASE_URL secrethon2026 alembic upgrade head
       - name: Smoke test
         run: |
           docker run -d --name app --network host -e DATABASE_URL -e PORT=8000 secrethon2026
@@ -93,7 +87,6 @@ jobs:
             sleep 1
           done
           curl -fsS http://localhost:8000/api/health
-          curl -fsS http://localhost:8000/api/items
           curl -fsS http://localhost:8000/ | grep -q '<div id="root">'
       - name: App logs
         if: failure()

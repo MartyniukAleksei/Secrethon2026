@@ -3,7 +3,6 @@ name = "backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "alembic>=1.20.0",
     "asyncpg>=0.31.0",
     "fastapi>=0.115",
     "pydantic-settings>=2.15.0",
@@ -27,6 +26,10 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Long lines inside SQL strings read better unwrapped.
+"app/repository/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
