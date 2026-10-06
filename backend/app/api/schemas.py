@@ -57,6 +57,16 @@ class LocalityOut(BaseModel):
     vacancies: int
 
 
+class HiringLocationOut(BaseModel):
+    address: str | None
+    locality: str | None
+    lat: float | None
+    lng: float | None
+    source: str
+    vacancy_id: int
+    vacancy_url: str
+
+
 class SanctionOut(BaseModel):
     jurisdiction: str
     jurisdiction_name: str | None
@@ -98,6 +108,7 @@ class EmployerDetailOut(EmployerOut):
     monthly: list[MonthPoint]
     professions: list[ProfessionOut]
     localities: list[LocalityOut]
+    hiring_locations: list[HiringLocationOut]
     gur: GurCompanyOut | None
 
 

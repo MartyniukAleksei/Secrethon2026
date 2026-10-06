@@ -96,6 +96,15 @@ export type ApiEmployerDetail = ApiEmployer & {
   monthly: ApiMonthPoint[]
   professions: ApiProfession[]
   localities: { locality: string; region: string | null; vacancies: number }[]
+  hiring_locations: {
+    address: string | null
+    locality: string | null
+    lat: number | null
+    lng: number | null
+    source: string
+    vacancy_id: number
+    vacancy_url: string
+  }[]
   gur: ApiGurCompany | null
 }
 

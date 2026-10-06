@@ -61,6 +61,36 @@ def test_employer_detail_with_gur_card(client: TestClient) -> None:
     ]
 
 
+def test_hiring_locations_are_separate_from_company_address(client: TestClient) -> None:
+    detail = client.get("/api/employers/1").json()
+    assert detail["gur"]["address_uk"] == "м. Тула"
+    assert detail["hiring_locations"] == [
+        {
+            "address": None,
+            "locality": "Тула",
+            "lat": 54.2,
+            "lng": 37.63,
+            "source": "hh",
+            "vacancy_id": 3,
+            "vacancy_url": "https://hh.ru/vacancy/3",
+        },
+        {
+            "address": "Тула, ул. Найма, 1",
+            "locality": "Тула",
+            "lat": 54.193,
+            "lng": 37.617,
+            "source": "trudvsem",
+            "vacancy_id": 1,
+            "vacancy_url": "https://trudvsem.ru/vacancy/1",
+        },
+    ]  # same place is deduplicated, latest vacancy supplies the source link
+    unmatched = client.get("/api/employers/2").json()
+    assert unmatched["gur"] is None
+    assert len(unmatched["hiring_locations"]) == 1  # blank locations are omitted
+    assert unmatched["hiring_locations"][0]["lat"] is None  # invalid coordinates
+    assert client.get("/api/employers/3").json()["hiring_locations"] == []  # non-VPK
+
+
 def test_map_points(client: TestClient) -> None:
     response = client.get("/api/employers/map-points")
     assert response.status_code == 200

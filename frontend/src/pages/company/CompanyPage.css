@@ -16,6 +16,7 @@
 .prof-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin-top: 14px; align-items: start; }
 .prof-tabs { margin-bottom: 12px; }
 .prof-tabs .tab { text-decoration: none; }
+.prof-map { height: 560px; display: flex; }
 .prof-rail { position: sticky; top: 86px; display: grid; gap: 12px; }
 
 .facts { display: grid; padding: 4px 6px; }
@@ -23,6 +24,16 @@
 .facts div:first-child { border-top: 0; }
 .facts dt { color: var(--label-2); }
 .facts dd { margin: 0; font-weight: 600; text-align: right; }
+.facts-address dt { flex-shrink: 0; }
+.facts-address dd { min-width: 0; overflow-wrap: anywhere; line-height: 21px; }
+.facts-location dd { display: grid; gap: 4px; }
+.location-source { font-size: 12px; font-weight: 500; color: var(--label-2); }
+.hiring-more { margin: 0 6px; border-top: 1px solid var(--stroke); }
+.hiring-more summary { cursor: pointer; padding: 12px 6px; font-size: 14px; font-weight: 600; color: var(--accent-foreground); border-radius: 8px; }
+.hiring-more summary:hover { background: var(--fill-1); }
+.hiring-more summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.hiring-more-hide, .hiring-more[open] .hiring-more-show { display: none; }
+.hiring-more[open] .hiring-more-hide { display: inline; }
 
 .ask-list { display: grid; gap: 6px; padding: 4px 6px 6px; }
 .ask-q { all: unset; box-sizing: border-box; cursor: pointer; padding: 10px 12px; border-radius: 14px; background: var(--fill-1); font-size: 13.5px; font-weight: 500; line-height: 19px; display: flex; gap: 8px; align-items: flex-start; }
@@ -41,6 +52,7 @@
   .prof-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
+  .prof-map { height: 480px; }
   .chain-cols { grid-template-columns: minmax(0, 1fr); }
   .prof-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

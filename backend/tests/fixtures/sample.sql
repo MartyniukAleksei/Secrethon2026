@@ -31,6 +31,16 @@ UPDATE vacancy SET lat = 54.193, lng = 37.617 WHERE vacancy_id IN (1, 2);
 UPDATE vacancy SET lat = 54.200, lng = 37.630 WHERE vacancy_id = 3;
 UPDATE vacancy SET lat = 95, lng = 37.617 WHERE vacancy_id = 4; -- invalid latitude
 UPDATE vacancy SET lat = 55.750, lng = 37.610 WHERE vacancy_id = 6; -- non-VPK
+UPDATE vacancy SET address = 'Тула, ул. Найма, 1' WHERE vacancy_id = 1;
+UPDATE vacancy SET address = '  Тула, ул. Найма, 1  ' WHERE vacancy_id = 2;
+UPDATE vacancy SET address = '   ' WHERE vacancy_id = 3;
+UPDATE vacancy SET locality = NULL WHERE vacancy_id = 5; -- no hiring place
+UPDATE vacancy SET address = 'Москва, ул. Пекарни, 6' WHERE vacancy_id = 6;
+
+INSERT INTO vacancy (vacancy_id, source, external_id, url, employer_profile_id, title,
+                     address, is_active, published_at, first_seen_at, last_seen_at)
+VALUES (7, 'trudvsem', 'v7', 'https://trudvsem.ru/vacancy/7', 1, 'Инженер',
+        'Старая площадка', false, '2026-10-03T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z');
 
 INSERT INTO vacancy_classification (run_id, vacancy_id, level, raw_label, category) VALUES
   (2, 1, 'confirmed', 'точно', 'производство'),
@@ -39,7 +49,8 @@ INSERT INTO vacancy_classification (run_id, vacancy_id, level, raw_label, catego
   (2, 3, 'likely', 'вероятно', 'производство'),
   (1, 4, 'likely', 'likely', NULL),
   (2, 5, 'likely', 'вероятно', 'производство'),
-  (1, 6, 'no', 'no', NULL);
+  (1, 6, 'no', 'no', NULL),
+  (2, 7, 'confirmed', 'точно', 'производство');
 
 INSERT INTO country (country_id, name_uk) VALUES (1, 'російська федерація');
 INSERT INTO sanction_jurisdiction (code, name_uk) VALUES ('US', 'США'), ('UA', 'Україна');

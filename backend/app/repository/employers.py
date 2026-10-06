@@ -86,6 +86,30 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
     )
     employer["localities"] = [dict(r) for r in localities.mappings()]
 
+    hiring_locations = await session.execute(
+        text(f"""
+            WITH {CTE}, places AS (
+                SELECT nullif(btrim(vac.address), '') AS address,
+                       nullif(btrim(v.locality), '') AS locality,
+                       CASE WHEN v.lat BETWEEN -85 AND 85 AND v.lng BETWEEN -180 AND 180
+                            THEN v.lat END AS lat,
+                       CASE WHEN v.lat BETWEEN -85 AND 85 AND v.lng BETWEEN -180 AND 180
+                            THEN v.lng END AS lng,
+                       v.source, v.vacancy_id, v.url AS vacancy_url, v.published_at
+                FROM v JOIN vacancy vac USING (vacancy_id)
+                WHERE v.employer_profile_id = :id AND {VPK}
+            )
+            SELECT DISTINCT ON (source, address, locality, lat, lng)
+                   address, locality, lat, lng, source, vacancy_id, vacancy_url
+            FROM places
+            WHERE address IS NOT NULL OR locality IS NOT NULL OR lat IS NOT NULL
+            ORDER BY source, address, locality, lat, lng, published_at DESC NULLS LAST,
+                     vacancy_id DESC
+        """),
+        params,
+    )
+    employer["hiring_locations"] = [dict(r) for r in hiring_locations.mappings()]
+
     employer["gur"] = await _gur_company(session, employer["gur_company_id"])
     return employer
 

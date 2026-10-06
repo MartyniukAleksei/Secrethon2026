@@ -33,7 +33,7 @@ const TABS: { id: string; label: string; render: (p: TabProps) => ReactNode }[] 
     id: 'map',
     label: 'На карті',
     render: ({ employer }) => (
-      <div className="panel" style={{ height: 460, display: 'flex' }}>
+      <div className="panel prof-map">
         <MapSlot employers={[employer]} selectedId={employer.id} />
       </div>
     ),
@@ -64,6 +64,7 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
   const { employers, asOf } = useData()
   const { ask } = useAgent()
   const gur = e.gur
+  const address = gur?.address_uk?.trim()
   const similar = employers.filter((x) => x.id !== e.id && x.category === e.category && x.region_id === e.region_id).slice(0, 5)
   const quick = [`Кого наймає ${e.name}?`, `Хто пов'язаний з ${e.name}?`, `Які зарплати в ${e.name}?`]
 
@@ -132,6 +133,7 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
             <dl className="facts">
               <div><dt>Напрям</dt><dd>{categoryOf(e.category).name}</dd></div>
               <div><dt>Регіон</dt><dd>{e.region ?? '—'}</dd></div>
+              {address && <div className="facts-address"><dt>Місце підприємства</dt><dd>{address}</dd></div>}
               <div><dt>ІПН</dt><dd>{e.inn ?? gur?.inn ?? '—'}</dd></div>
               {gur?.ogrn && <div><dt>ОДРН</dt><dd>{gur.ogrn}</dd></div>}
               <div><dt>Джерело</dt><dd>{sourceName(e.source)}</dd></div>
