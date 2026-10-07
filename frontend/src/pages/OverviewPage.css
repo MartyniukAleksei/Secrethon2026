@@ -11,91 +11,38 @@
 .overview-metrics > div:first-child { padding-left: 0; border-left: 0; }
 .overview-metrics > div:last-child { padding-right: 0; }
 .overview-metrics dt { font-size: 12px; line-height: 18px; color: var(--label-2); }
-.overview-metrics dd { margin-top: 5px; font-size: 29px; font-weight: 550; line-height: 36px; letter-spacing: -.025em; white-space: nowrap; }
+.overview-metrics dd { margin-top: 5px; font-size: 29px; font-weight: 550; line-height: 36px; letter-spacing: -.025em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .overview-metrics a { color: inherit; text-decoration: none; }
 .overview-metrics a:hover { text-decoration: underline; text-underline-offset: 5px; }
 
-.overview-body { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 34px; align-items: start; }
-.overview-employers, .overview-aside { min-width: 0; }
+.overview-routes { min-width: 0; }
 .overview-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; margin-bottom: 12px; }
 .overview h2 { font-size: 16px; font-weight: 600; line-height: 22px; }
-.overview-section-head > a, .overview-table-foot a, .overview-foot > a { display: inline-flex; align-items: center; gap: 3px; color: var(--label-2); text-decoration: none; font-size: 12px; white-space: nowrap; }
-.overview-section-head > a:hover, .overview-table-foot a:hover, .overview-foot > a:hover { color: var(--label-1); text-decoration: underline; text-underline-offset: 3px; }
-.overview-section-head svg, .overview-table-foot svg, .overview-foot svg { width: 14px; height: 14px; }
-.overview-section-note { color: var(--label-2); font-size: 12px; line-height: 18px; }
+.overview-section-head > a, .overview-foot > a { display: inline-flex; align-items: center; gap: 3px; color: var(--label-2); text-decoration: none; font-size: 12px; white-space: nowrap; }
+.overview-section-head > a:hover, .overview-foot > a:hover { color: var(--label-1); text-decoration: underline; text-underline-offset: 3px; }
+.overview-section-head svg, .overview-foot svg { width: 14px; height: 14px; }
 
-.overview-tools { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.overview-search { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; max-width: 340px; height: 38px; padding: 0 10px; background: var(--surface); border: 1px solid var(--stroke); border-radius: 6px; }
-.overview-search:focus-within { border-color: var(--ring); outline: 1px solid var(--ring); }
-.overview-search svg { width: 16px; height: 16px; flex: none; color: var(--label-2); }
-.overview-search input { border: 0; outline: none; padding: 0; width: 100%; min-width: 0; background: transparent; color: var(--label-1); font: 13px var(--ff-sans); }
-.overview-search input::placeholder { color: var(--label-2); }
-.overview-sort { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--stroke); border-radius: 6px; flex: none; }
-.overview-sort button { cursor: pointer; border: 0; border-radius: 3px; background: transparent; color: var(--label-2); padding: 0 9px; font: 12px var(--ff-sans); }
-.overview-sort button:hover { color: var(--label-1); }
-.overview-sort button[aria-pressed="true"] { background: var(--surface-raised); color: var(--label-1); box-shadow: 0 1px 2px rgb(0 0 0 / .1); }
+.overview-route-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.overview-route-card.panel { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-width: 0; min-height: 220px; padding: calc(var(--pad-window) + var(--pad-card)); color: var(--label-1); text-decoration: none; transition: border-color var(--dur-fast); }
+.overview-route-card:hover { border-color: var(--n-300); }
+.overview-route-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+.overview-route-heading { display: flex; align-items: center; gap: 12px; }
+.overview-route-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: calc(var(--r-card) - 8px); background: var(--fill-1); color: var(--label-2); }
+.overview-route-icon svg { width: 22px; height: 22px; }
+.overview-route-card h3 { font-size: 16.5px; font-weight: 600; line-height: 22px; }
+.overview-route-card p { color: var(--label-2); font-size: 14px; line-height: 22px; }
+.overview-route-action { margin-top: auto; }
+.overview-route-card:hover .overview-route-action { background: var(--fill-2); }
 
-.overview-table-wrap { overflow-x: auto; }
-.overview-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
-.overview-table th { color: var(--label-2); font-size: 11px; font-weight: 500; text-align: left; padding: 8px 8px 10px; border-bottom: 1px solid var(--stroke); white-space: nowrap; }
-.overview-table td { padding: 12px 8px; height: 64px; border-bottom: 1px solid var(--stroke); vertical-align: middle; }
-.overview-table th:first-child, .overview-table td:first-child { padding-left: 0; }
-.overview-table th:last-child, .overview-table td:last-child { padding-right: 0; }
-.overview-table th:first-child { width: 40%; }
-.overview-table .overview-city { width: 20%; color: var(--label-2); overflow-wrap: anywhere; }
-.overview-table th.overview-num { width: 15%; }
-.overview-table th.overview-sanctions { width: 10%; }
-.overview-table .overview-num { text-align: right; }
-.overview-table tbody tr:hover { background: var(--fill-1); }
-.overview-company a { display: block; color: var(--label-1); font-weight: 550; line-height: 19px; text-decoration: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.overview-company a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.overview-company > span { display: block; color: var(--label-2); font-size: 11px; line-height: 16px; margin-top: 3px; }
-.overview-vacancy-count { font-weight: 600; }
-.overview-sanction-count { color: var(--hostile); }
-.overview-table-foot { display: flex; justify-content: space-between; gap: 12px; padding-top: 12px; color: var(--label-2); font-size: 12px; }
-.overview-table .overview-empty { text-align: center; padding: 40px 12px; color: var(--label-2); }
-.overview-empty button { display: block; margin: 12px auto 0; background: transparent; border: 0; color: var(--label-1); text-decoration: underline; cursor: pointer; font: inherit; }
-
-.overview-aside { display: grid; gap: 28px; padding-left: 24px; border-left: 1px solid var(--stroke); }
-.overview-aside .overview-section-head { margin-bottom: 4px; }
-.overview-regions { list-style: none; padding: 0; margin: 10px 0 0; }
-.overview-regions a { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 10px 0 16px; color: var(--label-1); text-decoration: none; font-size: 12px; line-height: 18px; }
-.overview-regions span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.overview-regions a:hover span { text-decoration: underline; text-underline-offset: 3px; }
-.overview-regions b { font-weight: 500; }
-.overview-regions i { position: absolute; left: 0; bottom: 7px; height: 2px; background: var(--primary); }
-.overview-total { display: flex; flex-direction: column; gap: 1px; margin: 10px 0 12px; }
-.overview-total b { font-size: 24px; font-weight: 550; letter-spacing: -.02em; line-height: 30px; }
-.overview-total > span { font-size: 11px; color: var(--label-2); }
-.overview-sources, .overview-levels { font-size: 12px; }
-.overview-sources > div, .overview-levels > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 5px 0; }
-.overview-sources dt { color: var(--label-2); }
-.overview-sources dd, .overview-levels dd { flex: none; }
-.overview-level-bar { display: flex; gap: 2px; height: 5px; margin: 15px 0 9px; }
-.overview-levels dt { display: flex; align-items: baseline; gap: 7px; }
-.overview-levels dt > i { width: 6px; height: 6px; flex: none; }
-.overview-levels a { color: inherit; text-decoration: none; }
-.overview-levels a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.overview-coverage > .overview-section-note { margin-top: 12px; }
 .overview-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; border-top: 1px solid var(--stroke); padding-top: 14px; color: var(--label-2); font-size: 11px; line-height: 18px; }
 
 @media (max-width: 1100px) {
-  .overview-body { grid-template-columns: minmax(0, 1fr) 250px; gap: 20px; }
-  .overview-aside { padding-left: 18px; }
-  .overview-table .overview-sanctions { display: none; }
-  .overview-table th:first-child { width: 44%; }
-  .overview-table th.overview-num { width: 18%; }
   .overview-metrics dd { font-size: 25px; }
-  .overview-tools { flex-wrap: wrap; }
-  .overview-search { flex-basis: 220px; max-width: none; }
+}
+@media (max-width: 900px) {
+  .overview-route-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 780px) {
-  .overview-body { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-  .overview-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--stroke); gap: 24px; }
-  .overview-table .overview-sanctions { display: table-cell; }
-  .overview-table th:first-child { width: 40%; }
-  .overview-table th.overview-num { width: 15%; }
-  .overview-table th.overview-sanctions { width: 10%; }
   .overview-metrics > div { padding-left: 16px; padding-right: 16px; }
   .overview-metrics dd { font-size: 23px; }
 }
@@ -109,13 +56,7 @@
   .overview-metrics > div:nth-child(3) { border-left: 0; border-top: 1px solid var(--stroke); padding-left: 0; }
   .overview-metrics > div:nth-child(4) { border-top: 1px solid var(--stroke); }
   .overview-metrics dd { font-size: 26px; }
-  .overview-search { flex-basis: 100%; }
-  .overview-sort { height: 36px; }
-  .overview-table .overview-sanctions, .overview-table .overview-city { display: none; }
-  .overview-table th:first-child { width: 56%; }
-  .overview-table th.overview-num { width: 22%; font-size: 10px; }
-  .overview-table td { padding: 10px 6px; }
-  .overview-company > span { font-size: 11px; }
-  .overview-aside { grid-template-columns: minmax(0, 1fr); }
+  .overview-route-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .overview-route-card.panel { min-height: 200px; padding: 20px; }
   .overview-foot { flex-direction: column; gap: 8px; }
 }

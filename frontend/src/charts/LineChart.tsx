@@ -29,7 +29,7 @@ export function LineChart({ months, series, label, width: W = 640, height: H = 2
         ))}
       </g>
       {months.map((m, i) => (
-        <text key={m.getTime()} x={x(i)} y={H - 6} textAnchor="middle">{monthShort(m)}</text>
+        <text key={m.getTime()} x={x(i)} y={H - 6} textAnchor={i === n - 1 ? 'end' : 'middle'}>{monthShort(m)}</text>
       ))}
       {series.map((s, k) => {
         const d = s.values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')

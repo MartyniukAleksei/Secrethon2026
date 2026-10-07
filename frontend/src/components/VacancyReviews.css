@@ -1,0 +1,14 @@
+.review-badge.badge { height: auto; min-height: 26px; padding: 5px 10px; white-space: normal; line-height: 17px; }
+.review-badge svg { width: 14px; height: 14px; flex: none; }
+.review-status-list { padding: 0 10px; display: grid; gap: 12px; }
+.review-status-list p, .review-history p { color: var(--label-2); font-size: 12.5px; line-height: 19px; margin-top: 5px; overflow-wrap: anywhere; white-space: pre-line; }
+.review-editor, .review-history { margin: 12px 10px 0; padding-top: 8px; border-top: 1px solid var(--stroke); }
+.review-editor summary, .review-history summary { cursor: pointer; font-weight: 600; font-size: 13px; padding: 6px 0; }
+.review-editor form { display: grid; gap: 10px; padding-top: 8px; }
+.review-editor label { display: grid; gap: 6px; color: var(--label-2); font-size: 12.5px; }
+.review-editor .input { height: 36px; font-size: 13px; padding: 0 12px; }
+.review-editor textarea { resize: vertical; min-height: 76px; border: 1px solid var(--stroke); border-radius: 14px; background: var(--surface-sunken); color: var(--label-1); font: 13px/19px var(--ff-sans); padding: 10px 12px; }
+.review-editor textarea:focus-visible, .review-editor summary:focus-visible, .review-history summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.review-save-status { font-size: 12px; line-height: 18px; color: var(--label-2); }
+.review-history ol { display: grid; gap: 12px; padding: 8px 0 8px 18px; }
+.review-history li::marker { font-size: 12px; color: var(--label-3); }

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 Level = Literal["confirmed", "likely", "review", "no", "out_of_scope"]
 
@@ -13,6 +13,8 @@ class EmployerOut(BaseModel):
     name: str
     source: str
     inn: str | None
+    ogrn: str | None
+    kpp: str | None
     profile_url: str | None
     vpk_vacancies: int
     confirmed_vacancies: int
@@ -36,6 +38,29 @@ class MapPointOut(BaseModel):
     locality: str | None
     region_id: int | None
     vacancies: int
+
+
+class MapRelationOut(BaseModel):
+    company_id: int
+    related_id: int
+    kind: Literal["supplier", "parent"]
+    company_name: str
+    related_name: str
+    source: str
+    label: str | None
+    evidence_url: str | None
+    profile_url: str | None
+
+
+class MapCompanyTagsOut(BaseModel):
+    company_id: int
+    uav: bool
+    weapons: bool
+
+
+class MapNetworkOut(BaseModel):
+    relations: list[MapRelationOut]
+    company_tags: list[MapCompanyTagsOut]
 
 
 class MonthPoint(BaseModel):
@@ -92,9 +117,11 @@ class GurCompanyOut(BaseModel):
     name_full_ru: str | None
     inn: str | None
     ogrn: str | None
+    kpp: str | None
     address_uk: str | None
     description_uk: str | None
     products_uk: list[str] | None
+    activity_tags: list[str]
     website: str | None
     logo_url: str | None
     gur_url: str | None
@@ -135,6 +162,21 @@ class VacancyOut(BaseModel):
     category: str | None
 
 
+class VacancyReviewIn(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    source: Literal["human", "llm"]
+    confidence: Literal["high", "medium", "low"]
+    reviewed_by: str = Field(min_length=2, max_length=120)
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class VacancyReviewOut(VacancyReviewIn):
+    review_id: int
+    vacancy_id: int
+    reviewed_at: datetime
+
+
 class VacancyDetailOut(VacancyOut):
     address: str | None
     description: str | None
@@ -143,6 +185,9 @@ class VacancyDetailOut(VacancyOut):
     conditions: str | None
     skills_raw: str | None
     education: str | None
+    classifier_name: str
+    classifier_version: str | None
+    reviews: list[VacancyReviewOut]
 
 
 class VacancyPage(BaseModel):

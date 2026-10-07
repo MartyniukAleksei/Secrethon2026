@@ -92,10 +92,16 @@ async def get_vacancy(session: AsyncSession, vacancy_id: int) -> Row | None:
                 text(f"""
                     WITH {CTE}
                     SELECT {LIST_COLUMNS}, vac.address, vac.description, vac.responsibilities,
-                           vac.requirements, vac.conditions, vac.skills_raw, vac.education
+                           vac.requirements, vac.conditions, vac.skills_raw, vac.education,
+                           cr.classifier AS classifier_name, cr.version AS classifier_version
                     FROM v
                     JOIN vacancy vac USING (vacancy_id)
                     LEFT JOIN region r ON r.region_id = v.region_id
+                    JOIN LATERAL (
+                        SELECT run_id FROM vacancy_classification
+                        WHERE vacancy_id = v.vacancy_id ORDER BY run_id DESC LIMIT 1
+                    ) latest ON TRUE
+                    JOIN classifier_run cr ON cr.run_id = latest.run_id
                     WHERE v.vacancy_id = :id
                 """),
                 {"id": vacancy_id},

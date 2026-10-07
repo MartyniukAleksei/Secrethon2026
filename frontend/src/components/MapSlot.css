@@ -11,7 +11,7 @@
 .map-ph svg { width: 28px; height: 28px; color: var(--label-2); margin-bottom: 6px; }
 .map-ph h4 { font-size: 15px; font-weight: 600; }
 .map-ph p { font-size: 13px; color: var(--label-2); margin-top: 4px; }
-.map-tl { position: absolute; left: 12px; top: 12px; z-index: 3; }
+.map-tl { position: absolute; left: 12px; top: 12px; z-index: 3; display: grid; justify-items: start; gap: 8px; max-width: calc(100% - 24px); }
 .map-tl .segmented { background: var(--surface-raised); box-shadow: var(--shadow-control); }
 .map-tr { position: absolute; right: 12px; top: 12px; z-index: 3; display: flex; gap: 8px; }
 .map-tr .btn { background: var(--surface-raised); box-shadow: var(--shadow-control); }
@@ -25,3 +25,41 @@
 .map-orn .btn[aria-pressed="true"] { background: var(--selected); color: var(--selected-foreground); }
 .map-orn .btn-icon { width: 36px; padding: 0; font-size: 18px; }
 .map-orn .sep { width: 1px; height: 20px; background: var(--stroke); margin: 8px 4px; flex: none; }
+.map-layers { width: 300px; max-width: 100%; background: var(--surface-raised); border: 1px solid var(--stroke); border-radius: 16px; box-shadow: var(--shadow-control); }
+.map-layers > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 600; list-style: none; }
+.map-layers:not([open]) { width: auto; }
+.map-layers > summary::-webkit-details-marker { display: none; }
+.map-layers > summary::after { content: '+'; margin-left: auto; padding-left: 16px; }
+.map-layers[open] > summary::after { content: '−'; }
+.map-layers summary:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 12px; }
+.map-layers-body { padding: 0 10px 10px; max-height: min(380px, 55dvh); overflow-y: auto; }
+.map-layers-body > label, .map-layer-filters label { display: flex; gap: 8px; align-items: center; padding: 8px 0; font-size: 12.5px; cursor: pointer; }
+.map-layers input { accent-color: var(--accent-foreground); flex: none; }
+.map-layers svg { width: 16px; height: 16px; flex: none; }
+.map-layers small { margin-left: auto; white-space: nowrap; font-size: 11px; color: var(--label-2); }
+.map-line-key { display: inline-block; width: 16px; height: 3px; flex: none; border-radius: 2px; }
+.map-line-key.supply { background: #b45309; }
+.map-line-key.holdings { background: #2563eb; }
+.map-layer-note { font-size: 11px; line-height: 16px; color: var(--label-2); margin: 4px 0 6px; }
+.map-layer-note button { cursor: pointer; text-decoration: underline; }
+.map-layer-filters { border-top: 1px solid var(--stroke); margin-top: 8px; padding-top: 4px; }
+.map-layer-filters .map-specialization { display: grid; gap: 6px; cursor: default; }
+.map-specialization select { width: 100%; padding: 7px 8px; font: inherit; border: 1px solid var(--stroke); border-radius: 8px; color: var(--label-1); background: var(--surface); }
+.map-connections { border-top: 1px solid var(--stroke); margin-top: 8px; padding-top: 8px; font-size: 12px; }
+.map-connections summary { cursor: pointer; }
+.map-connections > div { display: grid; max-height: 180px; overflow-y: auto; margin-top: 6px; }
+.map-connections button { display: flex; gap: 8px; align-items: center; padding: 8px 4px; text-align: left; font: inherit; cursor: pointer; }
+.map-connections button:hover { background: var(--fill-1); }
+.map-connections button span { min-width: 0; overflow-wrap: anywhere; }
+.map-link-pop { position: absolute; top: 60px; right: 12px; width: 320px; max-width: calc(100% - 24px); max-height: calc(100% - 140px); overflow-y: auto; z-index: 5; border: 1px solid var(--stroke); border-radius: 16px; background: var(--surface-raised); box-shadow: var(--shadow-float); padding: 12px; font-size: 13px; }
+.map-link-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin-bottom: 10px; }
+.map-link-pop > a { display: block; overflow-wrap: anywhere; }
+.map-link-pop p { font-size: 11px; line-height: 16px; color: var(--label-2); margin-top: 10px; }
+.map-link-pop .map-link-label { font-size: 12px; font-weight: 600; color: var(--label-1); }
+.map-link-direction { display: block; margin: 4px 0; color: var(--label-2); }
+.map-link-pop .map-link-source { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; }
+@media (max-width: 600px) {
+  .map-layers-body { max-height: 260px; }
+  .map-link-pop { top: auto; bottom: 64px; max-height: 55%; }
+  .map-info { font-size: 11px; bottom: 68px; }
+}

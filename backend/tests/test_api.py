@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
@@ -32,6 +32,8 @@ def test_employers_only_vpk(client: TestClient) -> None:
     assert kbp["category"] == "производство"
     assert kbp["gur_company_id"] == 570
     assert kbp["sanctions_count"] == 2
+    assert kbp["ogrn"] == "1117154036911"
+    assert kbp["kpp"] == "710501001"
     # monthly RUB salaries: 75 000 (midpoint) and 60 000; the hh vacancy has no salary
     assert kbp["median_salary"] == 67500
 
@@ -46,6 +48,8 @@ def test_employer_detail_with_gur_card(client: TestClient) -> None:
         "category": None,
     }
     gur = detail["gur"]
+    # Tags belong to this company, not its UAV-producing parent.
+    assert gur["activity_tags"] == ["Озброєння"]
     assert gur["gur_url"].endswith("/rostec/1921")
     assert {s["jurisdiction"] for s in gur["sanctions"]} == {"US", "UA"}
     assert gur["relations"] == [
@@ -118,6 +122,40 @@ def test_employer_missing(client: TestClient) -> None:
     assert client.get("/api/employers/999").status_code == 404
 
 
+def test_map_network_preserves_relationships_and_sources(client: TestClient) -> None:
+    response = client.get("/api/employers/map-network")
+    assert response.status_code == 200  # must not be handled as an employer ID
+    data = response.json()
+    assert data["relations"] == [
+        {
+            "company_id": 570,
+            "related_id": 522,
+            "kind": "parent",
+            "company_name": 'АТ "КБП"',
+            "related_name": 'АТ "ВК"',
+            "source": "profile",
+            "label": None,
+            "evidence_url": None,
+            "profile_url": "https://war-sanctions.gur.gov.ua/rostec/1921",
+        },
+        {
+            "company_id": 522,
+            "related_id": 523,
+            "kind": "supplier",
+            "company_name": 'АТ "ВК"',
+            "related_name": "Постачальник без координат",
+            "source": "vpk_atlas",
+            "label": "Оптичні матеріали",
+            "evidence_url": "https://example.com/supplier-evidence",
+            "profile_url": None,
+        },
+    ]
+    assert data["company_tags"] == [
+        {"company_id": 522, "uav": True, "weapons": False},
+        {"company_id": 570, "uav": False, "weapons": True},
+    ]
+
+
 def test_vacancies_paging_and_filters(client: TestClient) -> None:
     page = client.get("/api/vacancies", params={"limit": 2}).json()
     assert page["total"] == 5
@@ -146,7 +184,7 @@ def test_professions(client: TestClient) -> None:
 
 
 def test_connection_is_read_only(client: TestClient) -> None:
-    # The app must not be able to write to the pipeline's database.
+    # Pipeline sessions stay read-only; reviews use a separate schema/connection.
     async def try_write() -> None:
         engine = make_engine(settings.database_url, poolclass=NullPool)
         try:
@@ -157,3 +195,91 @@ def test_connection_is_read_only(client: TestClient) -> None:
 
     with pytest.raises(DBAPIError, match="read-only"):
         asyncio.run(try_write())
+
+
+def test_vacancy_review_sources_start_empty(client: TestClient) -> None:
+    detail = client.get("/api/vacancies/1").json()
+    assert detail["classifier_name"] == "trudvsem_vpk_rules"
+    assert detail["classifier_version"] == "test"
+    assert detail["reviews"] == []
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"confidence": "certain"},
+        {"source": "rules"},
+        {"reviewed_by": "  "},
+        {"reviewed_by": "x" * 121},
+        {"comment": "x" * 2001},
+        {"review_id": 5},
+    ],
+)
+def test_review_validation(client: TestClient, patch: dict) -> None:
+    review = {"source": "human", "confidence": "high", "reviewed_by": "Analyst", **patch}
+    assert client.post("/api/vacancies/1/reviews", json=review).status_code == 422
+
+
+def test_human_and_llm_reviews_are_independent_and_persistent(client: TestClient) -> None:
+    human = client.post(
+        "/api/vacancies/1/reviews",
+        json={
+            "source": "human",
+            "confidence": "high",
+            "reviewed_by": " Analyst ",
+            "comment": " Checked company products ",
+        },
+    )
+    assert human.status_code == 201
+    assert human.json()["reviewed_by"] == "Analyst"
+    assert human.json()["comment"] == "Checked company products"
+    assert human.json()["reviewed_at"]
+    llm = client.post(
+        "/api/vacancies/1/reviews",
+        json={"source": "llm", "confidence": "medium", "reviewed_by": "test-model-v1"},
+    )
+    assert llm.status_code == 201
+    detail = client.get("/api/vacancies/1").json()
+    assert [(r["source"], r["confidence"]) for r in detail["reviews"]] == [
+        ("llm", "medium"),
+        ("human", "high"),
+    ]
+    # Adding a revision retains the old human review and the independent LLM result.
+    revision = client.post(
+        "/api/vacancies/1/reviews",
+        json={"source": "human", "confidence": "low", "reviewed_by": "Second analyst"},
+    )
+    assert revision.status_code == 201
+    detail = client.get("/api/vacancies/1").json()
+    assert [(r["source"], r["confidence"]) for r in detail["reviews"]] == [
+        ("human", "low"),
+        ("llm", "medium"),
+        ("human", "high"),
+    ]
+    assert detail["level"] == "confirmed"  # Pipeline classification is preserved.
+    assert client.get("/api/vacancies/2").json()["reviews"] == []
+    assert client.get("/api/stats").json()["vpk_vacancies"] == 5
+
+
+def test_review_requires_existing_active_vacancy(client: TestClient) -> None:
+    for vacancy_id in (99999, 7):
+        response = client.post(
+            f"/api/vacancies/{vacancy_id}/reviews",
+            json={"source": "human", "confidence": "high", "reviewed_by": "Analyst"},
+        )
+        assert response.status_code == 404
+
+
+def test_failed_review_does_not_report_success(client: TestClient, monkeypatch) -> None:
+    from app import reviews
+
+    async def fail(*args, **kwargs):
+        raise SQLAlchemyError("storage unavailable")
+
+    monkeypatch.setattr(reviews, "save_review", fail)
+    response = client.post(
+        "/api/vacancies/2/reviews",
+        json={"source": "human", "confidence": "high", "reviewed_by": "Analyst"},
+    )
+    assert response.status_code == 503
+    assert client.get("/api/vacancies/2").json()["reviews"] == []

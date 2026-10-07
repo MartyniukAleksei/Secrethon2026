@@ -14,6 +14,7 @@
 .prof-stats dd { margin: 4px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
 
 .prof-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; margin-top: 14px; align-items: start; }
+.prof-body > div { min-width: 0; }
 .prof-tabs { margin-bottom: 12px; }
 .prof-tabs .tab { text-decoration: none; }
 .prof-map { height: 560px; display: flex; }
@@ -28,12 +29,10 @@
 .facts-address dd { min-width: 0; overflow-wrap: anywhere; line-height: 21px; }
 .facts-location dd { display: grid; gap: 4px; }
 .location-source { font-size: 12px; font-weight: 500; color: var(--label-2); }
-.hiring-more { margin: 0 6px; border-top: 1px solid var(--stroke); }
-.hiring-more summary { cursor: pointer; padding: 12px 6px; font-size: 14px; font-weight: 600; color: var(--accent-foreground); border-radius: 8px; }
+.hiring-more { margin: 12px 6px 6px; }
+.hiring-more summary { cursor: pointer; padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--label-1); background: var(--fill-1); border: 1px solid var(--stroke); border-radius: var(--r-card); }
 .hiring-more summary:hover { background: var(--fill-1); }
 .hiring-more summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.hiring-more-hide, .hiring-more[open] .hiring-more-show { display: none; }
-.hiring-more[open] .hiring-more-hide { display: inline; }
 
 .ask-list { display: grid; gap: 6px; padding: 4px 6px 6px; }
 .ask-q { all: unset; box-sizing: border-box; cursor: pointer; padding: 10px 12px; border-radius: 14px; background: var(--fill-1); font-size: 13.5px; font-weight: 500; line-height: 19px; display: flex; gap: 8px; align-items: flex-start; }
@@ -42,6 +41,13 @@
 .ask-q:focus-visible { outline: 2px solid var(--ring); }
 
 .prose-block { padding: 6px 10px 10px; font-size: 15px; line-height: 23px; color: var(--label-1); max-width: 72ch; font-weight: 450; }
+.prof-overview, .prof-analytics, .prof-relations { display: grid; gap: 12px; min-width: 0; }
+.activity-tags { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 10px 12px; margin: 0; }
+.activity-tags .badge { height: auto; min-height: 30px; padding: 6px 12px; white-space: normal; overflow-wrap: anywhere; line-height: 18px; font-size: 13px; font-weight: 500; }
+.analytics-note { padding: 10px; font-size: 12.5px; line-height: 19px; color: var(--label-2); }
+.salary-bars .bar-row { grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto; }
+.salary-bars .bar-row b { min-width: 88px; white-space: nowrap; }
+.prof-analytics .panel-head { flex-wrap: wrap; }
 .chain-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .chain-cols .chain-row { background: var(--surface-raised); }
 .chain-col-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
@@ -62,3 +68,8 @@
 .relation-groups { display: grid; gap: 10px; }
 .relation-groups .chain-row { background: var(--surface-raised); }
 .facts dd a { color: inherit; }
+.facts .fact-missing { font-weight: 450; color: var(--label-3); }
+.facts dd a svg { width: 12px; height: 12px; margin-left: 4px; vertical-align: -1px; }
+@media (max-width: 540px) {
+  .prof-analytics .bar-row { grid-template-columns: minmax(0, 110px) minmax(0, 1fr) auto; gap: 8px; }
+}

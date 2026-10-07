@@ -34,6 +34,41 @@ async def list_employers(session: AsyncSession) -> list[Row]:
     return [dict(r) for r in result.mappings()]
 
 
+async def map_network(session: AsyncSession) -> Row:
+    """Profile relationships and product tags; coordinates stay vacancy-derived."""
+    relations = await session.execute(
+        text("""
+            SELECT e.company_id, e.related_id, e.kind,
+                   coalesce(c.name_short_uk, c.name_full_uk) AS company_name,
+                   coalesce(r.name_short_uk, r.name_full_uk) AS related_name,
+                   e.source, e.label, e.evidence_url,
+                   (SELECT s.url_uk FROM company_section s WHERE s.company_id = e.company_id
+                    ORDER BY s.section LIMIT 1) AS profile_url
+            FROM company_edge e
+            JOIN company c ON c.company_id = e.company_id
+            JOIN company r ON r.company_id = e.related_id
+            WHERE e.kind IN ('supplier', 'parent')
+            ORDER BY e.kind, e.company_id, e.related_id
+        """)
+    )
+    tags = await session.execute(
+        text("""
+            WITH tagged AS (
+                SELECT c.company_id,
+                       EXISTS (SELECT 1 FROM company_uav_model u WHERE u.company_id = c.company_id) AS uav,
+                       EXISTS (SELECT 1 FROM company_weapon w WHERE w.company_id = c.company_id)
+                       OR EXISTS (SELECT 1 FROM company_weapon_component p WHERE p.company_id = c.company_id) AS weapons
+                FROM company c
+            )
+            SELECT * FROM tagged WHERE uav OR weapons ORDER BY company_id
+        """)
+    )
+    return {
+        "relations": [dict(r) for r in relations.mappings()],
+        "company_tags": [dict(r) for r in tags.mappings()],
+    }
+
+
 async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
     result = await session.execute(text(EMPLOYER_SELECT + " WHERE a.id = :id"), {"id": employer_id})
     row = result.mappings().first()
@@ -124,7 +159,15 @@ async def _gur_company(session: AsyncSession, company_id: int | None) -> Row | N
             await session.execute(
                 text("""
                     SELECT c.company_id, coalesce(c.name_short_uk, c.name_full_uk) AS name, c.name_full_uk,
-                           c.name_full_ru, c.inn, c.ogrn, c.address_uk, c.description_uk, c.products_uk,
+                           c.name_full_ru, c.inn, c.ogrn, c.kpp, c.address_uk, c.description_uk, c.products_uk,
+                           array_remove(ARRAY[
+                               CASE WHEN EXISTS (SELECT 1 FROM company_uav_model u WHERE u.company_id = c.company_id)
+                                    THEN 'БпЛА' END,
+                               CASE WHEN EXISTS (SELECT 1 FROM company_weapon w WHERE w.company_id = c.company_id)
+                                    THEN 'Озброєння' END,
+                               CASE WHEN EXISTS (SELECT 1 FROM company_weapon_component p WHERE p.company_id = c.company_id)
+                                    THEN 'Компоненти озброєння' END
+                           ], NULL) AS activity_tags,
                            c.website, c.logo_url, c.sanctions_count, c.sanctions_count_intl,
                            (SELECT url_uk FROM company_section s WHERE s.company_id = c.company_id
                             ORDER BY s.section LIMIT 1) AS gur_url

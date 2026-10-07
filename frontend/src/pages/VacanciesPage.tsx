@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { api, type VacancyQuery } from '../api/client'
 import { AskButton } from '../components/AskButton'
 import { FilterBar } from '../components/FilterBar'
@@ -6,7 +6,6 @@ import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
 import { ago, fmt, money, plural, salaryRange } from '../domain/format'
 import { experienceName } from '../domain/labels'
-import { useVacancyDrawer } from '../features/vacancy/VacancyDrawerContext'
 import { useDebounced } from '../hooks/useDebounced'
 import { useFilters } from '../state/FiltersContext'
 import { CategoryBadge, LevelBadge } from '../ui/badges'
@@ -75,7 +74,7 @@ type Update = (patch: Record<string, string | null>, keepPage?: boolean) => void
 
 function Listings({ base, params, update }: { base: VacancyQuery; params: URLSearchParams; update: Update }) {
   const { asOf } = useData()
-  const { open } = useVacancyDrawer()
+  const navigate = useNavigate()
   const qInput = params.get('q') ?? ''
   const q = useDebounced(qInput)
   const title = params.get('prof') ?? undefined
@@ -128,8 +127,8 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
                 <tr><td colSpan={7}><p className="empty-row">Нічого не знайдено. Зміни пошук, період або регіон.</p></td></tr>
               )}
               {data?.items.map((v) => (
-                <tr key={v.id} className="clickable" onClick={() => open(v.id)}>
-                  <td className="wrap"><b>{v.title}</b></td>
+                <tr key={v.id} className="clickable" onClick={() => navigate(`/vacancies/${v.id}`)}>
+                  <td className="wrap"><Link className="vacancy-title-link" to={`/vacancies/${v.id}`} onClick={(event) => event.stopPropagation()}><b>{v.title}</b></Link></td>
                   <td className="wrap">{v.employer_name}</td>
                   <td>{v.locality ?? '—'}</td>
                   <td className="num">{salaryRange(v) ?? '—'}</td>

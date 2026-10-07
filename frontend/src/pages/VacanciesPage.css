@@ -3,3 +3,7 @@
 .vac-bar .search { flex: 1 1 260px; }
 .vac-bar .select { width: 230px; }
 table.data td.wrap { white-space: normal; min-width: 160px; max-width: 320px; }
+.vacancy-title-link { color: inherit; text-decoration: none; }
+.vacancy-title-link:hover { text-decoration: underline; }
+.vacancy-title-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
+.vac-row { text-decoration: none; }

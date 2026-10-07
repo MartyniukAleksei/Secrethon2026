@@ -20,9 +20,9 @@ export function Header({ section }: { section: Section }) {
 
   return (
     <header className="header">
-      <Link className="brand" to="/" aria-label="OSINT ВПК РФ, на головну">
+      <Link className="brand" to="/" aria-label="StayHard, на головну">
         <i className="brand-mark" />
-        <span>OSINT ВПК</span>
+        <span>StayHard</span>
       </Link>
       <nav className="nav" aria-label="Розділи">
         {NAV.map((n) => (

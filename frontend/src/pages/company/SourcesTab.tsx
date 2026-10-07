@@ -9,8 +9,6 @@ const ext = (href: string | null | undefined, label: string) =>
     '—'
   )
 
-const VISIBLE_HIRING_LOCATIONS = 3
-
 function HiringLocation({ place }: { place: TabProps['employer']['hiring_locations'][number] }) {
   return (
     <div className="facts-address facts-location">
@@ -27,7 +25,6 @@ export function SourcesTab({ employer: e }: TabProps) {
   const gur = e.gur
   const companyAddress = gur?.address_uk?.trim()
   const hiringLocations = e.hiring_locations ?? []
-  const extraLocations = hiringLocations.slice(VISIBLE_HIRING_LOCATIONS)
   return (
     <>
       <div className="panel">
@@ -46,21 +43,15 @@ export function SourcesTab({ employer: e }: TabProps) {
             </div>
           )}
           <div><dt>Сайт підприємства</dt><dd>{ext(gur?.website, gur?.website?.replace(/^https?:\/\//, '').slice(0, 40) ?? '')}</dd></div>
-          {hiringLocations.slice(0, VISIBLE_HIRING_LOCATIONS).map((place) => (
-            <HiringLocation key={place.vacancy_id} place={place} />
-          ))}
         </dl>
-        {extraLocations.length > 0 && (
-          <details key={e.id} className="hiring-more">
-            <summary>
-              <span className="hiring-more-show">Показати ще місця найму ({extraLocations.length})</span>
-              <span className="hiring-more-hide">Згорнути місця найму</span>
-            </summary>
+        <details key={e.id} className="hiring-more">
+          <summary>Місце найму ({hiringLocations.length})</summary>
+          {hiringLocations.length > 0 ? (
             <dl className="facts">
-              {extraLocations.map((place) => <HiringLocation key={place.vacancy_id} place={place} />)}
+              {hiringLocations.map((place) => <HiringLocation key={place.vacancy_id} place={place} />)}
             </dl>
-          </details>
-        )}
+          ) : <p className="empty-row">Місця найму не зібрано.</p>}
+        </details>
       </div>
       {gur && gur.sanctions.length > 0 && (
         <div className="panel" style={{ marginTop: 12 }}>

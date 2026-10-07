@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.api.deps import Session
-from app.api.schemas import EmployerDetailOut, EmployerOut, MapPointOut
+from app.api.schemas import EmployerDetailOut, EmployerOut, MapNetworkOut, MapPointOut
 from app.repository import employers
 from app.repository.cache import cache
 
@@ -24,6 +24,14 @@ async def map_points(session: Session) -> list[MapPointOut]:
         return [MapPointOut.model_validate(r) for r in await employers.map_points(session)]
 
     return await cache.get_or_load("map-points", load)
+
+
+@router.get("/map-network")
+async def map_network(session: Session) -> MapNetworkOut:
+    async def load() -> MapNetworkOut:
+        return MapNetworkOut.model_validate(await employers.map_network(session))
+
+    return await cache.get_or_load("map-network", load)
 
 
 @router.get("/{employer_id}")

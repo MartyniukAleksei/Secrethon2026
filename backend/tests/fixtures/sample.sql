@@ -14,6 +14,7 @@ INSERT INTO employer_profile (employer_profile_id, source, external_id, name, ur
   (1, 'trudvsem', 'e1', 'АО "КБП"', 'https://trudvsem.ru/company/1', '7105514574', '2026-10-05T00:00:00Z', '2026-10-05T00:00:00Z'),
   (2, 'hh', 'e2', 'Алабуга. Менеджмент', NULL, NULL, '2026-10-05T00:00:00Z', '2026-10-05T00:00:00Z'),
   (3, 'hh', 'e3', 'Пекарня', NULL, NULL, '2026-10-05T00:00:00Z', '2026-10-05T00:00:00Z');
+UPDATE employer_profile SET ogrn = '1117154036911', kpp = '710501001' WHERE employer_profile_id = 1;
 
 -- region_id is set only on trudvsem rows; the hh vacancy in Тула gets its region from them.
 INSERT INTO vacancy (vacancy_id, source, external_id, url, employer_profile_id, employer_name, title, region_id, locality,
@@ -63,3 +64,14 @@ INSERT INTO company_section (company_id, section, url_uk) VALUES (570, 'rostec',
 INSERT INTO company_sanction (company_id, jurisdiction, is_sanctioned, listed_on) VALUES
   (570, 'US', true, '2022-06-02'), (570, 'UA', true, NULL), (522, 'US', true, NULL);
 INSERT INTO company_edge (company_id, related_id, kind) VALUES (570, 522, 'parent');
+
+-- The map keeps sourced relationships even when an endpoint has no vacancy coordinates.
+INSERT INTO company (company_id, name_full_uk, country_id, address_uk)
+VALUES (523, 'Постачальник без координат', 1, 'м. Москва');
+INSERT INTO company_edge (company_id, related_id, kind, source, label, evidence_url)
+VALUES (522, 523, 'supplier', 'vpk_atlas', 'Оптичні матеріали', 'https://example.com/supplier-evidence');
+INSERT INTO uav_model (uav_model_id, slug, url_uk, name_uk)
+VALUES (1, 'test-uav', 'https://example.com/uav', 'Тестовий БПЛА');
+INSERT INTO company_uav_model (company_id, uav_model_id) VALUES (522, 1);
+INSERT INTO weapon (weapon_slug, url) VALUES ('test-weapon', 'https://example.com/weapon');
+INSERT INTO company_weapon (company_id, weapon_slug) VALUES (570, 'test-weapon');

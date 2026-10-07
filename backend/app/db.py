@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import (
 from app.config import settings
 
 
-# The database belongs to the data pipeline; this service only reads it.
-# Every session is read-only on the server side, so even a buggy query cannot write.
+# Pipeline sessions are read-only on the server side, so even a buggy query cannot write.
+# app.reviews uses a separate connection to append reviews in the web_reviews schema.
 def make_engine(url: str, **kwargs: Any) -> AsyncEngine:
     return create_async_engine(
         url,

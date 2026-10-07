@@ -1,0 +1,20 @@
+.vacancy-loading, .vacancy-content { display: grid; gap: 12px; }
+.vacancy-loading .skeleton { height: 300px; border-radius: var(--r-window); }
+.vacancy-head .place { margin-top: 6px; }
+.vacancy-head .place a { color: inherit; }
+.vacancy-head .logo-tile { align-self: flex-start; }
+.vacancy-stats { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; padding: 16px 8px 8px; }
+.vacancy-stats .card { padding: 12px 14px; }
+.vacancy-stats dt { font-size: 12.5px; color: var(--label-2); }
+.vacancy-stats dd { margin: 5px 0 0; font-size: 17px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
+.vacancy-text { white-space: pre-line; overflow-wrap: anywhere; }
+.vacancy-employer > p { padding: 0 10px 12px; font-size: 14px; font-weight: 500; }
+.vacancy-employer > .btn { margin: 0 10px 8px; }
+.vacancy-classification { display: grid; justify-items: start; gap: 8px; padding: 0 10px 8px; }
+@media (max-width: 700px) {
+  .vacancy-stats { grid-template-columns: 1fr 1fr; }
+  .vacancy-stats > div:first-child { grid-column: 1 / -1; }
+  .vacancy-head .prof-id { padding: 0 8px; }
+  .vacancy-head .prof-id .grow { flex-basis: 100%; padding-top: 0; }
+  .vacancy-head .prof-id h1 { font-size: 23px; line-height: 29px; }
+}

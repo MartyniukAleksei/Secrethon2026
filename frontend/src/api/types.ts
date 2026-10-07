@@ -15,6 +15,23 @@ export type ApiMapPoint = {
   vacancies: number
 }
 
+export type ApiMapRelation = {
+  company_id: number
+  related_id: number
+  kind: 'supplier' | 'parent'
+  company_name: string
+  related_name: string
+  source: string
+  label: string | null
+  evidence_url: string | null
+  profile_url: string | null
+}
+
+export type ApiMapNetwork = {
+  relations: ApiMapRelation[]
+  company_tags: { company_id: number; uav: boolean; weapons: boolean }[]
+}
+
 export type ApiStats = {
   as_of: string | null
   vacancies: number
@@ -39,6 +56,8 @@ export type ApiEmployer = {
   name: string
   source: string
   inn: string | null
+  ogrn: string | null
+  kpp: string | null
   profile_url: string | null
   vpk_vacancies: number
   confirmed_vacancies: number
@@ -72,9 +91,11 @@ export type ApiGurCompany = {
   name_full_ru: string | null
   inn: string | null
   ogrn: string | null
+  kpp: string | null
   address_uk: string | null
   description_uk: string | null
   products_uk: string[] | null
+  activity_tags: string[]
   website: string | null
   logo_url: string | null
   gur_url: string | null
@@ -139,6 +160,22 @@ export type ApiVacancyDetail = ApiVacancy & {
   conditions: string | null
   skills_raw: string | null
   education: string | null
+  classifier_name: string
+  classifier_version: string | null
+  reviews: ApiVacancyReview[]
+}
+
+export type ReviewConfidence = 'high' | 'medium' | 'low'
+export type ApiVacancyReviewInput = {
+  source: 'human' | 'llm'
+  confidence: ReviewConfidence
+  reviewed_by: string
+  comment: string | null
+}
+export type ApiVacancyReview = ApiVacancyReviewInput & {
+  review_id: number
+  vacancy_id: number
+  reviewed_at: string
 }
 
 export type ApiVacancyPage = { total: number; items: ApiVacancy[] }

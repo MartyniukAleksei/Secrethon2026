@@ -6,9 +6,8 @@ import { MapSlot } from '../components/MapSlot'
 import { EmployerRow } from '../components/rows'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
-import { categoryOf } from '../domain/labels'
 import { useFilters } from '../state/FiltersContext'
-import { EmployerFlags } from '../ui/badges'
+import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { Icon } from '../ui/Icon'
 import './MapPage.css'
 
@@ -31,7 +30,7 @@ export function MapPage() {
       <div className="page-head">
         <div>
           <h1>Карта</h1>
-          <p>Місця найму за координатами вакансій. Обери роботодавця в списку або натисни позначку на карті.</p>
+          <p>Місця найму, постачання та холдинги. Увімкни потрібні шари на карті або обери роботодавця.</p>
         </div>
         <FilterBar period={false} />
       </div>
@@ -61,16 +60,15 @@ export function MapPage() {
               <div className="map-pop" role="dialog" aria-label={sel.name}>
                 <div className="pop-top">
                   <Link className="btn btn-secondary btn-icon btn-sm" to="/map" aria-label="Закрити"><Icon name="x" /></Link>
-                  <span className="kind">{categoryOf(sel.category).name}</span>
                 </div>
                 <h4>{sel.name}</h4>
                 <p className="place"><Icon name="pin" />{[sel.locality, sel.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>
-                <div className="badges"><EmployerFlags employer={sel} /></div>
                 <dl className="stats" style={{ marginTop: 12 }}>
                   <div><dt>Вакансій ВПК</dt><dd>{fmt(sel.vpk_vacancies)}</dd></div>
                   <div><dt>Медіана</dt><dd>{money(sel.median_salary)}</dd></div>
                   <div><dt>Нових за 30 днів</dt><dd>{fmt(sel.new_30d)}</dd></div>
                 </dl>
+                <EmployerBadgeGroups employer={sel} />
                 <div className="map-pop-actions">
                   <AskButton question={`Розкажи коротко про ${sel.name}`} />
                   <Link className="btn btn-primary btn-sm" to={`/companies/${sel.id}`}>Відкрити профіль</Link>

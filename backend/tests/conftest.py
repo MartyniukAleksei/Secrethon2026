@@ -42,7 +42,10 @@ async def _reset_database() -> None:
         await admin.close()
     conn = await asyncpg.connect(url)
     try:
-        await conn.execute("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+        await conn.execute(
+            "DROP SCHEMA IF EXISTS web_reviews CASCADE; "
+            "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+        )
         await conn.execute((ROOT / "db" / "schema.sql").read_text(encoding="utf-8"))
         await conn.execute("SET search_path = public")
         await conn.execute((ROOT / "tests" / "fixtures" / "sample.sql").read_text(encoding="utf-8"))

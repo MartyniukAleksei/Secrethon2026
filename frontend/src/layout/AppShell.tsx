@@ -6,7 +6,6 @@ import { useAgent } from '../features/agent/AgentContext'
 import { AgentPanel } from '../features/agent/AgentPanel'
 import { CommandPalette } from '../features/palette/CommandPalette'
 import { PaletteContext } from '../features/palette/PaletteContext'
-import { useVacancyDrawer } from '../features/vacancy/VacancyDrawerContext'
 import { Header } from './Header'
 import './AppShell.css'
 
@@ -18,7 +17,6 @@ export function AppShell() {
   const page = usePageContext()
   const { byId } = useData()
   const agent = useAgent()
-  const drawer = useVacancyDrawer()
   // null = closed, string = open with this initial query
   const [palette, setPalette] = useState<string | null>(null)
   const openPalette = useCallback((query = '') => setPalette(query), [])
@@ -35,7 +33,7 @@ export function AppShell() {
 
   const company = page.companyId ? byId[page.companyId] : undefined
   useEffect(() => {
-    document.title = `${company ? `${company.name}, ` : ''}${page.label} | OSINT ВПК РФ`
+    document.title = `${company ? `${company.name}, ` : ''}${page.label} | StayHard`
   }, [company, page.label])
 
   useEffect(() => {
@@ -46,7 +44,6 @@ export function AppShell() {
       } else if (e.key === 'Escape') {
         // Close the topmost layer only.
         if (palette != null) setPalette(null)
-        else if (drawer.openId != null) drawer.close()
         else if (agent.isOpen) agent.close()
       } else if (e.key === '/' && !isTyping(document.activeElement)) {
         e.preventDefault()
@@ -55,7 +52,7 @@ export function AppShell() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [palette, drawer, agent])
+  }, [palette, agent])
 
   return (
     <PaletteContext.Provider value={openPalette}>

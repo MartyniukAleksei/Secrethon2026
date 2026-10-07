@@ -82,7 +82,7 @@ agg AS (
 
 EMPLOYER_SELECT = f"""
 WITH {CTE}, {GUR_BY_INN}, {EMPLOYER_AGG}
-SELECT a.*, ep.name, ep.source, ep.inn, ep.url AS profile_url, r.name AS region,
+SELECT a.*, ep.name, ep.source, ep.inn, ep.ogrn, ep.kpp, ep.url AS profile_url, r.name AS region,
        g.company_id AS gur_company_id, g.name AS gur_name, coalesce(g.sanctions_count, 0) AS sanctions_count
 FROM agg a
 JOIN employer_profile ep ON ep.employer_profile_id = a.id

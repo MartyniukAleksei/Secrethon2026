@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import router
 from app.db import engine
+from app.reviews import engine as review_engine
 
 # Built frontend (frontend/dist). In Docker it is copied to /app/static.
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
@@ -20,6 +21,7 @@ STATIC_DIR = Path(os.getenv("STATIC_DIR", DEFAULT_STATIC_DIR))
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
     await engine.dispose()
+    await review_engine.dispose()
 
 
 app = FastAPI(title="Secrethon 2026 API", lifespan=lifespan)

@@ -11,6 +11,7 @@
 
 @media (max-width: 900px) {
   .map-page { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .map-list .scroll { max-height: 260px; }
   .map-page .map-slot { min-height: 480px; }
   .map-pop { left: 10px; right: 10px; width: auto; top: auto; bottom: 64px; max-height: 60%; }
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams } from 'react-router'
 import { api } from '../../api/client'
 import { seedOf } from '../../charts/geometry'
 import { Topo } from '../../charts/Topo'
@@ -11,13 +11,13 @@ import { fmt, longDate, money } from '../../domain/format'
 import { categoryOf, sourceName } from '../../domain/labels'
 import type { EmployerDetail } from '../../domain/types'
 import { useAgent } from '../../features/agent/AgentContext'
-import { CategoryBadge, EmployerFlags } from '../../ui/badges'
+import { EmployerBadgeGroups } from '../../ui/EmployerBadgeGroups'
 import { CompanyMark } from '../../ui/CompanyMark'
 import { Icon } from '../../ui/Icon'
 import { NotFoundPage } from '../NotFoundPage'
+import { AnalyticsTab } from './AnalyticsTab'
 import { OverviewTab } from './OverviewTab'
 import { RelationsTab } from './RelationsTab'
-import { SalariesTab } from './SalariesTab'
 import { SourcesTab } from './SourcesTab'
 import { VacanciesTab } from './VacanciesTab'
 import './CompanyPage.css'
@@ -27,7 +27,7 @@ export type TabProps = { employer: EmployerDetail }
 const TABS: { id: string; label: string; render: (p: TabProps) => ReactNode }[] = [
   { id: 'overview', label: 'Огляд', render: (p) => <OverviewTab {...p} /> },
   { id: 'vacancies', label: 'Вакансії', render: (p) => <VacanciesTab {...p} /> },
-  { id: 'salaries', label: 'Зарплати', render: (p) => <SalariesTab {...p} /> },
+  { id: 'analytics', label: 'Аналітика', render: (p) => <AnalyticsTab {...p} /> },
   { id: 'chain', label: "Зв'язки", render: (p) => <RelationsTab {...p} /> },
   {
     id: 'map',
@@ -47,6 +47,9 @@ export function CompanyPage() {
   const current = TABS.find((t) => t.id === tab)
   const state = useApi(`employer:${employerId}`, (signal) => api.employer(employerId, signal))
 
+  if (Number.isInteger(employerId) && tab === 'salaries') {
+    return <Navigate to={`/companies/${employerId}/analytics`} replace />
+  }
   if (!Number.isInteger(employerId) || !current) return <NotFoundPage />
   if (state.status === 'error') return <NotFoundPage />
   if (state.status === 'loading') {
@@ -65,6 +68,8 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
   const { ask } = useAgent()
   const gur = e.gur
   const address = gur?.address_uk?.trim()
+  const ogrn = e.ogrn ?? gur?.ogrn
+  const kpp = e.kpp ?? gur?.kpp
   const similar = employers.filter((x) => x.id !== e.id && x.category === e.category && x.region_id === e.region_id).slice(0, 5)
   const quick = [`Кого наймає ${e.name}?`, `Хто пов'язаний з ${e.name}?`, `Які зарплати в ${e.name}?`]
 
@@ -100,9 +105,8 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
             </button>
           </div>
         </div>
-        <div className="badges prof-badges">
-          <CategoryBadge category={e.category} />
-          <EmployerFlags employer={e} />
+        <div className="prof-employer-badges">
+          <EmployerBadgeGroups employer={e} />
         </div>
         <dl className="prof-stats">
           <div className="card"><dt>Вакансій ВПК</dt><dd>{fmt(e.vpk_vacancies)}</dd></div>
@@ -135,7 +139,13 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
               <div><dt>Регіон</dt><dd>{e.region ?? '—'}</dd></div>
               {address && <div className="facts-address"><dt>Місце підприємства</dt><dd>{address}</dd></div>}
               <div><dt>ІПН</dt><dd>{e.inn ?? gur?.inn ?? '—'}</dd></div>
-              {gur?.ogrn && <div><dt>ОДРН</dt><dd>{gur.ogrn}</dd></div>}
+              {ogrn && <div><dt>ОДРН</dt><dd>{ogrn}</dd></div>}
+              {kpp && <div><dt>КПП</dt><dd>{kpp}</dd></div>}
+              <div><dt>Телефон</dt><dd className="fact-missing">Не зібрано</dd></div>
+              <div><dt>Email</dt><dd className="fact-missing">Не зібрано</dd></div>
+              <div><dt>Контактна особа</dt><dd className="fact-missing">Не зібрано</dd></div>
+              {gur?.website && <div className="facts-address"><dt>Вебресурс</dt><dd><a href={gur.website} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
+              {e.profile_url && <div><dt>Профіль роботодавця</dt><dd><a href={e.profile_url} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
               <div><dt>Джерело</dt><dd>{sourceName(e.source)}</dd></div>
               <div><dt>Остання вакансія</dt><dd>{e.last_published_at ? longDate(e.last_published_at) : '—'}</dd></div>
               <div><dt>Дані на</dt><dd>{longDate(asOf)}</dd></div>

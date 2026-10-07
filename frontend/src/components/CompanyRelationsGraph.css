@@ -1,0 +1,20 @@
+.relation-graph-panel .panel-head { flex-wrap: wrap; }
+.graph-controls { gap: 6px; }
+.graph-controls > span { min-width: 40px; text-align: center; color: var(--label-2); font-size: 12px; }
+.relation-graph-filters { padding: 0 10px 12px; }
+.relation-graph-filters .chip { height: 30px; font-size: 12.5px; padding: 0 12px; }
+.relation-graph-viewport { min-width: 0; max-width: 100%; overflow: auto; max-height: 540px; border: 1px solid var(--stroke); border-radius: var(--r-card); background: var(--surface-sunken); }
+.relation-graph-viewport:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.relation-graph-surface { position: relative; transform-origin: 0 0; }
+.relation-graph-surface > svg { position: absolute; inset: 0; }
+.relation-graph-node { position: absolute; display: flex; flex-direction: column; justify-content: center; width: 260px; height: 94px; padding: 10px 16px; border: 1px solid var(--stroke); border-radius: 18px; background: var(--surface-raised); box-shadow: var(--shadow-control); color: var(--label-1); text-decoration: none; }
+.relation-graph-node.current { background: var(--selected); color: var(--selected-foreground); }
+.relation-graph-node > span { font-size: 11.5px; line-height: 16px; opacity: .75; }
+.relation-graph-node b { font-size: 14px; line-height: 18px; font-weight: 600; margin: 3px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.relation-graph-node small { font-size: 11px; line-height: 16px; opacity: .75; }
+.relation-graph-node svg { position: absolute; width: 15px; height: 15px; right: 5px; top: 39px; }
+a.relation-graph-node:hover { border-color: var(--label-3); background: var(--fill-1); }
+a.relation-graph-node:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.relation-graph-footer { padding: 10px 10px 2px; }
+@media (max-width: 540px) { .relation-graph-viewport { max-height: 420px; } }
+.relation-graph-panel { min-width: 0; }

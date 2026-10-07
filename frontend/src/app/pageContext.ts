@@ -16,6 +16,7 @@ export function usePageContext(): PageContext {
   if (pathname === '/companies') return { label: 'Каталог підприємств', section: 'companies' }
   if (pathname === '/vacancies/professions') return { label: 'Професії', section: 'vacancies' }
   if (pathname === '/vacancies') return { label: 'Вакансії', section: 'vacancies' }
+  if (matchPath('/vacancies/:id', pathname)) return { label: 'Вакансія', section: 'vacancies' }
   if (matchPath('/regions/:id', pathname)) return { label: 'Регіон', section: 'map' }
   if (pathname === '/methodology') return { label: 'Про дані', section: 'methodology' }
   return { label: 'Огляд', section: '' }

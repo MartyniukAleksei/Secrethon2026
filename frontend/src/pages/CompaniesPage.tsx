@@ -6,7 +6,7 @@ import { fmt, money, plural } from '../domain/format'
 import { CATEGORIES } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { useFilters } from '../state/FiltersContext'
-import { CategoryBadge, EmployerFlags } from '../ui/badges'
+import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { CompanyTile } from '../ui/CompanyMark'
 import { Icon } from '../ui/Icon'
 import './CompaniesPage.css'
@@ -136,10 +136,7 @@ export function CompaniesPage() {
                       <div><dt>Медіана</dt><dd>{money(e.median_salary)}</dd></div>
                       <div><dt>Нових за 30 днів</dt><dd>{fmt(e.new_30d)}</dd></div>
                     </dl>
-                    <div className="badges">
-                      {e.category && <CategoryBadge category={e.category} />}
-                      <EmployerFlags employer={e} />
-                    </div>
+                    <EmployerBadgeGroups employer={e} />
                   </div>
                 </Link>
               ))
