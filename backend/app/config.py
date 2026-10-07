@@ -8,6 +8,10 @@ class Settings(BaseSettings):
 
     # Railway injects DATABASE_URL; locally it comes from backend/.env (see .env.example).
     database_url: str = "postgresql://postgres:postgres@localhost:5432/secrethon"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
+    tavily_api_key: str = ""
+    agent_enabled: bool = True
 
     @field_validator("database_url")
     @classmethod

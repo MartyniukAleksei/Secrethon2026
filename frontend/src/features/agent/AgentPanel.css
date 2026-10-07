@@ -31,6 +31,26 @@
 .ag-input textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; border-radius: 22px; padding: 11px 16px; background: var(--surface-sunken); border: 1px solid transparent; font: 450 15px/21px var(--ff-sans); color: var(--label-1); }
 .ag-input textarea:focus { outline: none; border-color: var(--ring); }
 .ag-note { font-size: 11.5px; color: var(--label-3); padding: 0 16px 10px; }
+.ag-answer-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ag-artifact { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--stroke); min-width: 0; }
+.ag-artifact > b { display: block; }
+.ag-artifact small, .ag-snapshot { display: block; color: var(--label-2); font-size: 11.5px; line-height: 16px; margin: 5px 0; }
+.ag-table-scroll { overflow-x: auto; margin-top: 8px; }
+.ag-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+.ag-table th, .ag-table td { text-align: left; padding: 7px; border-bottom: 1px solid var(--stroke); }
+.ag-table td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ag-bars { display: grid; gap: 12px; margin-top: 12px; }
+.ag-bar-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; font-size: 12px; }
+.ag-bar-track { grid-column: 1 / -1; background: var(--surface-sunken); border-radius: 4px; overflow: hidden; }
+.ag-bar-track > div { background: var(--accent-foreground); height: 7px; border-radius: 4px; }
+.ag-mention { border: 1px solid var(--stroke); background: var(--surface-raised); border-radius: var(--r-inner); padding: 10px; margin-top: 8px; }
+.ag-mention p { font-size: 12px; line-height: 18px; margin: 6px 0 0; overflow-wrap: anywhere; }
+.ag-evidence { display: grid; gap: 6px; margin-top: 12px; font-size: 12px; overflow-wrap: anywhere; }
+.ag-relations { display: grid; gap: 8px; margin-top: 8px; }
+.ag-relation-center { border: 1px solid var(--stroke); padding: 8px; border-radius: var(--r-inner); background: var(--surface-raised); }
+.ag-relation { display: flex; gap: 10px; padding-left: 8px; font-size: 12px; }
+.msg.bot:has(.ag-artifact) { max-width: 100%; width: 100%; box-sizing: border-box; }
+.msg [role="alert"] .btn { display: block; margin-top: 8px; }
 
 @media (max-width: 900px) {
   .agent { position: fixed; inset: 0; z-index: 80; height: 100dvh; }

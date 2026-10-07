@@ -39,7 +39,7 @@ export function AgentPanel() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!text.trim()) return
+    if (!text.trim() || typing) return
     ask(text)
     setText('')
   }
@@ -75,7 +75,7 @@ export function AgentPanel() {
           {messages.length === 0 && (
             <div className="ag-sugg">
               {SUGGESTIONS.map((q) => (
-                <button key={q} className="chip" type="button" onClick={() => ask(q)}>
+                <button key={q} className="chip" type="button" disabled={typing} onClick={() => ask(q)}>
                   {q}
                 </button>
               ))}
@@ -123,6 +123,7 @@ export function AgentPanel() {
         <textarea
           id="agText"
           ref={input}
+          maxLength={4000}
           rows={1}
           value={text}
           placeholder="Питання про підприємство чи регіон"
@@ -133,11 +134,11 @@ export function AgentPanel() {
           }}
           onKeyDown={onKeyDown}
         />
-        <button className="btn btn-primary btn-icon" type="submit" aria-label="Надіслати">
+        <button className="btn btn-primary btn-icon" type="submit" aria-label="Надіслати" disabled={typing || !text.trim()}>
           <Icon name="send" />
         </button>
       </form>
-      <p className="ag-note">Поки агент відповідає за ключовими словами з даних платформи. Справжній агент на моделі підключається до того ж API.</p>
+      <p className="ag-note">Відповіді на основі бази та публічних джерел. Перевіряйте джерела; висновки агента можуть містити помилки.</p>
     </aside>
   )
 }
