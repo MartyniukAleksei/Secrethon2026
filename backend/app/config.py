@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     agent_enabled: bool = True
 
+    # Optional HTTP Basic Auth for the whole site; disabled when site_password is empty.
+    site_user: str = "admin"
+    site_password: str = ""
+
     @field_validator("database_url")
     @classmethod
     def use_asyncpg_driver(cls, url: str) -> str:
