@@ -89,7 +89,8 @@ def test_hiring_locations_are_separate_from_company_address(client: TestClient) 
         },
     ]  # same place is deduplicated, latest vacancy supplies the source link
     unmatched = client.get("/api/employers/2").json()
-    assert unmatched["gur"] is None  # the matched company has no GUR card; the weak match is ignored
+    # The matched company has no GUR card, and the weak match is ignored.
+    assert unmatched["gur"] is None
     assert len(unmatched["hiring_locations"]) == 1  # blank locations are omitted
     assert unmatched["hiring_locations"][0]["lat"] is None  # invalid coordinates
     assert client.get("/api/employers/3").json()["hiring_locations"] == []  # non-VPK
