@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repository.sql import AS_OF, CTE, VPK
+from app.repository.sql import AS_OF, CTE, ON_GUR, VPK
 
 Row = dict[str, Any]
 
@@ -29,13 +29,14 @@ async def overview(session: AsyncSession) -> Row:
         FROM v
     """)
     totals.update(
-        await one("""
+        await one(f"""
             SELECT count(*) AS gur_companies,
                    count(*) FILTER (WHERE sanctions_count > 0) AS sanctioned_companies,
                    (SELECT count(*) FROM company_edge) AS company_relations,
                    (SELECT count(DISTINCT ep.employer_profile_id) FROM employer_profile ep
-                    JOIN company c ON c.inn = ep.inn) AS matched_employers
+                    JOIN company c ON c.inn = ep.inn AND c.{ON_GUR}) AS matched_employers
             FROM company
+            WHERE {ON_GUR}
         """)
     )
     totals["by_source"] = await many(f"""

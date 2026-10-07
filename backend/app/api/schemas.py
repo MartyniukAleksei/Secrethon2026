@@ -129,6 +129,29 @@ class GurCompanyOut(BaseModel):
     sanctions_count_intl: int
     sanctions: list[SanctionOut]
     relations: list[RelationOut]
+    # How the company was linked: by INN, by an automatic match, or by a probable name match.
+    match: Literal["inn", "auto", "name"] = "inn"
+
+
+class ProfileSourceOut(BaseModel):
+    n: int
+    url: str
+    quote: str
+    claim: str
+    source_type: str
+    grade: str
+
+
+class CompanyProfileOut(BaseModel):
+    """Profile assembled from open sources; every listed source has a verified quote."""
+
+    company_id: int
+    origin: str
+    created_at: datetime
+    activity_tags: list[str] | None
+    products_ru: list[str] | None
+    description_ru: str | None
+    sources: list[ProfileSourceOut]
 
 
 class EmployerDetailOut(EmployerOut):
@@ -137,6 +160,7 @@ class EmployerDetailOut(EmployerOut):
     localities: list[LocalityOut]
     hiring_locations: list[HiringLocationOut]
     gur: GurCompanyOut | None
+    profile: CompanyProfileOut | None
 
 
 class VacancyOut(BaseModel):

@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     site_user: str = "admin"
     site_password: str = ""
 
+    # Development only: also show draft company profiles (production shows only 'published').
+    profiles_include_drafts: bool = False
+
     @field_validator("database_url")
     @classmethod
     def use_asyncpg_driver(cls, url: str) -> str:

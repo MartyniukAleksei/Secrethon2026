@@ -68,8 +68,10 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
   const { ask } = useAgent()
   const gur = e.gur
   const address = gur?.address_uk?.trim()
-  const ogrn = e.ogrn ?? gur?.ogrn
-  const kpp = e.kpp ?? gur?.kpp
+  // A probable (name-only) match must not pass the company's registry numbers off as the employer's.
+  const gurIds = gur?.match === 'name' ? null : gur
+  const ogrn = e.ogrn ?? gurIds?.ogrn
+  const kpp = e.kpp ?? gurIds?.kpp
   const similar = employers.filter((x) => x.id !== e.id && x.category === e.category && x.region_id === e.region_id).slice(0, 5)
   const quick = [`Кого наймає ${e.name}?`, `Хто пов'язаний з ${e.name}?`, `Які зарплати в ${e.name}?`]
 
@@ -138,7 +140,7 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
               <div><dt>Напрям</dt><dd>{categoryOf(e.category).name}</dd></div>
               <div><dt>Регіон</dt><dd>{e.region ?? '—'}</dd></div>
               {address && <div className="facts-address"><dt>Місце підприємства</dt><dd>{address}</dd></div>}
-              <div><dt>ІПН</dt><dd>{e.inn ?? gur?.inn ?? '—'}</dd></div>
+              <div><dt>ІПН</dt><dd>{e.inn ?? gurIds?.inn ?? '—'}</dd></div>
               {ogrn && <div><dt>ОДРН</dt><dd>{ogrn}</dd></div>}
               {kpp && <div><dt>КПП</dt><dd>{kpp}</dd></div>}
               <div><dt>Телефон</dt><dd className="fact-missing">Відсутньо</dd></div>

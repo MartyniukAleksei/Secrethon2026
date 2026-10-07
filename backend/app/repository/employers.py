@@ -3,7 +3,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, VPK
+from app.config import settings
+from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, ON_GUR, VPK
 
 Row = dict[str, Any]
 
@@ -145,8 +146,77 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
     )
     employer["hiring_locations"] = [dict(r) for r in hiring_locations.mappings()]
 
-    employer["gur"] = await _gur_company(session, employer["gur_company_id"])
+    match = await _matched_company(session, employer_id)
+    gur_id, gur_match = employer["gur_company_id"], "inn"
+    if gur_id is None and match is not None and match["on_gur"]:
+        gur_id, gur_match = match["company_id"], "auto" if match["status"] == "auto" else "name"
+    employer["gur"] = await _gur_company(session, gur_id)
+    if employer["gur"] is not None:
+        employer["gur"]["match"] = gur_match
+
+    profile_company_id = match["company_id"] if match is not None else gur_id
+    employer["profile"] = await _company_profile(session, profile_company_id)
     return employer
+
+
+async def _matched_company(session: AsyncSession, employer_id: int) -> Row | None:
+    """Best company link for the employer: 'auto' (by INN) or a confident candidate (>= 0.8).
+
+    Duplicates are resolved to their canonical company row.
+    """
+    result = await session.execute(
+        text(f"""
+            WITH best AS (
+                SELECT coalesce(d.canonical_id, m.company_id) AS company_id, m.status, m.confidence
+                FROM employer_company_match m
+                LEFT JOIN company_duplicate d ON d.company_id = m.company_id
+                    WHERE m.employer_profile_id = :id
+                  AND (m.status = 'auto' OR (m.status = 'candidate' AND m.confidence >= 0.8))
+                ORDER BY m.status = 'auto' DESC, m.confidence DESC, company_id
+                LIMIT 1
+            )
+            -- on_gur: the company has a GUR portal card, not only registry data.
+            SELECT b.company_id, b.status, c.{ON_GUR} AS on_gur
+            FROM best b JOIN company c USING (company_id)
+        """),
+        {"id": employer_id},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
+
+
+async def _company_profile(session: AsyncSession, company_id: int | None) -> Row | None:
+    """Latest published open-source profile, with only the facts whose quotes were verified."""
+    if company_id is None:
+        return None
+    statuses = ["published", "draft"] if settings.profiles_include_drafts else ["published"]
+    result = await session.execute(
+        text("""
+            WITH prof AS (
+                SELECT p.company_id, p.run_id, p.activity_tags, p.products_ru, p.description_ru,
+                       p.created_at
+                FROM company_profile p
+                WHERE p.company_id = :cid AND p.status = ANY(:statuses)
+                ORDER BY p.created_at DESC, p.run_id DESC
+                LIMIT 1
+            )
+            SELECT prof.*, r.method AS origin,
+                   coalesce(json_agg(json_build_object(
+                       'n', f.local_id, 'url', f.url, 'quote', f.quote, 'claim', f.claim_ru,
+                       'source_type', f.source_type, 'grade', f.grade) ORDER BY f.local_id)
+                     FILTER (WHERE f.fact_id IS NOT NULL), '[]') AS sources
+            FROM prof
+            JOIN enrichment_run r ON r.run_id = prof.run_id
+            LEFT JOIN company_fact f
+                   ON f.company_id = prof.company_id AND f.run_id = prof.run_id
+                  AND f.quote_verified
+            GROUP BY prof.company_id, prof.run_id, prof.activity_tags, prof.products_ru,
+                     prof.description_ru, prof.created_at, r.method
+        """),
+        {"cid": company_id, "statuses": statuses},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 # Names of a related company's role, seen from the profile it was listed on (GUR profile sections).

@@ -50,13 +50,16 @@ v AS (
 )
 """
 
+# `company` also holds registry-only companies (no GUR portal card); GUR ones have a Ukrainian name.
+ON_GUR = "name_full_uk IS NOT NULL"
+
 # One GUR company per INN (the pipeline may hold duplicates).
-GUR_BY_INN = """
+GUR_BY_INN = f"""
 gur AS (
     SELECT DISTINCT ON (inn) inn, company_id,
            coalesce(name_short_uk, name_full_uk) AS name, sanctions_count
     FROM company
-    WHERE inn IS NOT NULL
+    WHERE inn IS NOT NULL AND {ON_GUR}
     ORDER BY inn, company_id
 )
 """

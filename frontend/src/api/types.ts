@@ -103,6 +103,29 @@ export type ApiGurCompany = {
   sanctions_count_intl: number
   sanctions: { jurisdiction: string; jurisdiction_name: string | null; listed_on: string | null }[]
   relations: ApiRelation[]
+  /** How the company was linked: by INN, automatic match, or probable name match. */
+  match: 'inn' | 'auto' | 'name'
+}
+
+export type ApiProfileSource = {
+  /** Number referenced as [n] in description_ru. */
+  n: number
+  url: string
+  quote: string
+  claim: string
+  source_type: 'official_site' | 'registry' | 'sanctions_document' | 'news' | 'aggregator' | 'other'
+  grade: string
+}
+
+/** Company profile assembled from open sources (Russian text); every source has a verified quote. */
+export type ApiCompanyProfile = {
+  company_id: number
+  origin: string
+  created_at: string
+  activity_tags: string[] | null
+  products_ru: string[] | null
+  description_ru: string | null
+  sources: ApiProfileSource[]
 }
 
 export type ApiProfession = {
@@ -127,6 +150,7 @@ export type ApiEmployerDetail = ApiEmployer & {
     vacancy_url: string
   }[]
   gur: ApiGurCompany | null
+  profile: ApiCompanyProfile | null
 }
 
 export type ApiVacancy = {

@@ -89,10 +89,41 @@ def test_hiring_locations_are_separate_from_company_address(client: TestClient) 
         },
     ]  # same place is deduplicated, latest vacancy supplies the source link
     unmatched = client.get("/api/employers/2").json()
-    assert unmatched["gur"] is None
+    assert unmatched["gur"] is None  # the matched company has no GUR card; the weak match is ignored
     assert len(unmatched["hiring_locations"]) == 1  # blank locations are omitted
     assert unmatched["hiring_locations"][0]["lat"] is None  # invalid coordinates
     assert client.get("/api/employers/3").json()["hiring_locations"] == []  # non-VPK
+
+
+def test_open_source_profile(client: TestClient) -> None:
+    kbp = client.get("/api/employers/1").json()
+    assert kbp["gur"]["match"] == "inn"
+    assert kbp["profile"] is None  # only a draft exists
+
+    profile = client.get("/api/employers/2").json()["profile"]
+    # Latest published profile of the canonical company; drafts and older runs are skipped.
+    assert profile["company_id"] == 600
+    assert profile["origin"] == "exa_llm"
+    assert profile["activity_tags"] == ["БпЛА"]
+    assert profile["products_ru"] == ["Дроны «Герань»"]
+    assert profile["description_ru"] == "Завод в Елабуге [1][2][3]."
+    # Only verified facts of the same run.
+    assert profile["sources"] == [
+        {
+            "n": 1,
+            "url": "https://example.com/site",
+            "quote": "Завод в Елабуге",
+            "claim": "Завод в Елабуге",
+            "source_type": "official_site",
+            "grade": "B",
+        }
+    ]
+
+
+def test_probable_gur_match_by_name(client: TestClient) -> None:
+    gur = client.get("/api/employers/3").json()["gur"]
+    assert gur["company_id"] == 522
+    assert gur["match"] == "name"
 
 
 def test_map_points(client: TestClient) -> None:

@@ -65,6 +65,11 @@
 .prof-id h1 { overflow-wrap: anywhere; }
 .logo-img { width: 72px; height: 72px; object-fit: contain; }
 .prose-block p + p { margin-top: 10px; }
+.prose-block sup { font-size: 11px; line-height: 0; margin-left: 1px; }
+.prose-block sup a { color: var(--info); text-decoration: none; }
+.profile-sources { margin-top: 10px; font-size: 13px; line-height: 20px; }
+.profile-sources ol { margin: 2px 0 0; padding-left: 22px; }
+.profile-sources a { color: var(--info); overflow-wrap: anywhere; }
 .relation-groups { display: grid; gap: 10px; }
 .relation-groups .chain-row { background: var(--surface-raised); }
 .facts dd a { color: inherit; }

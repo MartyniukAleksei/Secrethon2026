@@ -75,3 +75,29 @@ VALUES (1, 'test-uav', 'https://example.com/uav', 'Тестовий БПЛА');
 INSERT INTO company_uav_model (company_id, uav_model_id) VALUES (522, 1);
 INSERT INTO weapon (weapon_slug, url) VALUES ('test-weapon', 'https://example.com/weapon');
 INSERT INTO company_weapon (company_id, weapon_slug) VALUES (570, 'test-weapon');
+
+-- Company matches and open-source profiles.
+-- Employer 1 is linked by INN; employer 2 has a confident name candidate (a registry-only company,
+-- through a duplicate) and a weak one that must be ignored; employer 3 has a probable GUR match by name.
+INSERT INTO company (company_id, inn, name_full_ru) VALUES
+  (600, '1650000000', 'ООО «Алабуга»'), (601, NULL, 'Алабуга (дубль)');
+INSERT INTO company_duplicate (company_id, canonical_id, method, confidence) VALUES (601, 600, 'inn', 1);
+INSERT INTO employer_company_match (employer_profile_id, company_id, status, method, confidence) VALUES
+  (1, 570, 'auto', 'inn_kpp', 1),
+  (2, 601, 'candidate', 'egrul_name', 0.85),
+  (2, 570, 'candidate', 'dadata_name', 0.5),
+  (3, 522, 'candidate', 'dadata_name', 0.9);
+
+INSERT INTO enrichment_run (run_id, label, method, started_at) VALUES
+  (1, 'old', 'agent_websearch', '2026-10-01T00:00:00Z'),
+  (2, 'new', 'exa_llm', '2026-10-07T00:00:00Z'),
+  (3, 'draft', 'exa_llm', '2026-10-08T00:00:00Z');
+INSERT INTO company_profile (company_id, run_id, status, activity_tags, products_ru, description_ru, created_at) VALUES
+  (600, 1, 'published', ARRAY['Цивільна продукція'], NULL, 'Старый профиль [1].', '2026-10-01T00:00:00Z'),
+  (600, 2, 'published', ARRAY['БпЛА'], ARRAY['Дроны «Герань»'], 'Завод в Елабуге [1][2][3].', '2026-10-07T00:00:00Z'),
+  (600, 3, 'draft', ARRAY['Озброєння'], NULL, 'Черновик [1].', '2026-10-08T00:00:00Z'),
+  (570, 2, 'draft', ARRAY['Озброєння'], NULL, 'Черновик КБП [1].', '2026-10-07T00:00:00Z');
+INSERT INTO company_fact (run_id, company_id, local_id, claim_ru, url, source_type, quote, quote_verified, grade) VALUES
+  (2, 600, 1, 'Завод в Елабуге', 'https://example.com/site', 'official_site', 'Завод в Елабуге', true, 'B'),
+  (2, 600, 2, 'Непроверенное', 'https://example.com/unverified', 'news', 'нет на странице', false, 'C'),
+  (1, 600, 1, 'Старый факт', 'https://example.com/old', 'registry', 'старое', true, 'A');

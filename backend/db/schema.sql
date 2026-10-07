@@ -1,4 +1,5 @@
--- Snapshot of the data pipeline schema (schema_migration up to 0003_supply_and_financials), schema only.
+-- Snapshot of the data pipeline schema (schema_migration up to 0003_supply_and_financials), schema only;
+-- the tables of later migrations this service reads are appended by hand at the end.
 -- The pipeline owns this schema; this service only reads it. Used to build the test database.
 -- Refresh: pg_dump --schema-only --no-owner --no-privileges --no-comments, then drop the \restrict lines.
 --
@@ -1774,3 +1775,63 @@ ALTER TABLE ONLY public.vacancy_trudvsem
 --
 -- PostgreSQL database dump complete
 --
+
+--
+-- From 0009_company_enrichment (company-parse), hand-written: only the tables this service reads.
+--
+
+-- Registry-only companies (no GUR card) have no Ukrainian name.
+ALTER TABLE public.company ALTER COLUMN name_full_uk DROP NOT NULL;
+
+CREATE TABLE public.company_duplicate (
+    company_id bigint PRIMARY KEY REFERENCES public.company(company_id) ON DELETE CASCADE,
+    canonical_id bigint NOT NULL REFERENCES public.company(company_id) ON DELETE CASCADE,
+    method text NOT NULL,
+    confidence real NOT NULL,
+    evidence jsonb,
+    CHECK (company_id <> canonical_id)
+);
+
+CREATE TABLE public.enrichment_run (
+    run_id serial PRIMARY KEY,
+    label text NOT NULL UNIQUE,
+    method text NOT NULL,
+    version text,
+    started_at timestamp with time zone NOT NULL,
+    note text
+);
+
+CREATE TABLE public.company_profile (
+    company_id bigint NOT NULL REFERENCES public.company(company_id) ON DELETE CASCADE,
+    run_id integer NOT NULL REFERENCES public.enrichment_run(run_id) ON DELETE CASCADE,
+    status text DEFAULT 'draft'::text NOT NULL
+        CHECK (status = ANY (ARRAY['draft'::text, 'published'::text, 'rejected'::text])),
+    activity_tags text[],
+    products_ru text[],
+    products_uk text[],
+    description_ru text,
+    description_uk text,
+    russia_vpk_links text,
+    not_found text,
+    identity jsonb,
+    searches text[],
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (company_id, run_id)
+);
+
+CREATE TABLE public.company_fact (
+    fact_id bigserial PRIMARY KEY,
+    run_id integer NOT NULL REFERENCES public.enrichment_run(run_id) ON DELETE CASCADE,
+    company_id bigint NOT NULL REFERENCES public.company(company_id) ON DELETE CASCADE,
+    local_id integer NOT NULL,
+    claim_ru text NOT NULL,
+    url text NOT NULL,
+    source_type text NOT NULL CHECK (source_type = ANY (ARRAY['official_site'::text, 'registry'::text,
+        'sanctions_document'::text, 'news'::text, 'aggregator'::text, 'other'::text])),
+    quote text NOT NULL,
+    quote_verified boolean NOT NULL,
+    verify_note text,
+    grade character(1) DEFAULT 'D'::bpchar NOT NULL
+        CHECK (grade = ANY (ARRAY['A'::bpchar, 'B'::bpchar, 'C'::bpchar, 'D'::bpchar, 'E'::bpchar, 'F'::bpchar])),
+    UNIQUE (run_id, company_id, local_id)
+);
