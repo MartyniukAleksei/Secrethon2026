@@ -141,9 +141,9 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
               <div><dt>ІПН</dt><dd>{e.inn ?? gur?.inn ?? '—'}</dd></div>
               {ogrn && <div><dt>ОДРН</dt><dd>{ogrn}</dd></div>}
               {kpp && <div><dt>КПП</dt><dd>{kpp}</dd></div>}
-              <div><dt>Телефон</dt><dd className="fact-missing">Не зібрано</dd></div>
-              <div><dt>Email</dt><dd className="fact-missing">Не зібрано</dd></div>
-              <div><dt>Контактна особа</dt><dd className="fact-missing">Не зібрано</dd></div>
+              <div><dt>Телефон</dt><dd className="fact-missing">Відсутньо</dd></div>
+              <div><dt>Email</dt><dd className="fact-missing">Відсутньо</dd></div>
+              <div><dt>Контактна особа</dt><dd className="fact-missing">Відсутньо</dd></div>
               {gur?.website && <div className="facts-address"><dt>Вебресурс</dt><dd><a href={gur.website} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
               {e.profile_url && <div><dt>Профіль роботодавця</dt><dd><a href={e.profile_url} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
               <div><dt>Джерело</dt><dd>{sourceName(e.source)}</dd></div>
