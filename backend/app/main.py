@@ -40,13 +40,15 @@ def _authorized(header: str | None) -> bool:
         user, _, password = base64.b64decode(header[6:]).decode().partition(":")
     except ValueError:
         return False
-    return secrets.compare_digest(user.encode(), settings.site_user.encode()) & secrets.compare_digest(
-        password.encode(), settings.site_password.encode()
-    )
+    user_ok = secrets.compare_digest(user.encode(), settings.site_user.encode())
+    password_ok = secrets.compare_digest(password.encode(), settings.site_password.encode())
+    return user_ok & password_ok
 
 
 @app.middleware("http")
-async def basic_auth(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+async def basic_auth(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     # Railway's healthcheck must pass without credentials.
     if not settings.site_password or request.url.path == "/api/health":
         return await call_next(request)
