@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Icon } from './Icon'
 
 /** Hostile-object diamond (NATO APP-6). */
@@ -9,10 +10,20 @@ export function CompanyMark({ size = 40 }: { size?: number }) {
   )
 }
 
-export function CompanyTile({ size = 40 }: { size?: number }) {
+/** Company logo from its GUR card; the hostile mark when there is none or it fails to load. */
+export function CompanyLogo({ src, size = 40 }: { src?: string | null; size?: number }) {
+  const [failed, setFailed] = useState<string | null>(null)
+  if (!src || failed === src) return <CompanyMark size={size} />
+  return (
+    <img className="company-logo" src={src} alt="" width={size} height={size} loading="lazy"
+      referrerPolicy="no-referrer" onError={() => setFailed(src)} />
+  )
+}
+
+export function CompanyTile({ size = 40, logo }: { size?: number; logo?: string | null }) {
   return (
     <span className="tile" style={{ width: size, height: size, borderRadius: size * 0.29 }}>
-      <CompanyMark size={size * 0.85} />
+      <CompanyLogo src={logo} size={size * 0.85} />
     </span>
   )
 }

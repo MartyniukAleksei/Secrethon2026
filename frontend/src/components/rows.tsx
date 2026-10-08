@@ -3,13 +3,13 @@ import { Link } from 'react-router'
 import { useData } from '../data/DataContext'
 import { ago, fmt, salaryRange } from '../domain/format'
 import type { Employer, Vacancy } from '../domain/types'
-import { CompanyMark } from '../ui/CompanyMark'
+import { CompanyLogo } from '../ui/CompanyMark'
 
 /** Compact employer row used in side lists. `value` overrides the right column. */
 export function EmployerRow({ employer: e, to, current, value }: { employer: Employer; to?: string; current?: boolean; value?: ReactNode }) {
   return (
     <Link className="co-row" to={to ?? `/companies/${e.id}`} aria-current={current ? 'true' : undefined}>
-      <CompanyMark />
+      <CompanyLogo src={e.logo_url} />
       <span>
         <b>{e.name}</b>
         <span className="sm2">{[e.locality, e.region].filter(Boolean).join(', ') || 'Місто не вказано'}</span>

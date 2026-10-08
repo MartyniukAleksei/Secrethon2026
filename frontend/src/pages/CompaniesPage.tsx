@@ -159,7 +159,7 @@ export function CompaniesPage() {
             ) : (
               list.slice(0, shown).map((e) => (
                 <Link key={e.id} className="co-card" to={`/companies/${e.id}`}>
-                  <CompanyTile size={56} />
+                  <CompanyTile size={56} logo={e.logo_url} />
                   <div>
                     <h3>{e.name}</h3>
                     <p className="place"><Icon name="pin" />{[e.locality, e.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>

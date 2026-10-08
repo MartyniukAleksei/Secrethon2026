@@ -90,6 +90,8 @@ class EmployerOut(BaseModel):
     # Final classification of the legal entity; agency decision only for pages without one.
     classification: CompanyClassificationBriefOut | None = None
     agency: EmployerAgencyOut | None = None
+    # Logo from the company's GUR card.
+    logo_url: str | None = None
 
 
 class MapPointOut(BaseModel):

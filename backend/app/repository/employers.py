@@ -109,10 +109,22 @@ async def _attach_classifications(session: AsyncSession, employers: list[Row]) -
         row = dict(r)
         by_employer[row.pop("employer_profile_id")] = row
 
+    # Logo of the GUR card shown on the company page: by INN first, else the matched company.
+    logo_ids = sorted({i for e in employers if (i := e["gur_company_id"] or e["company_id"])})
+    logos = await session.execute(
+        text("""
+            SELECT company_id, logo_url FROM company
+            WHERE company_id = ANY(:ids) AND nullif(btrim(logo_url), '') IS NOT NULL
+        """),
+        {"ids": logo_ids},
+    )
+    logo_by_company = {r.company_id: r.logo_url for r in logos}
+
     for e in employers:
         company_id = e.pop("company_id")
         e["classification"] = by_company.get(company_id)
         e["agency"] = by_employer.get(e["id"]) if company_id is None else None
+        e["logo_url"] = logo_by_company.get(e["gur_company_id"] or company_id)
 
 
 async def map_network(session: AsyncSession) -> Row:
@@ -244,6 +256,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
         by_inn = company_id == employer["gur_company_id"]
         sure = by_inn or match is None or match["status"] == "auto"
         employer["company_link"] = "auto" if sure else "candidate"
+    employer["logo_url"] = employer["gur"]["logo_url"] if employer["gur"] else None
     employer["profile"] = await _company_profile(session, company_id)
     employer["classification"] = await _company_classification(session, company_id)
     employer["registry"] = await _company_registry(session, company_id)

@@ -166,6 +166,10 @@ def test_employer_list_carries_classification(client: TestClient) -> None:
     assert by_id[2]["agency"] is None
     assert by_id[4]["classification"] is None
     assert by_id[4]["agency"]["category"] == "agency_vpk"
+    # Cards show the GUR logo, the same as the company page.
+    assert by_id[1]["logo_url"] == "https://war-sanctions.gur.gov.ua/logo/kbp.png"
+    assert by_id[2]["logo_url"] is None
+    assert client.get("/api/employers/1").json()["logo_url"] == by_id[1]["logo_url"]
 
 
 def test_company_contacts_only_verified(client: TestClient) -> None:

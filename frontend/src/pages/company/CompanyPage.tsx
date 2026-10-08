@@ -14,7 +14,7 @@ import type { ApiCompanyContact } from '../../api/types'
 import type { EmployerDetail } from '../../domain/types'
 import { useAgent } from '../../features/agent/AgentContext'
 import { EmployerBadgeGroups } from '../../ui/EmployerBadgeGroups'
-import { CompanyMark } from '../../ui/CompanyMark'
+import { CompanyLogo } from '../../ui/CompanyMark'
 import { Icon } from '../../ui/Icon'
 import { NotFoundPage } from '../NotFoundPage'
 import { AnalyticsTab } from './AnalyticsTab'
@@ -98,7 +98,7 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
         <div className="prof-band"><Topo seed={seedOf(String(e.id))} /></div>
         <div className="prof-id">
           <div className="logo-tile">
-            {gur?.logo_url ? <img className="logo-img" src={gur.logo_url} alt="" referrerPolicy="no-referrer" /> : <CompanyMark size={64} />}
+            <CompanyLogo src={gur?.logo_url} size={72} />
           </div>
           <div className="grow">
             <h1>{e.name}</h1>

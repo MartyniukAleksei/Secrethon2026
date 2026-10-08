@@ -85,6 +85,8 @@ export type ApiEmployer = {
   /** Final classification of the legal entity; agency decision only for pages without one. */
   classification?: ApiCompanyClassificationBrief | null
   agency?: ApiEmployerAgency | null
+  /** Logo from the company's GUR card. */
+  logo_url?: string | null
 }
 
 export type HumanSource = 'hh' | 'trudvsem' | 'superjob' | 'gur' | 'registry' | 'company_site' | 'media' | 'other'

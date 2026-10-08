@@ -63,7 +63,6 @@
   .prof-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .prof-id h1 { overflow-wrap: anywhere; }
-.logo-img { width: 72px; height: 72px; object-fit: contain; }
 .prose-block p + p { margin-top: 10px; }
 .prose-block sup { font-size: 11px; line-height: 0; margin-left: 1px; }
 .prose-block sup a { color: var(--info); text-decoration: none; }

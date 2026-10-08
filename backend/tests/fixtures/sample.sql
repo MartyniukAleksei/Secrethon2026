@@ -150,3 +150,5 @@ INSERT INTO company_contact (run_id, employer_profile_id, company_id, kind, valu
 INSERT INTO employer_classification (run_id, employer_profile_id, level, raw_label, score, category) VALUES
   (5, 4, 'review', 'Кадровое агентство: нанимает для ВПК.', 1, 'agency_vpk'),
   (5, 2, 'confirmed', 'Агентство', 2, 'agency_vpk');
+
+UPDATE company SET logo_url = 'https://war-sanctions.gur.gov.ua/logo/kbp.png' WHERE company_id = 570;

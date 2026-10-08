@@ -245,3 +245,4 @@ table.data .inline-bar { display: inline-block; height: 6px; border-radius: 3px;
 }
 .toast.show { opacity: 1; translate: -50% 0; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0 4px; font-size: 14px; color: var(--label-2); }
+.company-logo { display: block; flex: none; object-fit: contain; border-radius: 8px; }
