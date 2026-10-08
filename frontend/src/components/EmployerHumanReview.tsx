@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { api } from '../api/client'
 import type { ApiEmployerReview, ApiEmployerReviewInput, HumanSanctions, HumanSource, HumanVpk, Reliability } from '../api/types'
 import { longDate } from '../domain/format'
-import { autoVpk, CATEGORIES, categoryOf, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, sourceName } from '../domain/labels'
+import { autoDirectionName, autoReliabilityName, autoVpkName, CATEGORIES, categoryOf, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, sourceName } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { Icon } from '../ui/Icon'
 import './VacancyReviews.css'
@@ -70,7 +70,10 @@ export function EmployerHumanReview({ employer: e, reviews, onSaved }: { employe
   }
 
   const autoSources = `${e.source === 'trudvsem' ? 'trudvsem.ru' : sourceName(e.source)}${e.gur_company_id != null ? ', ГУР' : ''}`
-  const autoSanctions = e.sanctions_count > 0 ? `під санкціями (${e.sanctions_count})` : e.gur_company_id != null ? 'не зафіксовано' : 'немає даних'
+  const foundSanctions = [...(e.classification?.sanctions_gur ?? []), ...(e.classification?.sanctions_new ?? [])]
+  const autoSanctions = e.sanctions_count > 0 ? `під санкціями (${e.sanctions_count})`
+    : foundSanctions.length > 0 ? `під санкціями (${foundSanctions.join(', ')})`
+    : e.gur_company_id != null ? 'не зафіксовано' : 'немає даних'
 
   return (
     <section className="panel employer-human-review">
@@ -92,12 +95,12 @@ export function EmployerHumanReview({ employer: e, reviews, onSaved }: { employe
               <label key={key} className="check"><input type="checkbox" checked={draft.sources?.includes(key) ?? false} onChange={() => toggleSource(key)} /> {name}</label>
             ))}
           </fieldset>
-          <Choice<Reliability> label="Надійність джерела" auto="не оцінено" value={draft.reliability} onChange={(reliability) => change({ reliability })}
+          <Choice<Reliability> label="Надійність джерела" auto={autoReliabilityName(e)} value={draft.reliability} onChange={(reliability) => change({ reliability })}
             options={Object.fromEntries(Object.entries(RELIABILITY).map(([k, v]) => [k, `${k} · ${v}`])) as Record<Reliability, string>} />
-          <Choice label="Напрям діяльності" auto={categoryOf(e.category).name.toLowerCase()} value={draft.category} onChange={(category) => change({ category })}
+          <Choice label="Напрям діяльності" auto={autoDirectionName(e)} value={draft.category} onChange={(category) => change({ category })}
             options={Object.fromEntries(CATEGORIES.map((c) => [c.key, c.name]))} />
           <Choice<HumanSanctions> label="Санкції" auto={autoSanctions} value={draft.sanctions} onChange={(sanctions) => change({ sanctions })} options={HUMAN_SANCTIONS} />
-          <Choice<HumanVpk> label="Дотичність до ВПК" auto={HUMAN_VPK[autoVpk(e)].toLowerCase()} value={draft.vpk} onChange={(vpk) => change({ vpk })} options={HUMAN_VPK} />
+          <Choice<HumanVpk> label="Дотичність до ВПК" auto={autoVpkName(e)} value={draft.vpk} onChange={(vpk) => change({ vpk })} options={HUMAN_VPK} />
           <label>Хто перевірив<input className="input" value={reviewer} onChange={(ev) => { setReviewer(ev.target.value); setStatus('idle') }} required minLength={2} maxLength={120} placeholder="Ім’я або позивний" /></label>
           <label>Пояснення<textarea value={comment} onChange={(ev) => { setComment(ev.target.value); setStatus('idle') }} maxLength={2000} rows={3} placeholder="Чим підтверджено: реєстр, сайт, санкційний список…" /></label>
           <button className="btn btn-primary btn-sm" type="submit" disabled={status === 'saving' || empty}>{status === 'saving' ? 'Зберігаємо…' : 'Зберегти Human review'}</button>

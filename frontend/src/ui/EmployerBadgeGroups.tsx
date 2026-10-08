@@ -1,31 +1,29 @@
 import type { ReactNode } from 'react'
 import { longDate, pct } from '../domain/format'
-import { autoVpk, categoryOf, effectiveVpk, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, reliabilityName, sourceName, VPK_CATEGORY, VPK_RELATED, vpkCategoryName } from '../domain/labels'
+import { autoDirectionName, autoReliabilityName, autoVpkName, effectiveVpk, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, reliabilityName, sourceName, VPK_CATEGORY, VPK_RELATED, vpkCategoryName } from '../domain/labels'
 import type { Employer, EmployerDetail } from '../domain/types'
 import { CategoryBadge } from './badges'
 import { Icon } from './Icon'
 import './EmployerBadgeGroups.css'
 
-/** Lists only carry vacancy-based values; the company page adds the legal entity's classification. */
-type Props = { employer: Employer & Partial<Pick<EmployerDetail, 'classification' | 'agency'>> }
+/** Lists carry the short classification; the company page adds sanctions found and the explanation. */
+type Props = { employer: Employer | EmployerDetail }
 
 export function EmployerBadgeGroups({ employer: e }: Props) {
   const hr = e.human_review
   const cls = e.classification
+  const details = 'explanation' in (cls ?? {}) ? (cls as NonNullable<EmployerDetail['classification']>) : null
   const agency = e.agency?.category === 'agency_vpk' ? e.agency : null
   const source = e.source === 'trudvsem' ? 'trudvsem.ru' : sourceName(e.source)
   const autoSanctions = e.sanctions_count > 0 ? `Під санкціями: ${e.sanctions_count}` : e.gur_company_id != null ? 'Не зафіксовано' : 'Немає даних'
   // Sanctions found in open sources that GUR does not show yet.
   const newSanctions = cls?.sanctions_new ?? []
   const gurSanctions = cls?.sanctions_gur ?? []
-  const newSanctionsTitle = cls?.sanctions_found
+  const newSanctionsTitle = details?.sanctions_found
     .filter((s) => !s.in_gur)
     .map((s) => [s.jurisdiction, s.list_name, s.listed_raw && `з ${s.listed_raw}`].filter(Boolean).join(' · '))
     .join('\n')
   const vpk = effectiveVpk(e)
-  const autoReliability = cls?.reliability ? cls.reliability.trim() : 'не оцінено'
-  const autoCategory = cls?.direction_label ?? categoryOf(e.category).name
-  const autoVpkName = cls ? vpkCategoryName(cls.vpk_category) : agency ? VPK_CATEGORY.agency_vpk : HUMAN_VPK[autoVpk(e)]
   // Shown on hover over a reviewed value: who reviewed it and what was collected automatically.
   const reviewed = (auto: string) => hr && `Human review: ${hr.reviewed_by}, ${longDate(hr.reviewed_at)} · Авто: ${auto}`
   const human = (auto: string, children: ReactNode) => (
@@ -53,7 +51,7 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
           <dt>Надійність джерела</dt>
           <dd>
             {hr?.reliability
-              ? human(autoReliability, <span className="badge info">{hr.reliability} · {RELIABILITY[hr.reliability]}</span>)
+              ? human(autoReliabilityName(e), <span className="badge info">{hr.reliability} · {RELIABILITY[hr.reliability]}</span>)
               : cls?.reliability
                 ? <span className="badge info" title={[reliabilityName(cls.reliability), cls.reliability_note].filter(Boolean).join('\n')}>{cls.reliability.trim()}</span>
                 : <span className="badge" title="Окремого рейтингу надійності джерела у зібраних даних немає">Не оцінено</span>}
@@ -63,7 +61,7 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
           <dt>Напрям діяльності</dt>
           <dd>
             {hr?.category
-              ? human(autoCategory, <CategoryBadge category={hr.category} />)
+              ? human(autoDirectionName(e), <CategoryBadge category={hr.category} />)
               : cls?.direction_label
                 ? <>
                     <span className="badge" title="За підсумковою класифікацією підприємства">{cls.direction_label}</span>
@@ -94,7 +92,7 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
       <div className="employer-classification">
         <span>Дотичність до ВПК</span>
         {hr?.vpk
-          ? human(autoVpkName, <span className={`badge ${vpk === 'no' ? '' : 'warning'}`}>{HUMAN_VPK[vpk]}</span>)
+          ? human(autoVpkName(e), <span className={`badge ${vpk === 'no' ? '' : 'warning'}`}>{HUMAN_VPK[vpk]}</span>)
           : cls
             ? <>
                 <span className={`badge ${VPK_RELATED.has(cls.vpk_category) ? 'warning' : ''}`} title="За підсумковою класифікацією підприємства">
@@ -109,10 +107,10 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
                 </>
               : <span className={`badge ${vpk === 'confirmed' ? 'warning' : ''}`} title="За поточною класифікацією вакансій, окремо від надійності джерела">{HUMAN_VPK[vpk]}</span>}
       </div>
-      {cls?.explanation && !hr?.vpk && (
+      {details?.explanation && !hr?.vpk && (
         <details className="classification-why">
           <summary>Чому так</summary>
-          <p lang="ru">{withLinks(cls.explanation)}</p>
+          <p lang="ru">{withLinks(details.explanation)}</p>
         </details>
       )}
     </div>

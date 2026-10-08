@@ -82,6 +82,9 @@ export type ApiEmployer = {
   sanctions_count: number
   /** Latest human review; its values override the automatic ones above. */
   human_review: ApiEmployerReview | null
+  /** Final classification of the legal entity; agency decision only for pages without one. */
+  classification?: ApiCompanyClassificationBrief | null
+  agency?: ApiEmployerAgency | null
 }
 
 export type HumanSource = 'hh' | 'trudvsem' | 'superjob' | 'gur' | 'registry' | 'company_site' | 'media' | 'other'
@@ -163,8 +166,8 @@ export type ApiCompanyProfile = {
 
 export type VpkCategory = 'vpk' | 'agency_vpk' | 'foreign_intermediary' | 'foreign_other' | 'civil_sanctioned' | 'out' | 'unknown'
 
-/** Final ВПК decision for the legal entity (latest classification run). */
-export type ApiCompanyClassification = {
+/** Final ВПК decision for the legal entity (latest classification run); lists carry this short form. */
+export type ApiCompanyClassificationBrief = {
   vpk_category: VpkCategory
   /** Empty when a rule decided. */
   vpk_probability: number | null
@@ -176,6 +179,10 @@ export type ApiCompanyClassification = {
   reliability_note: string | null
   sanctions_gur: string[] | null
   sanctions_new: string[] | null
+}
+
+/** Company-page form: with the sanctions found and the explanation. */
+export type ApiCompanyClassification = ApiCompanyClassificationBrief & {
   sanctions_found: { jurisdiction: string; list_name: string | null; listed_raw: string | null; in_gur: boolean; url: string | null }[]
   /** Russian text: decision, probabilities, evidence. */
   explanation: string

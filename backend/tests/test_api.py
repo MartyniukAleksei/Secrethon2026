@@ -157,6 +157,17 @@ def test_company_classification(client: TestClient) -> None:
     assert (rule["vpk_category"], rule["vpk_probability"]) == ("foreign_intermediary", None)
 
 
+def test_employer_list_carries_classification(client: TestClient) -> None:
+    by_id = {e["id"]: e for e in client.get("/api/employers").json()}
+    # Same legal entity as the company page: by INN, or through a confident candidate.
+    assert by_id[1]["classification"]["direction_label"] == "НДДКР"
+    assert "explanation" not in by_id[1]["classification"]  # page-only details
+    assert by_id[2]["classification"]["vpk_level"] == "review"
+    assert by_id[2]["agency"] is None
+    assert by_id[4]["classification"] is None
+    assert by_id[4]["agency"]["category"] == "agency_vpk"
+
+
 def test_company_contacts_only_verified(client: TestClient) -> None:
     contacts = client.get("/api/employers/1").json()["contacts"]
     assert {(c["kind"], c["value"]) for c in contacts} == {

@@ -5,7 +5,7 @@ import { FilterBar } from '../components/FilterBar'
 import { downloadText, toCsv, toJson } from '../data/download'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
-import { CATEGORIES, effectiveVpk, isSanctioned } from '../domain/labels'
+import { CATEGORIES, isSanctioned, isVpkConfirmed } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { useFilters } from '../state/FiltersContext'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
@@ -47,7 +47,7 @@ const exportRow = ({ human_review: hr, ...e }: Employer): ExportRow => ({
 
 type Flag = 'confirmed' | 'gur' | 'sanctions'
 const FLAGS: [Flag, string, (e: Employer) => boolean][] = [
-  ['confirmed', 'ВПК підтверджено', (e) => effectiveVpk(e) === 'confirmed'],
+  ['confirmed', 'ВПК підтверджено', isVpkConfirmed],
   ['gur', 'Є в базі ГУР', (e) => e.gur_company_id != null],
   ['sanctions', 'Під санкціями', isSanctioned],
 ]

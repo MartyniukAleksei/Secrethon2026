@@ -39,6 +39,29 @@ class EmployerReviewOut(EmployerReviewIn):
     reviewed_at: datetime
 
 
+class CompanyClassificationBriefOut(BaseModel):
+    """Final ВПК decision for the legal entity (latest `company_classification` run)."""
+
+    vpk_category: str
+    vpk_probability: float | None
+    vpk_level: Literal["decided", "review"]
+    direction_label: str | None
+    direction_secondary: str | None
+    reliability: str | None
+    reliability_note: str | None
+    sanctions_gur: list[str] | None
+    sanctions_new: list[str] | None
+
+
+class EmployerAgencyOut(BaseModel):
+    """Recruitment-agency decision for a page with no legal entity."""
+
+    category: str | None
+    level: str
+    score: float | None
+    raw_label: str
+
+
 class EmployerOut(BaseModel):
     """An employer from job sites with at least one vacancy classified as ВПК."""
 
@@ -64,6 +87,9 @@ class EmployerOut(BaseModel):
     sanctions_count: int
     # The latest human review; its values override the automatic ones above.
     human_review: EmployerReviewOut | None
+    # Final classification of the legal entity; agency decision only for pages without one.
+    classification: CompanyClassificationBriefOut | None = None
+    agency: EmployerAgencyOut | None = None
 
 
 class MapPointOut(BaseModel):
@@ -199,18 +225,9 @@ class SanctionFoundOut(BaseModel):
     url: str | None
 
 
-class CompanyClassificationOut(BaseModel):
-    """Final ВПК decision for the legal entity (latest `company_classification` run)."""
+class CompanyClassificationOut(CompanyClassificationBriefOut):
+    """Company-page version: with the sanctions found and the explanation."""
 
-    vpk_category: str
-    vpk_probability: float | None
-    vpk_level: Literal["decided", "review"]
-    direction_label: str | None
-    direction_secondary: str | None
-    reliability: str | None
-    reliability_note: str | None
-    sanctions_gur: list[str] | None
-    sanctions_new: list[str] | None
     sanctions_found: list[SanctionFoundOut]
     explanation: str
 
@@ -227,15 +244,6 @@ class CompanyContactOut(BaseModel):
 class CompanyRegistryOut(BaseModel):
     address: str | None
     head: str | None
-
-
-class EmployerAgencyOut(BaseModel):
-    """Recruitment-agency decision for a page with no legal entity."""
-
-    category: str | None
-    level: str
-    score: float | None
-    raw_label: str
 
 
 class EmployerDetailOut(EmployerOut):

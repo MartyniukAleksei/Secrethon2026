@@ -1,4 +1,5 @@
 import type { ApiEmployer, ApiRelation, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
+import { pct } from './format'
 import type { Category, Level } from './types'
 
 /** Classifier categories (stored in Russian by the pipeline) → display name and color token. */
@@ -71,7 +72,16 @@ export const autoVpk = (e: ApiEmployer): HumanVpk => (e.confirmed_vacancies > 0 
 export const effectiveCategory = (e: ApiEmployer) => e.human_review?.category ?? e.category
 export const effectiveVpk = (e: ApiEmployer): HumanVpk => e.human_review?.vpk ?? autoVpk(e)
 export const isSanctioned = (e: ApiEmployer) =>
-  e.human_review?.sanctions ? e.human_review.sanctions === 'sanctioned' : e.sanctions_count > 0
+  e.human_review?.sanctions
+    ? e.human_review.sanctions === 'sanctioned'
+    : e.sanctions_count > 0 || !!e.classification?.sanctions_gur?.length || !!e.classification?.sanctions_new?.length
+/** ВПК confirmed: human review, else a decided company classification, else confirmed vacancies. */
+export const isVpkConfirmed = (e: ApiEmployer) => {
+  if (e.human_review?.vpk) return e.human_review.vpk === 'confirmed'
+  if (e.classification) return e.classification.vpk_category === 'vpk' && e.classification.vpk_level === 'decided'
+  if (e.agency?.category === 'agency_vpk') return false
+  return autoVpk(e) === 'confirmed'
+}
 
 /** Experience as written by each job site → one wording. */
 export function experienceName(raw: string | null): string | null {
@@ -100,3 +110,13 @@ export function relationName(r: Pick<ApiRelation, 'kind' | 'direction'>): string
       return "Пов'язана компанія"
   }
 }
+
+/** Automatic values as the card shows them (the company classification first), for review hints. */
+export function autoVpkName(e: ApiEmployer): string {
+  const c = e.classification
+  if (c) return `${vpkCategoryName(c.vpk_category)} · ${c.vpk_probability != null ? pct(c.vpk_probability) : 'за правилом'}${c.vpk_level === 'review' ? ' · на перевірці' : ''}`
+  if (e.agency?.category === 'agency_vpk') return VPK_CATEGORY.agency_vpk
+  return HUMAN_VPK[autoVpk(e)]
+}
+export const autoDirectionName = (e: ApiEmployer) => e.classification?.direction_label ?? categoryOf(e.category).name
+export const autoReliabilityName = (e: ApiEmployer) => e.classification?.reliability?.trim() ?? 'не оцінено'

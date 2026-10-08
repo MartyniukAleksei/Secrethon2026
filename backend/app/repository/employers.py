@@ -56,7 +56,63 @@ async def list_employers(session: AsyncSession) -> list[Row]:
     result = await session.execute(
         text(sql + " WHERE a.vpk_vacancies > 0 ORDER BY a.vpk_vacancies DESC, a.id")
     )
-    return [_employer_row(r) for r in result.mappings()]
+    employers = [_employer_row(r) for r in result.mappings()]
+    await _attach_classifications(session, employers)
+    return employers
+
+
+async def _attach_classifications(session: AsyncSession, employers: list[Row]) -> None:
+    """Short company classification and agency decision for list cards, as on the company page."""
+    # Same legal entity as get_employer: the best confident match, else the GUR card by INN.
+    matches = await session.execute(
+        text("""
+            SELECT DISTINCT ON (m.employer_profile_id) m.employer_profile_id,
+                   coalesce(d.canonical_id, m.company_id) AS company_id
+            FROM employer_company_match m
+            LEFT JOIN company_duplicate d ON d.company_id = m.company_id
+            WHERE m.status <> 'rejected' AND (m.status = 'auto' OR m.confidence >= 0.8)
+            ORDER BY m.employer_profile_id, m.status = 'auto' DESC, m.confidence DESC, 2
+        """)
+    )
+    company_by_employer = {r.employer_profile_id: r.company_id for r in matches}
+    for e in employers:
+        e["company_id"] = company_by_employer.get(e["id"], e["gur_company_id"])
+
+    company_ids = sorted({e["company_id"] for e in employers if e["company_id"] is not None})
+    classifications = await session.execute(
+        text("""
+            SELECT DISTINCT ON (cc.company_id) cc.company_id, cc.vpk_category, cc.vpk_probability,
+                   cc.vpk_level, cc.direction_label, cc.direction_secondary, cc.reliability,
+                   cc.reliability_note, cc.sanctions_gur, cc.sanctions_new
+            FROM company_classification cc JOIN classifier_run r USING (run_id)
+            WHERE r.classifier = 'company_classification' AND cc.company_id = ANY(:ids)
+            ORDER BY cc.company_id, r.started_at DESC
+        """),
+        {"ids": company_ids},
+    )
+    by_company = {}
+    for r in classifications.mappings():
+        row = dict(r)
+        by_company[row.pop("company_id")] = row
+
+    agencies = await session.execute(
+        text("""
+            SELECT DISTINCT ON (ec.employer_profile_id) ec.employer_profile_id,
+                   ec.category, ec.level, ec.score, ec.raw_label
+            FROM employer_classification ec JOIN classifier_run r USING (run_id)
+            WHERE r.classifier = 'employer_agency'
+            ORDER BY ec.employer_profile_id, r.started_at DESC
+        """)
+    )
+    by_employer = {}
+    for r in agencies.mappings():
+        row = dict(r)
+        by_employer[row.pop("employer_profile_id")] = row
+
+    for e in employers:
+        company_id = e.pop("company_id")
+        e["classification"] = by_company.get(company_id)
+        e["agency"] = by_employer.get(e["id"]) if company_id is None else None
 
 
 async def map_network(session: AsyncSession) -> Row:
