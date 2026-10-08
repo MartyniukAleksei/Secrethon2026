@@ -1,10 +1,16 @@
+from pathlib import Path
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # hide_input_in_errors: never print DATABASE_URL (it contains the password) in errors.
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parents[1] / ".env",
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
 
     # Railway injects DATABASE_URL; locally it comes from backend/.env (see .env.example).
     database_url: str = "postgresql://postgres:postgres@localhost:5432/secrethon"
@@ -12,6 +18,10 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash-lite"
     tavily_api_key: str = ""
     agent_enabled: bool = True
+    mcp_enabled: bool = True
+    mcp_api_key: str = ""
+    mcp_public_url: str = ""
+    mcp_allowed_hosts: str = "127.0.0.1,localhost,[::1]"
 
     # Optional HTTP Basic Auth for the whole site; disabled when site_password is empty.
     site_user: str = "admin"

@@ -7,12 +7,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import router
 from app.config import settings
 from app.db import engine
+from app.mcp_server import create_server
+from app.mcp_server import http_app as mcp_http_app
 from app.reviews import engine as review_engine
 
 # Built frontend (frontend/dist). In Docker it is copied to /app/static.
@@ -22,15 +24,27 @@ STATIC_DIR = Path(os.getenv("STATIC_DIR", DEFAULT_STATIC_DIR))
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
-    await engine.dispose()
-    await review_engine.dispose()
+    try:
+        # SDK HTTP session managers are single-use; make one for each app lifespan.
+        server = create_server()
+        mcp_http_app.app = server.streamable_http_app()
+        async with server.session_manager.run():
+            yield
+    finally:
+        await engine.dispose()
+        await review_engine.dispose()
 
 
 app = FastAPI(title="Secrethon 2026 API", lifespan=lifespan)
 # The employer list is a few hundred KB of JSON; compress it.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.include_router(router)
+app.mount("/mcp", mcp_http_app)
+
+
+@app.api_route("/mcp", methods=["GET", "POST", "DELETE"], include_in_schema=False)
+async def mcp_endpoint() -> RedirectResponse:
+    return RedirectResponse("/mcp/", status_code=307)
 
 
 def _authorized(header: str | None) -> bool:
@@ -49,8 +63,14 @@ def _authorized(header: str | None) -> bool:
 async def basic_auth(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
-    # Railway's healthcheck must pass without credentials.
-    if not settings.site_password or request.url.path == "/api/health":
+    # MCP authenticates its own Bearer key; a second Basic header cannot coexist.
+    path = request.url.path
+    if (
+        not settings.site_password
+        or path == "/api/health"
+        or path == "/mcp"
+        or path.startswith("/mcp/")
+    ):
         return await call_next(request)
     if _authorized(request.headers.get("authorization")):
         return await call_next(request)
