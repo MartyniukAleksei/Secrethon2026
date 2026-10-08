@@ -1,10 +1,12 @@
+import asyncio
 from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from app.export_formats import stream_csv, stream_json, stream_jsonl
+from app.export_snapshot import snapshots, to_parquet
 from app.repository import export
 from app.repository.cache import cache
 from app.repository.export import DATASETS, Dataset
@@ -17,7 +19,8 @@ STREAM_FORMATS = {
     "json": "application/json",
     "jsonl": "application/x-ndjson",
 }
-FORMATS = tuple(STREAM_FORMATS)
+PARQUET = "application/vnd.apache.parquet"
+FORMATS = (*STREAM_FORMATS, "parquet")
 
 
 def _dataset(name: str) -> Dataset:
@@ -57,6 +60,7 @@ async def catalog() -> dict[str, Any]:
         return {
             "as_of": as_of,
             "formats": list(FORMATS),
+            "snapshot": {"zip": "/api/export/snapshot.zip", "sql": "/api/export/snapshot.sql"},
             "datasets": [
                 {
                     **_schema(d),
@@ -69,6 +73,28 @@ async def catalog() -> dict[str, Any]:
         }
 
     return await cache.get_or_load("export_catalog", load)
+
+
+@router.get("/snapshot.zip")
+async def snapshot_zip() -> FileResponse:
+    """Повний знімок: CSV і Parquet усіх датасетів, snapshot.sql, schema.json, manifest.json."""
+    as_of, directory = await snapshots.get()
+    return FileResponse(
+        directory / "snapshot.zip",
+        media_type="application/zip",
+        filename=_filename("stayhard_snapshot", as_of, "zip"),
+    )
+
+
+@router.get("/snapshot.sql")
+async def snapshot_sql() -> FileResponse:
+    """Усі датасети як SQL-скрипт для PostgreSQL (CREATE TABLE, коментарі до колонок, INSERT)."""
+    as_of, directory = await snapshots.get()
+    return FileResponse(
+        directory / "snapshot.sql",
+        media_type="application/sql",
+        filename=_filename("stayhard_snapshot", as_of, "sql"),
+    )
 
 
 @router.get("/{name}/schema")
@@ -88,20 +114,23 @@ async def download(
     q: Annotated[str | None, Query(max_length=200)] = None,
     days: Annotated[int | None, Query(ge=1, le=3650)] = None,
 ) -> StreamingResponse:
-    """Датасет у форматі csv, json або jsonl, наприклад `vacancies.csv`.
+    """Датасет у форматі csv, json, jsonl або parquet, наприклад `vacancies.csv`.
 
     Фільтри (level, employer_id, region_id, category, title, q, days) застосовуються лише
     до `vacancies` і мають той самий зміст, що в `/api/vacancies`; без фільтрів — усі активні.
     """
     name, _, fmt = filename.rpartition(".")
     dataset = _dataset(name)
-    if fmt not in STREAM_FORMATS:
+    if fmt not in FORMATS:
         raise HTTPException(404, f"Невідомий формат: {fmt}. Доступні: {', '.join(FORMATS)}")
     f = VacancyFilter(
         level, employer_id, region_id, category, title, (q or "").strip() or None, days
     )
     as_of = await export.snapshot_date()
     rows = export.stream_rows(dataset, f)
+    if fmt == "parquet":
+        data = await asyncio.to_thread(to_parquet, dataset, [r async for r in rows])
+        return Response(data, media_type=PARQUET, headers=attachment(_filename(name, as_of, fmt)))
     if fmt == "csv":
         body = stream_csv(dataset.columns, rows)
     elif fmt == "jsonl":

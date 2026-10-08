@@ -7,6 +7,7 @@ because the database belongs to the data pipeline and this service only reads it
 """
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -158,7 +159,7 @@ COMPANY_PRODUCTS = Dataset(
         "Зв'язок компаній зі зразками озброєння, моделями БПЛА та компонентами з порталу ГУР. "
         "product_type: weapon, uav, component."
     ),
-    key=("company_id", "product_type", "product_id"),
+    key=("company_id", "product_type", "product_id", "weapon_slug"),
     columns=_cols(
         ("company_id", "int", "Компанія → companies.company_id"),
         ("product_type", "text", "weapon — озброєння, uav — модель БПЛА, component — компонент"),
@@ -333,12 +334,29 @@ async def as_of(conn: AsyncConnection) -> datetime | None:
 
 async def stream_rows(dataset: Dataset, f: VacancyFilter | None = None) -> AsyncIterator[Row]:
     """Rows through a server-side cursor; owns its connection so it can outlive the request."""
-    sql, params = dataset.query(f)
     async with engine.connect() as conn, conn.begin():
         await _begin(conn)
-        result = await conn.stream(text(sql), params)
-        async for row in result.mappings():
-            yield dict(row)
+        async for row in stream_in(conn, dataset, f):
+            yield row
+
+
+async def stream_in(
+    conn: AsyncConnection, dataset: Dataset, f: VacancyFilter | None = None
+) -> AsyncIterator[Row]:
+    sql, params = dataset.query(f)
+    result = await conn.stream(text(sql), params)
+    async for row in result.mappings():
+        yield dict(row)
+
+
+@asynccontextmanager
+async def snapshot_connection() -> AsyncIterator[AsyncConnection]:
+    """One repeatable-read transaction, so every dataset of a snapshot sees the same data."""
+    async with engine.connect() as conn:
+        conn = await conn.execution_options(isolation_level="REPEATABLE READ")
+        async with conn.begin():
+            await _begin(conn)
+            yield conn
 
 
 async def catalog() -> tuple[datetime | None, dict[str, int]]:

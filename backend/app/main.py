@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES
 
 from app.api import router
 from app.config import settings
@@ -36,8 +37,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Secrethon 2026 API", lifespan=lifespan)
-# The employer list is a few hundred KB of JSON; compress it.
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# The employer list is a few hundred KB of JSON; compress it. Parquet is already compressed.
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1024,
+    exclude_content_types=(*DEFAULT_EXCLUDED_CONTENT_TYPES, "application/vnd.apache.parquet"),
+)
 app.include_router(router)
 app.mount("/mcp", mcp_http_app)
 

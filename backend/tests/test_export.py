@@ -1,6 +1,14 @@
+import asyncio
 import csv
+import hashlib
 import io
+import json
+import os
+import zipfile
 
+import asyncpg
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from fastapi.testclient import TestClient
 
@@ -91,3 +99,49 @@ def test_unknown_dataset_or_format(client: TestClient) -> None:
     assert client.get("/api/export/nope.csv").status_code == 404
     assert client.get("/api/export/nope/schema").status_code == 404
     assert client.get("/api/export/companies.xml").status_code == 404
+
+
+def test_parquet_follows_the_field_dictionary(client: TestClient) -> None:
+    response = client.get("/api/export/vacancies.parquet?level=vpk")
+    assert response.status_code == 200
+    assert "content-encoding" not in response.headers
+    table = pq.read_table(io.BytesIO(response.content))
+    assert table.schema.names == [c.name for c in DATASETS["vacancies"].columns]
+    assert str(table.schema.field("published_at").type) == "timestamp[us, tz=UTC]"
+    assert table.num_rows == client.get("/api/vacancies?level=vpk").json()["total"]
+    companies = pq.read_table(io.BytesIO(client.get("/api/export/companies.parquet").content))
+    assert companies.schema.field("products_uk").type == pa.list_(pa.string())
+
+
+def test_snapshot_zip_manifest_matches_files(client: TestClient) -> None:
+    response = client.get("/api/export/snapshot.zip")
+    assert response.status_code == 200
+    assert 'filename="stayhard_snapshot_2026-10-05.zip"' in response.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+        catalog = client.get("/api/export").json()
+        assert manifest["datasets"] == {d["name"]: d["row_count"] for d in catalog["datasets"]}
+        for path, meta in manifest["files"].items():
+            assert hashlib.sha256(zf.read(path)).hexdigest() == meta["sha256"], path
+        assert {f"{n}.{ext}" for n in DATASETS for ext in ("csv", "parquet")} <= set(zf.namelist())
+        assert {"snapshot.sql", "schema.json", "README.md"} <= set(zf.namelist())
+
+
+def test_snapshot_sql_loads_into_postgres(client: TestClient) -> None:
+    script = client.get("/api/export/snapshot.sql").text
+    counts = {d["name"]: d["row_count"] for d in client.get("/api/export").json()["datasets"]}
+
+    async def load() -> dict[str, int]:
+        conn = await asyncpg.connect(os.environ["DATABASE_URL"])  # set by conftest
+        try:
+            await conn.execute(
+                "DROP SCHEMA IF EXISTS export_check CASCADE; CREATE SCHEMA export_check"
+            )
+            await conn.execute("SET search_path = export_check")
+            await conn.execute(script)
+            return {n: await conn.fetchval(f"SELECT count(*) FROM {n}") for n in DATASETS}
+        finally:
+            await conn.execute("DROP SCHEMA IF EXISTS export_check CASCADE")
+            await conn.close()
+
+    assert asyncio.run(load()) == counts
