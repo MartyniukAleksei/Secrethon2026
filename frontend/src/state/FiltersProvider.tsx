@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { effectiveCategory } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { FiltersContext, PERIODS, type Filters, type FiltersState } from './FiltersContext'
 
@@ -12,7 +13,7 @@ export function FiltersProvider({ children }: { children: ReactNode }) {
       set,
       matches: (e: Employer) =>
         (filters.region === 'all' || e.region_id === filters.region) &&
-        (filters.category === 'all' || e.category === filters.category),
+        (filters.category === 'all' || effectiveCategory(e) === filters.category),
       periodName: PERIODS.find((p) => p.value === filters.period)?.name ?? '',
     }),
     [filters, set],

@@ -72,6 +72,29 @@ export type ApiEmployer = {
   gur_company_id: number | null
   gur_name: string | null
   sanctions_count: number
+  /** Latest human review; its values override the automatic ones above. */
+  human_review: ApiEmployerReview | null
+}
+
+export type HumanSource = 'hh' | 'trudvsem' | 'superjob' | 'gur' | 'registry' | 'company_site' | 'media' | 'other'
+/** Admiralty code letter: A reliable … E unreliable, F cannot be judged. */
+export type Reliability = 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
+export type HumanSanctions = 'sanctioned' | 'not_sanctioned'
+export type HumanVpk = 'confirmed' | 'likely' | 'no'
+/** A human snapshot of the employer card; null keeps the automatic value. */
+export type ApiEmployerReviewInput = {
+  sources: HumanSource[] | null
+  reliability: Reliability | null
+  category: Category
+  sanctions: HumanSanctions | null
+  vpk: HumanVpk | null
+  reviewed_by: string
+  comment: string | null
+}
+export type ApiEmployerReview = ApiEmployerReviewInput & {
+  review_id: number
+  employer_id: number
+  reviewed_at: string
 }
 
 export type ApiRelation = {
@@ -151,6 +174,7 @@ export type ApiEmployerDetail = ApiEmployer & {
   }[]
   gur: ApiGurCompany | null
   profile: ApiCompanyProfile | null
+  human_reviews: ApiEmployerReview[]
 }
 
 export type ApiVacancy = {

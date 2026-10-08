@@ -4,6 +4,7 @@ import { MapSlot } from '../components/MapSlot'
 import { EmployerRow } from '../components/rows'
 import { useData } from '../data/DataContext'
 import { fmt, money } from '../domain/format'
+import { isSanctioned } from '../domain/labels'
 import { Icon } from '../ui/Icon'
 import { NotFoundPage } from './NotFoundPage'
 import './RegionPage.css'
@@ -20,7 +21,7 @@ export function RegionPage() {
   const kpis: [string, string][] = [
     ['Вакансій ВПК', fmt(region.vpk_vacancies)],
     ['Роботодавців', fmt(region.employers)],
-    ['Під санкціями', fmt(list.filter((e) => e.sanctions_count > 0).length)],
+    ['Під санкціями', fmt(list.filter(isSanctioned).length)],
     ['Типова зарплата', money(median)],
   ]
 

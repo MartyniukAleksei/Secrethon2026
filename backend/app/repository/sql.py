@@ -83,12 +83,54 @@ agg AS (
 )
 """
 
+# The latest human review per employer (app-owned table, see app/reviews.py). Until the first
+# review is saved the table doesn't exist, so queries get an empty stand-in with the same columns.
+HUMAN_REVIEW_PLACEHOLDER = "{human_review}"
+HUMAN_REVIEW_LATEST = """
+hr AS (
+    SELECT DISTINCT ON (employer_id) *
+    FROM web_reviews.employer_review
+    ORDER BY employer_id, review_id DESC
+)
+"""
+HUMAN_REVIEW_EMPTY = """
+hr AS (
+    SELECT NULL::bigint AS review_id, NULL::bigint AS employer_id, NULL::text[] AS sources,
+           NULL::text AS reliability, NULL::text AS category, NULL::text AS sanctions,
+           NULL::text AS vpk, NULL::text AS reviewed_by, NULL::text AS comment,
+           NULL::timestamptz AS reviewed_at
+    WHERE false
+)
+"""
+HUMAN_REVIEW_FIELDS = (
+    "review_id",
+    "sources",
+    "reliability",
+    "category",
+    "sanctions",
+    "vpk",
+    "reviewed_by",
+    "comment",
+    "reviewed_at",
+)
+
+
+def with_human_review(sql: str, ready: bool) -> str:
+    """Fill the `hr` CTE placeholder: the real table once it exists, else an empty one."""
+    return sql.replace(
+        HUMAN_REVIEW_PLACEHOLDER, HUMAN_REVIEW_LATEST if ready else HUMAN_REVIEW_EMPTY
+    )
+
+
+# Contains the `{human_review}` placeholder; run it through with_human_review().
 EMPLOYER_SELECT = f"""
-WITH {CTE}, {GUR_BY_INN}, {EMPLOYER_AGG}
+WITH {CTE}, {GUR_BY_INN}, {EMPLOYER_AGG}, {HUMAN_REVIEW_PLACEHOLDER}
 SELECT a.*, ep.name, ep.source, ep.inn, ep.ogrn, ep.kpp, ep.url AS profile_url, r.name AS region,
-       g.company_id AS gur_company_id, g.name AS gur_name, coalesce(g.sanctions_count, 0) AS sanctions_count
+       g.company_id AS gur_company_id, g.name AS gur_name, coalesce(g.sanctions_count, 0) AS sanctions_count,
+       {", ".join(f"hr.{c} AS human_{c}" for c in HUMAN_REVIEW_FIELDS)}
 FROM agg a
 JOIN employer_profile ep ON ep.employer_profile_id = a.id
 LEFT JOIN region r ON r.region_id = a.region_id
 LEFT JOIN gur g ON g.inn = ep.inn
+LEFT JOIN hr ON hr.employer_id = a.id
 """

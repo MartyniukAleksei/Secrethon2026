@@ -4,7 +4,16 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, ON_GUR, VPK
+from app.repository.sql import (
+    AS_OF,
+    CTE,
+    EMPLOYER_SELECT,
+    HUMAN_REVIEW_FIELDS,
+    ON_GUR,
+    VPK,
+    with_human_review,
+)
+from app.reviews import employer_reviews_ready, list_employer_reviews
 
 Row = dict[str, Any]
 
@@ -27,12 +36,27 @@ async def map_points(session: AsyncSession) -> list[Row]:
     return [dict(r) for r in result.mappings()]
 
 
+async def _employer_select(session: AsyncSession) -> str:
+    return with_human_review(EMPLOYER_SELECT, await employer_reviews_ready(session))
+
+
+def _employer_row(row: Any) -> Row:
+    """Fold the flat `human_*` columns into a nested `human_review` (None when never reviewed)."""
+    employer = dict(row)
+    review = {c: employer.pop(f"human_{c}") for c in HUMAN_REVIEW_FIELDS}
+    employer["human_review"] = (
+        {**review, "employer_id": employer["id"]} if review["review_id"] is not None else None
+    )
+    return employer
+
+
 async def list_employers(session: AsyncSession) -> list[Row]:
     """Employers with at least one ВПК vacancy, biggest first."""
+    sql = await _employer_select(session)
     result = await session.execute(
-        text(EMPLOYER_SELECT + " WHERE a.vpk_vacancies > 0 ORDER BY a.vpk_vacancies DESC, a.id")
+        text(sql + " WHERE a.vpk_vacancies > 0 ORDER BY a.vpk_vacancies DESC, a.id")
     )
-    return [dict(r) for r in result.mappings()]
+    return [_employer_row(r) for r in result.mappings()]
 
 
 async def map_network(session: AsyncSession) -> Row:
@@ -71,11 +95,13 @@ async def map_network(session: AsyncSession) -> Row:
 
 
 async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
-    result = await session.execute(text(EMPLOYER_SELECT + " WHERE a.id = :id"), {"id": employer_id})
+    sql = await _employer_select(session)
+    result = await session.execute(text(sql + " WHERE a.id = :id"), {"id": employer_id})
     row = result.mappings().first()
     if row is None:
         return None
-    employer = dict(row)
+    employer = _employer_row(row)
+    employer["human_reviews"] = await list_employer_reviews(session, employer_id)
     params = {"id": employer_id}
 
     monthly = await session.execute(

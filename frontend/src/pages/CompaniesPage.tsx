@@ -5,7 +5,7 @@ import { FilterBar } from '../components/FilterBar'
 import { downloadText, toCsv, toJson } from '../data/download'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
-import { CATEGORIES } from '../domain/labels'
+import { CATEGORIES, effectiveVpk, isSanctioned } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { useFilters } from '../state/FiltersContext'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
@@ -19,22 +19,37 @@ const SORTS: Record<Sort, { label: string; key: (e: Employer) => number }> = {
   confirmed: { label: 'Спершу більше підтверджених', key: (e) => e.confirmed_vacancies },
   new: { label: 'Спершу більше нових за 30 днів', key: (e) => e.new_30d },
   salary: { label: 'Спершу вища зарплата', key: (e) => e.median_salary ?? -1 },
-  sanctions: { label: 'Спершу більше санкцій', key: (e) => e.sanctions_count },
+  sanctions: { label: 'Спершу більше санкцій', key: (e) => (isSanctioned(e) ? Math.max(e.sanctions_count, 1) : 0) },
 }
 const PAGE = 60
 
 // Same fields as the `employers` open data set (its id is `employer_id` there).
-const EXPORT_COLUMNS: (keyof Employer & string)[] = [
+const EXPORT_COLUMNS = [
   'id', 'name', 'source', 'profile_url', 'inn', 'ogrn', 'kpp', 'region', 'locality', 'category',
   'vpk_vacancies', 'confirmed_vacancies', 'total_vacancies', 'new_30d', 'median_salary',
   'last_published_at', 'gur_company_id', 'gur_name', 'sanctions_count',
-]
+  'human_sources', 'human_reliability', 'human_category', 'human_sanctions', 'human_vpk',
+  'human_reviewed_by', 'human_reviewed_at',
+] as const
+type ExportRow = Record<(typeof EXPORT_COLUMNS)[number], unknown>
+
+// The human review flattened into `human_*` columns, as in the open data set.
+const exportRow = ({ human_review: hr, ...e }: Employer): ExportRow => ({
+  ...e,
+  human_sources: hr?.sources?.join('; ') ?? null,
+  human_reliability: hr?.reliability ?? null,
+  human_category: hr?.category ?? null,
+  human_sanctions: hr?.sanctions ?? null,
+  human_vpk: hr?.vpk ?? null,
+  human_reviewed_by: hr?.reviewed_by ?? null,
+  human_reviewed_at: hr?.reviewed_at ?? null,
+})
 
 type Flag = 'confirmed' | 'gur' | 'sanctions'
 const FLAGS: [Flag, string, (e: Employer) => boolean][] = [
-  ['confirmed', 'ВПК підтверджено', (e) => e.confirmed_vacancies > 0],
+  ['confirmed', 'ВПК підтверджено', (e) => effectiveVpk(e) === 'confirmed'],
   ['gur', 'Є в базі ГУР', (e) => e.gur_company_id != null],
-  ['sanctions', 'Під санкціями', (e) => e.sanctions_count > 0],
+  ['sanctions', 'Під санкціями', isSanctioned],
 ]
 
 export function CompaniesPage() {
@@ -130,8 +145,8 @@ export function CompaniesPage() {
             </p>
             <ExportButtons
               options={[
-                { label: 'CSV', onClick: () => downloadText('companies_selection.csv', toCsv(list, EXPORT_COLUMNS), 'text/csv;charset=utf-8') },
-                { label: 'JSON', onClick: () => downloadText('companies_selection.json', toJson(list, EXPORT_COLUMNS), 'application/json') },
+                { label: 'CSV', onClick: () => downloadText('companies_selection.csv', toCsv(list.map(exportRow), [...EXPORT_COLUMNS]), 'text/csv;charset=utf-8') },
+                { label: 'JSON', onClick: () => downloadText('companies_selection.json', toJson(list.map(exportRow), [...EXPORT_COLUMNS]), 'application/json') },
               ]}
             />
           </div>

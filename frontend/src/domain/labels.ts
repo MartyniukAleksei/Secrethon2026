@@ -1,4 +1,4 @@
-import type { ApiRelation } from '../api/types'
+import type { ApiEmployer, ApiRelation, HumanSanctions, HumanSource, HumanVpk, Reliability } from '../api/types'
 import type { Category, Level } from './types'
 
 /** Classifier categories (stored in Russian by the pipeline) → display name and color token. */
@@ -25,6 +25,26 @@ export const SOURCES: Record<string, string> = {
   trudvsem: 'Работа России (trudvsem.ru)',
 }
 export const sourceName = (s: string) => SOURCES[s] ?? s
+
+/** Human review options for the employer card (keys are stored in web_reviews.employer_review). */
+export const HUMAN_SOURCES: Record<HumanSource, string> = {
+  hh: 'hh.ru', trudvsem: 'trudvsem.ru', superjob: 'superjob.ru', gur: 'ГУР',
+  registry: 'Реєстр', company_site: 'Сайт компанії', media: 'ЗМІ', other: 'Інше',
+}
+/** Admiralty source reliability scale. */
+export const RELIABILITY: Record<Reliability, string> = {
+  A: 'Повністю надійне', B: 'Зазвичай надійне', C: 'Досить надійне',
+  D: 'Зазвичай ненадійне', E: 'Ненадійне', F: 'Неможливо оцінити',
+}
+export const HUMAN_SANCTIONS: Record<HumanSanctions, string> = { sanctioned: 'Під санкціями', not_sanctioned: 'Санкцій не виявлено' }
+export const HUMAN_VPK: Record<HumanVpk, string> = { confirmed: 'ВПК підтверджено', likely: 'ВПК ймовірно', no: 'Не ВПК' }
+
+// Effective employer values: a human review wins over the automatic classification.
+export const autoVpk = (e: ApiEmployer): HumanVpk => (e.confirmed_vacancies > 0 ? 'confirmed' : 'likely')
+export const effectiveCategory = (e: ApiEmployer) => e.human_review?.category ?? e.category
+export const effectiveVpk = (e: ApiEmployer): HumanVpk => e.human_review?.vpk ?? autoVpk(e)
+export const isSanctioned = (e: ApiEmployer) =>
+  e.human_review?.sanctions ? e.human_review.sanctions === 'sanctioned' : e.sanctions_count > 0
 
 /** Experience as written by each job site → one wording. */
 export function experienceName(raw: string | null): string | null {

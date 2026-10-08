@@ -1,9 +1,42 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Level = Literal["confirmed", "likely", "review", "no", "out_of_scope"]
+HumanSource = Literal[
+    "hh", "trudvsem", "superjob", "gur", "registry", "company_site", "media", "other"
+]
+
+
+class EmployerReviewIn(BaseModel):
+    """A human snapshot of the employer card; a missing field keeps the automatic value."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    sources: list[HumanSource] | None = Field(default=None, min_length=1, max_length=8)
+    # Admiralty code letter: A reliable … E unreliable, F cannot be judged.
+    reliability: Literal["A", "B", "C", "D", "E", "F"] | None = None
+    category: Literal["производство", "НИИ/КБ", "ремонт"] | None = None
+    sanctions: Literal["sanctioned", "not_sanctioned"] | None = None
+    vpk: Literal["confirmed", "likely", "no"] | None = None
+    reviewed_by: str = Field(min_length=2, max_length=120)
+    comment: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _reviews_something(self) -> "EmployerReviewIn":
+        if self.sources is not None:
+            self.sources = list(dict.fromkeys(self.sources))
+        fields = (self.sources, self.reliability, self.category, self.sanctions, self.vpk)
+        if all(v is None for v in fields):
+            raise ValueError("set at least one reviewed value")
+        return self
+
+
+class EmployerReviewOut(EmployerReviewIn):
+    review_id: int
+    employer_id: int
+    reviewed_at: datetime
 
 
 class EmployerOut(BaseModel):
@@ -29,6 +62,8 @@ class EmployerOut(BaseModel):
     gur_company_id: int | None
     gur_name: str | None
     sanctions_count: int
+    # The latest human review; its values override the automatic ones above.
+    human_review: EmployerReviewOut | None
 
 
 class MapPointOut(BaseModel):
@@ -161,6 +196,7 @@ class EmployerDetailOut(EmployerOut):
     hiring_locations: list[HiringLocationOut]
     gur: GurCompanyOut | None
     profile: CompanyProfileOut | None
+    human_reviews: list[EmployerReviewOut]
 
 
 class VacancyOut(BaseModel):

@@ -16,8 +16,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.db import engine
-from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, ON_GUR
+from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, ON_GUR, with_human_review
 from app.repository.vacancies import VacancyFilter
+from app.reviews import employer_reviews_ready
 
 ColumnType = Literal["int", "float", "text", "bool", "date", "timestamp", "text[]"]
 
@@ -236,6 +237,13 @@ EMPLOYERS = Dataset(
         ("matched_company_id", "int", "Найкращий збіг з компанією → companies.company_id"),
         ("match_method", "text", "Спосіб збігу: inn, auto, name"),
         ("sanctions_count", "int", "Санкції компанії з порталу ГУР"),
+        ("human_sources", "text[]", "Human review: джерела інформації (у CSV — через «; »)"),
+        ("human_reliability", "text", "Human review: надійність джерела, шкала A–F"),
+        ("human_category", "text", "Human review: напрям діяльності (замість category)"),
+        ("human_sanctions", "text", "Human review: санкції — sanctioned, not_sanctioned"),
+        ("human_vpk", "text", "Human review: дотичність до ВПК — confirmed, likely, no"),
+        ("human_reviewed_by", "text", "Human review: хто перевірив (остання ревізія)"),
+        ("human_reviewed_at", "timestamp", "Human review: коли перевірено"),
     ),
     sql=f"""
         WITH e AS ({EMPLOYER_SELECT} WHERE a.vpk_vacancies > 0)
@@ -247,7 +255,9 @@ EMPLOYERS = Dataset(
                CASE WHEN e.gur_company_id IS NOT NULL THEN 'inn'
                     WHEN m.status = 'auto' THEN 'auto'
                     WHEN m.company_id IS NOT NULL THEN 'name' END AS match_method,
-               e.sanctions_count::int
+               e.sanctions_count::int,
+               e.human_sources, e.human_reliability, e.human_category, e.human_sanctions,
+               e.human_vpk, e.human_reviewed_by, e.human_reviewed_at
         FROM e
         LEFT JOIN LATERAL (
             SELECT coalesce(d.canonical_id, cm.company_id) AS company_id, cm.status
@@ -340,10 +350,17 @@ async def stream_rows(dataset: Dataset, f: VacancyFilter | None = None) -> Async
             yield row
 
 
+async def _query(
+    conn: AsyncConnection, dataset: Dataset, f: VacancyFilter | None = None
+) -> tuple[str, dict[str, Any]]:
+    sql, params = dataset.query(f)
+    return with_human_review(sql, await employer_reviews_ready(conn)), params
+
+
 async def stream_in(
     conn: AsyncConnection, dataset: Dataset, f: VacancyFilter | None = None
 ) -> AsyncIterator[Row]:
-    sql, params = dataset.query(f)
+    sql, params = await _query(conn, dataset, f)
     result = await conn.stream(text(sql), params)
     async for row in result.mappings():
         yield dict(row)
@@ -365,7 +382,7 @@ async def catalog() -> tuple[datetime | None, dict[str, int]]:
         await _begin(conn)
         counts = {}
         for d in DATASETS.values():
-            sql, params = d.query()
+            sql, params = await _query(conn, d)
             counts[d.name] = (
                 await conn.execute(text(f"SELECT count(*) FROM ({sql}) t"), params)
             ).scalar_one()

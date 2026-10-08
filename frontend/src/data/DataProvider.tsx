@@ -1,10 +1,17 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { ApiEmployerReview } from '../api/types'
 import type { Dataset } from '../domain/types'
 import { DataContext } from './DataContext'
 import { loadDataset } from './load'
 import './DataProvider.css'
 
-type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; data: Dataset }
+type Loaded = Omit<Dataset, 'applyHumanReview'>
+type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; data: Loaded }
+
+function withReview(data: Loaded, review: ApiEmployerReview): Loaded {
+  const employers = data.employers.map((e) => (e.id === review.employer_id ? { ...e, human_review: review } : e))
+  return { ...data, employers, byId: Object.fromEntries(employers.map((e) => [e.id, e])) }
+}
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: 'loading' })
@@ -22,6 +29,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })
     return () => ctrl.abort()
   }, [attempt])
+
+  const applyHumanReview = useCallback((review: ApiEmployerReview) => {
+    setState((s) => (s.status === 'ready' ? { status: 'ready', data: withReview(s.data, review) } : s))
+  }, [])
+  const value = useMemo(
+    () => (state.status === 'ready' ? { ...state.data, applyHumanReview } : null),
+    [state, applyHumanReview],
+  )
 
   const retry = useCallback(() => {
     setState({ status: 'loading' })
@@ -54,5 +69,5 @@ export function DataProvider({ children }: { children: ReactNode }) {
       </div>
     )
   }
-  return <DataContext.Provider value={state.data}>{children}</DataContext.Provider>
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

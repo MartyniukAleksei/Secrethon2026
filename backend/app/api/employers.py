@@ -1,7 +1,17 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 
+from app import reviews
 from app.api.deps import Session
-from app.api.schemas import EmployerDetailOut, EmployerOut, MapNetworkOut, MapPointOut
+from app.api.schemas import (
+    EmployerDetailOut,
+    EmployerOut,
+    EmployerReviewIn,
+    EmployerReviewOut,
+    MapNetworkOut,
+    MapPointOut,
+)
+from app.export_snapshot import snapshots
 from app.repository import employers
 from app.repository.cache import cache
 
@@ -44,3 +54,21 @@ async def get_employer(employer_id: int, session: Session) -> EmployerDetailOut:
     if employer is None:
         raise HTTPException(status_code=404, detail="employer not found")
     return employer
+
+
+@router.post("/{employer_id}/reviews", status_code=201)
+async def add_review(
+    employer_id: int, review: EmployerReviewIn, session: Session
+) -> EmployerReviewOut:
+    """Append a human review; the latest one overrides the card's automatic values."""
+    if await employers.get_employer(session, employer_id) is None:
+        raise HTTPException(status_code=404, detail="employer not found")
+    try:
+        row = await reviews.save_employer_review(employer_id, review.model_dump())
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503, detail="review storage unavailable; the review was not saved"
+        ) from exc
+    cache.invalidate("employers", ("employer", employer_id))
+    snapshots.invalidate()
+    return EmployerReviewOut.model_validate(row)

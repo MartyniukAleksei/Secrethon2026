@@ -7,7 +7,7 @@ import { api } from '../api/client'
 import type { ApiMapNetwork, ApiMapPoint, ApiMapRelation } from '../api/types'
 import { useApi } from '../data/useApi'
 import { useData } from '../data/DataContext'
-import { categoryOf } from '../domain/labels'
+import { categoryOf, effectiveCategory, isSanctioned } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { useToast } from '../features/toast/ToastContext'
 import { Icon } from '../ui/Icon'
@@ -89,7 +89,7 @@ export function MapSlot({ employers, selectedId, children }: {
   const companyTags = useMemo(() => new Map(network.company_tags.map((tag) => [tag.company_id, tag])), [network])
   const allPoints = pointsState.status === 'ready' ? pointsState.data : EMPTY
   const points = useMemo(() => {
-    const ids = new Set(employers.filter((e) => (!sanctioned || e.sanctions_count > 0) &&
+    const ids = new Set(employers.filter((e) => (!sanctioned || isSanctioned(e)) &&
       (specialization === 'all' || (e.gur_company_id != null && companyTags.get(e.gur_company_id)?.[specialization]))).map((e) => e.id))
     return allPoints.filter((p) => ids.has(p.employer_id))
   }, [allPoints, employers, sanctioned, specialization, companyTags])
@@ -163,7 +163,7 @@ export function MapSlot({ employers, selectedId, children }: {
     const clusterer = new Clusterer(map, { radius: 55 })
     clusterer.load(points.map((p) => ({
       coordinates: [p.lng, p.lat],
-      icon: markerIcon(markerColor(byId[p.employer_id]?.category ?? null)),
+      icon: markerIcon(markerColor(byId[p.employer_id] ? effectiveCategory(byId[p.employer_id]) : null)),
       size: [32, 40], anchor: [16, 40], userData: p.employer_id,
     })))
     clusterer.on('click', (event) => {

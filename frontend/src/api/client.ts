@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -39,6 +39,12 @@ export type VacancyQuery = {
   offset?: number
 }
 
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
+  if (!res.ok) throw new ApiError(res.status, path)
+  return await res.json() as T
+}
+
 /** Download link for an export dataset; `vacancies` takes the same filters as the list. */
 export const exportUrl = (dataset: string, format: ExportFormat, params: Params = {}) =>
   `/api/export/${dataset}.${format}${query(params)}`
@@ -52,12 +58,8 @@ export const api = {
   employer: (id: number, signal?: AbortSignal) => get<ApiEmployerDetail>(`/employers/${id}`, signal),
   vacancies: (params: VacancyQuery, signal?: AbortSignal) => get<ApiVacancyPage>(`/vacancies${query(params)}`, signal),
   vacancy: (id: number, signal?: AbortSignal) => get<ApiVacancyDetail>(`/vacancies/${id}`, signal),
-  saveReview: async (id: number, review: ApiVacancyReviewInput): Promise<ApiVacancyReview> => {
-    const path = `/vacancies/${id}/reviews`
-    const res = await fetch(`/api${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(review) })
-    if (!res.ok) throw new ApiError(res.status, path)
-    return await res.json() as ApiVacancyReview
-  },
+  saveReview: (id: number, review: ApiVacancyReviewInput) => post<ApiVacancyReview>(`/vacancies/${id}/reviews`, review),
+  saveEmployerReview: (id: number, review: ApiEmployerReviewInput) => post<ApiEmployerReview>(`/employers/${id}/reviews`, review),
   professions: (params: Omit<VacancyQuery, 'employer_id' | 'title' | 'q' | 'sort' | 'offset'>, signal?: AbortSignal) =>
     get<ApiProfession[]>(`/professions${query(params)}`, signal),
 }

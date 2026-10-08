@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ApiProfileSource } from '../../api/types'
 import { longDate } from '../../domain/format'
-import { categoryOf } from '../../domain/labels'
+import { categoryOf, effectiveCategory } from '../../domain/labels'
 import type { TabProps } from './CompanyPage'
 
 const SOURCE_TYPES: Record<ApiProfileSource['source_type'], string> = {
@@ -42,7 +42,7 @@ function withCitations(text: string, sources: ApiProfileSource[]): ReactNode[] {
 export function OverviewTab({ employer: e }: TabProps) {
   const gur = e.gur
   const profile = e.profile
-  const category = categoryOf(e.category)
+  const category = categoryOf(effectiveCategory(e))
   const baseTags = uniq([
     ...(category.key ? [category.name] : []),
     ...(gur?.activity_tags ?? []),

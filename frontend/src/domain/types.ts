@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiEmployerDetail, ApiStats, ApiVacancy, ApiVacancyDetail, Category, Level } from '../api/types'
+import type { ApiEmployer, ApiEmployerDetail, ApiEmployerReview, ApiStats, ApiVacancy, ApiVacancyDetail, Category, Level } from '../api/types'
 
 export type { Category, Level }
 
@@ -18,4 +18,6 @@ export type Dataset = {
   regionById: Record<number, Region>
   /** When the data was last collected; relative dates are counted from it. */
   asOf: Date
+  /** Puts a just-saved human review into the loaded list, so lists and filters reflect it at once. */
+  applyHumanReview: (review: ApiEmployerReview) => void
 }

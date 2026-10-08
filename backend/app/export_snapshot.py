@@ -192,12 +192,18 @@ class SnapshotStore:
         self._lock = asyncio.Lock()
         self._as_of: datetime | None = None
         self._dir: Path | None = None
+        self._stale = False
+
+    def invalidate(self) -> None:
+        """Rebuild on the next request (human reviews change data within one cutoff)."""
+        self._stale = True
 
     async def get(self) -> tuple[datetime | None, Path]:
         """Directory with snapshot.zip and snapshot.sql for the current data cutoff."""
         current = await export.snapshot_date()
         async with self._lock:
-            if self._dir is None or self._as_of != current:
+            if self._dir is None or self._as_of != current or self._stale:
+                self._stale = False
                 as_of, data = await fetch_all()
                 directory = Path(tempfile.mkdtemp(prefix="export-snapshot-"))
                 await asyncio.to_thread(write_snapshot, directory, as_of, data)

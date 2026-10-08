@@ -315,3 +315,92 @@ def test_failed_review_does_not_report_success(client: TestClient, monkeypatch) 
     )
     assert response.status_code == 503
     assert client.get("/api/vacancies/2").json()["reviews"] == []
+
+
+def _employer_review(**patch) -> dict:
+    return {"vpk": "confirmed", "reviewed_by": "Analyst", **patch}
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"vpk": None},  # nothing reviewed
+        {"vpk": "maybe"},
+        {"reliability": "G"},
+        {"category": "военная служба"},
+        {"sanctions": "yes"},
+        {"sources": ["telegram"]},
+        {"sources": []},
+        {"reviewed_by": "  "},
+        {"reviewed_by": "x" * 121},
+        {"comment": "x" * 2001},
+        {"employer_id": 1},
+    ],
+)
+def test_employer_review_validation(client: TestClient, patch: dict) -> None:
+    response = client.post("/api/employers/2/reviews", json=_employer_review(**patch))
+    assert response.status_code == 422
+
+
+def test_employer_human_review_overrides_and_keeps_history(client: TestClient) -> None:
+    before = client.get("/api/employers/2").json()
+    assert before["human_review"] is None and before["human_reviews"] == []
+    assert (
+        next(e for e in client.get("/api/employers").json() if e["id"] == 2)["human_review"] is None
+    )
+
+    first = client.post(
+        "/api/employers/2/reviews",
+        json={
+            "sources": ["registry", "media", "registry"],
+            "reliability": "B",
+            "category": "ремонт",
+            "sanctions": "sanctioned",
+            "vpk": "confirmed",
+            "reviewed_by": " Analyst ",
+            "comment": " Found in the registry ",
+        },
+    )
+    assert first.status_code == 201
+    saved = first.json()
+    assert saved["employer_id"] == 2
+    assert saved["sources"] == ["registry", "media"]
+    assert saved["reviewed_by"] == "Analyst" and saved["comment"] == "Found in the registry"
+
+    second = client.post("/api/employers/2/reviews", json=_employer_review(vpk="no"))
+    assert second.status_code == 201
+
+    # Cached list and detail are refreshed right away; the latest revision is in effect.
+    listed = next(e for e in client.get("/api/employers").json() if e["id"] == 2)
+    assert listed["human_review"]["vpk"] == "no"
+    assert listed["human_review"]["category"] is None  # a revision is a full snapshot
+    detail = client.get("/api/employers/2").json()
+    assert detail["human_review"]["review_id"] == second.json()["review_id"]
+    assert [r["vpk"] for r in detail["human_reviews"]] == ["no", "confirmed"]
+    # Automatic values stay as collected.
+    assert detail["category"] == before["category"]
+    assert detail["sanctions_count"] == before["sanctions_count"]
+    assert detail["confirmed_vacancies"] == before["confirmed_vacancies"]
+    assert client.get("/api/employers/1").json()["human_reviews"] == []
+
+    exported = {
+        e["employer_id"]: e for e in client.get("/api/export/employers.json").json()["items"]
+    }
+    assert exported[2]["human_vpk"] == "no" and exported[2]["human_reviewed_by"] == "Analyst"
+    assert exported[1]["human_vpk"] is None
+
+
+def test_employer_review_requires_existing_employer(client: TestClient) -> None:
+    assert client.post("/api/employers/999/reviews", json=_employer_review()).status_code == 404
+
+
+def test_failed_employer_review_does_not_report_success(client: TestClient, monkeypatch) -> None:
+    from app import reviews
+
+    async def fail(*args, **kwargs):
+        raise SQLAlchemyError("storage unavailable")
+
+    monkeypatch.setattr(reviews, "save_employer_review", fail)
+    response = client.post("/api/employers/1/reviews", json=_employer_review())
+    assert response.status_code == 503
+    assert client.get("/api/employers/1").json()["human_reviews"] == []

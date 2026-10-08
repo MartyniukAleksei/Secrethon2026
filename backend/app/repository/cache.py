@@ -31,6 +31,10 @@ class TTLCache:
             self._items.popitem(last=False)
         return value
 
+    def invalidate(self, *keys: Hashable) -> None:
+        for key in keys:
+            self._items.pop(key, None)
+
     def clear(self) -> None:
         self._items.clear()
 

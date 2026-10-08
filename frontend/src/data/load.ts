@@ -2,7 +2,7 @@ import { api } from '../api/client'
 import type { Dataset } from '../domain/types'
 
 /** Loads what every page needs: headline stats and the employer list. Vacancies are paged on demand. */
-export async function loadDataset(signal?: AbortSignal): Promise<Dataset> {
+export async function loadDataset(signal?: AbortSignal): Promise<Omit<Dataset, 'applyHumanReview'>> {
   const [stats, employers] = await Promise.all([api.stats(signal), api.employers(signal)])
   const regions = [...stats.regions_list].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
   return {

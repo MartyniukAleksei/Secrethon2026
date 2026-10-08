@@ -1,0 +1,5 @@
+.employer-human-review { padding-bottom: 12px; }
+.employer-human-review .human-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.employer-human-review .human-sources legend { color: var(--label-2); font-size: 12.5px; margin-bottom: 4px; padding: 0; }
+.employer-human-review .human-sources legend span { color: var(--label-3); }
+.employer-human-review .human-sources label.check { display: flex; align-items: center; gap: 8px; color: var(--label-1); font-size: 13px; line-height: 18px; padding: 3px 0; }

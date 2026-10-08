@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 import { api } from '../../api/client'
 import { seedOf } from '../../charts/geometry'
 import { Topo } from '../../charts/Topo'
+import { EmployerHumanReview } from '../../components/EmployerHumanReview'
 import { MapSlot } from '../../components/MapSlot'
 import { EmployerRow } from '../../components/rows'
 import { useData } from '../../data/DataContext'
 import { useApi } from '../../data/useApi'
 import { fmt, longDate, money } from '../../domain/format'
-import { categoryOf, sourceName } from '../../domain/labels'
+import { categoryOf, effectiveCategory, sourceName } from '../../domain/labels'
 import type { EmployerDetail } from '../../domain/types'
 import { useAgent } from '../../features/agent/AgentContext'
 import { EmployerBadgeGroups } from '../../ui/EmployerBadgeGroups'
@@ -63,8 +64,10 @@ export function CompanyPage() {
   return <Profile employer={state.data} tab={current} />
 }
 
-function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof TABS)[number] }) {
-  const { employers, asOf } = useData()
+function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (typeof TABS)[number] }) {
+  const { employers, asOf, applyHumanReview } = useData()
+  // A saved human review updates the card in place, without reloading the profile.
+  const [e, setEmployer] = useState(loaded)
   const { ask } = useAgent()
   const gur = e.gur
   const address = gur?.address_uk?.trim()
@@ -72,7 +75,8 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
   const gurIds = gur?.match === 'name' ? null : gur
   const ogrn = e.ogrn ?? gurIds?.ogrn
   const kpp = e.kpp ?? gurIds?.kpp
-  const similar = employers.filter((x) => x.id !== e.id && x.category === e.category && x.region_id === e.region_id).slice(0, 5)
+  const category = effectiveCategory(e)
+  const similar = employers.filter((x) => x.id !== e.id && effectiveCategory(x) === category && x.region_id === e.region_id).slice(0, 5)
   const quick = [`Кого наймає ${e.name}?`, `Хто пов'язаний з ${e.name}?`, `Які зарплати в ${e.name}?`]
 
   return (
@@ -134,10 +138,18 @@ function Profile({ employer: e, tab }: { employer: EmployerDetail; tab: (typeof 
           {tab.render({ employer: e })}
         </div>
         <aside className="prof-rail">
+          <EmployerHumanReview
+            employer={e}
+            reviews={e.human_reviews}
+            onSaved={(review) => {
+              setEmployer((prev) => ({ ...prev, human_review: review, human_reviews: [review, ...prev.human_reviews] }))
+              applyHumanReview(review)
+            }}
+          />
           <div className="panel">
             <div className="panel-head"><h3>Коротко</h3></div>
             <dl className="facts">
-              <div><dt>Напрям</dt><dd>{categoryOf(e.category).name}</dd></div>
+              <div><dt>Напрям</dt><dd>{categoryOf(category).name}</dd></div>
               <div><dt>Регіон</dt><dd>{e.region ?? '—'}</dd></div>
               {address && <div className="facts-address"><dt>Місце підприємства</dt><dd>{address}</dd></div>}
               <div><dt>ІПН</dt><dd>{e.inn ?? gurIds?.inn ?? '—'}</dd></div>

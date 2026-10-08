@@ -11,3 +11,5 @@
 @media (max-width: 900px) {
   .prof-employer-badges .employer-badge-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.employer-metadata .human-mark { display: inline-flex; align-items: center; gap: 4px; color: var(--label-2); background: transparent; }
+.employer-metadata .human-mark svg { width: 12px; height: 12px; flex: none; }
