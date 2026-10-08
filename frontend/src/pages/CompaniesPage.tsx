@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { ExportButtons } from '../components/ExportButtons'
 import { FilterBar } from '../components/FilterBar'
+import { downloadText, toCsv, toJson } from '../data/download'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
 import { CATEGORIES } from '../domain/labels'
@@ -20,6 +22,13 @@ const SORTS: Record<Sort, { label: string; key: (e: Employer) => number }> = {
   sanctions: { label: 'Спершу більше санкцій', key: (e) => e.sanctions_count },
 }
 const PAGE = 60
+
+// Same fields as the `employers` open data set (its id is `employer_id` there).
+const EXPORT_COLUMNS: (keyof Employer & string)[] = [
+  'id', 'name', 'source', 'profile_url', 'inn', 'ogrn', 'kpp', 'region', 'locality', 'category',
+  'vpk_vacancies', 'confirmed_vacancies', 'total_vacancies', 'new_30d', 'median_salary',
+  'last_published_at', 'gur_company_id', 'gur_name', 'sanctions_count',
+]
 
 type Flag = 'confirmed' | 'gur' | 'sanctions'
 const FLAGS: [Flag, string, (e: Employer) => boolean][] = [
@@ -115,9 +124,17 @@ export function CompaniesPage() {
               </select>
             </div>
           </div>
-          <p className="cat-count">
-            {fmt(list.length)} {plural(list.length, 'роботодавець', 'роботодавці', 'роботодавців')}
-          </p>
+          <div className="cat-count-row">
+            <p className="cat-count">
+              {fmt(list.length)} {plural(list.length, 'роботодавець', 'роботодавці', 'роботодавців')}
+            </p>
+            <ExportButtons
+              options={[
+                { label: 'CSV', onClick: () => downloadText('companies_selection.csv', toCsv(list, EXPORT_COLUMNS), 'text/csv;charset=utf-8') },
+                { label: 'JSON', onClick: () => downloadText('companies_selection.json', toJson(list, EXPORT_COLUMNS), 'application/json') },
+              ]}
+            />
+          </div>
           <div className="cat-grid">
             {list.length === 0 ? (
               <div className="empty" style={{ gridColumn: '1 / -1' }}>

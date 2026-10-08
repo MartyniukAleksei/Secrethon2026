@@ -1,6 +1,7 @@
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { api, type VacancyQuery } from '../api/client'
+import { api, exportUrl, type VacancyQuery } from '../api/client'
 import { AskButton } from '../components/AskButton'
+import { ExportButtons } from '../components/ExportButtons'
 import { FilterBar } from '../components/FilterBar'
 import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
@@ -85,6 +86,9 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
   const state = useApi(JSON.stringify(query), (signal) => api.vacancies(query, signal))
   const data = state.status === 'ready' ? state.data : state.status === 'loading' ? state.stale : undefined
   const pages = data ? Math.ceil(data.total / PAGE) : 0
+  // The whole filtered selection, not only this page.
+  const selection = { ...base, q: q || undefined, title }
+  const exportOptions = (['csv', 'json'] as const).map((f) => ({ label: f.toUpperCase(), href: exportUrl('vacancies', f, selection) }))
   const goPage = (p: number) => update({ page: p ? String(p) : null }, true)
 
   return (
@@ -114,7 +118,10 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
       <div className="panel">
         <div className="panel-head">
           <p>{data ? `${fmt(data.total)} ${plural(data.total, 'оголошення', 'оголошення', 'оголошень')}` : 'Завантаження…'}</p>
-          <AskButton question="Кого найбільше наймає ВПК і за які гроші?" label="Підсумувати" />
+          <div className="row">
+            <ExportButtons options={exportOptions} />
+            <AskButton question="Кого найбільше наймає ВПК і за які гроші?" label="Підсумувати" />
+          </div>
         </div>
         {state.status === 'error' && <p className="empty-row">Не вдалося завантажити вакансії. Спробуй ще раз.</p>}
         <div className="table-wrap" style={{ opacity: state.status === 'loading' ? 0.6 : 1 }}>

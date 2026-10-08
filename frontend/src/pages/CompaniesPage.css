@@ -22,6 +22,7 @@
   .cat { grid-template-columns: minmax(0, 1fr); }
   .cat-filters { position: static; }
 }
+.cat-count-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cat-count { font-size: 14px; color: var(--label-2); padding: 0 4px; }
 .cat-more { justify-self: center; margin-top: 6px; }
 .co-card h3 { overflow-wrap: anywhere; }
