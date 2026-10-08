@@ -3,6 +3,8 @@ import type { ApiProfileSource } from '../../api/types'
 import { longDate } from '../../domain/format'
 import { categoryOf, effectiveCategory } from '../../domain/labels'
 import type { TabProps } from './CompanyPage'
+import { GurAbout } from './GurAbout'
+import { useGurAbout } from './useGurAbout'
 
 const SOURCE_TYPES: Record<ApiProfileSource['source_type'], string> = {
   official_site: 'сайт компанії',
@@ -54,6 +56,7 @@ export function OverviewTab({ employer: e }: TabProps) {
   const fromOpenSources = tags.length > baseTags.length
   const gurDescription = gur?.description_uk?.trim()
   const profileDescription = !gurDescription ? profile?.description_ru?.trim() : undefined
+  const gurAbout = useGurAbout(gurDescription ? gur?.company_id : undefined)
   const probableMatch = (e.company_link === 'candidate' || gur?.match === 'name') && (
     <span className="badge warning sm" title="Юрособу знайдено за назвою чи сайтом, а не за ІПН">зв’язок з юрособою ймовірний</span>
   )
@@ -76,37 +79,39 @@ export function OverviewTab({ employer: e }: TabProps) {
       </section>
       <section className="panel">
         <div className="panel-head"><h3>Про підприємство</h3>{probableMatch}</div>
-        <div className="prose-block">
-          {gurDescription ? <p>{gurDescription}</p> : profileDescription && profile ? (
-            <p lang="ru">{withCitations(profileDescription, profile.sources)}</p>
-          ) : (
-            <p className="src">Опис підприємства поки відсутній у профілі.</p>
-          )}
-          {gur?.address_uk && <p>Місце підприємства: {gur.address_uk}</p>}
-          {gurDescription && gur?.gur_url && (
-            <p className="src"><a href={gur.gur_url} target="_blank" rel="noreferrer noopener">Джерело опису: War & Sanctions (ГУР)</a></p>
-          )}
-          {profileDescription && profile && (
-            <>
-              {profile.sources.length > 0 && (
-                <div className="profile-sources">
-                  <p>Джерела:</p>
-                  <ol>
-                    {profile.sources.map((s) => (
-                      <li key={s.n} value={s.n}>
-                        <a href={s.url} target="_blank" rel="noreferrer noopener" title={s.quote}>{domainOf(s.url)}</a>
-                        {' '}<span className="src">— {SOURCE_TYPES[s.source_type] ?? s.source_type}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-              <p className="src">
-                Опис зібрано автоматично з відкритих джерел, мовою оригіналу ({longDate(profile.updated_at)}).
-              </p>
-            </>
-          )}
-        </div>
+        {gurAbout && gur ? <GurAbout about={gurAbout} gur={gur} /> : (
+          <div className="prose-block">
+            {gurDescription ? <p>{gurDescription}</p> : profileDescription && profile ? (
+              <p lang="ru">{withCitations(profileDescription, profile.sources)}</p>
+            ) : (
+              <p className="src">Опис підприємства поки відсутній у профілі.</p>
+            )}
+            {gur?.address_uk && <p>Місце підприємства: {gur.address_uk}</p>}
+            {gurDescription && gur?.gur_url && (
+              <p className="src"><a href={gur.gur_url} target="_blank" rel="noreferrer noopener">Джерело опису: War & Sanctions (ГУР)</a></p>
+            )}
+            {profileDescription && profile && (
+              <>
+                {profile.sources.length > 0 && (
+                  <div className="profile-sources">
+                    <p>Джерела:</p>
+                    <ol>
+                      {profile.sources.map((s) => (
+                        <li key={s.n} value={s.n}>
+                          <a href={s.url} target="_blank" rel="noreferrer noopener" title={s.quote}>{domainOf(s.url)}</a>
+                          {' '}<span className="src">— {SOURCE_TYPES[s.source_type] ?? s.source_type}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                <p className="src">
+                  Опис зібрано автоматично з відкритих джерел, мовою оригіналу ({longDate(profile.updated_at)}).
+                </p>
+              </>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )
