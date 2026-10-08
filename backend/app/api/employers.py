@@ -15,6 +15,9 @@ from app.export_snapshot import snapshots
 from app.repository import employers
 from app.repository.cache import cache
 
+# Company classification, profiles and contacts are replaced while classifier runs go on.
+EMPLOYER_TTL_SECONDS = 180
+
 router = APIRouter(prefix="/employers", tags=["employers"])
 
 
@@ -50,7 +53,7 @@ async def get_employer(employer_id: int, session: Session) -> EmployerDetailOut:
         row = await employers.get_employer(session, employer_id)
         return EmployerDetailOut.model_validate(row) if row else None
 
-    employer = await cache.get_or_load(("employer", employer_id), load)
+    employer = await cache.get_or_load(("employer", employer_id), load, ttl=EMPLOYER_TTL_SECONDS)
     if employer is None:
         raise HTTPException(status_code=404, detail="employer not found")
     return employer

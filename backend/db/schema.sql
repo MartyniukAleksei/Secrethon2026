@@ -1835,3 +1835,61 @@ CREATE TABLE public.company_fact (
         CHECK (grade = ANY (ARRAY['A'::bpchar, 'B'::bpchar, 'C'::bpchar, 'D'::bpchar, 'E'::bpchar, 'F'::bpchar])),
     UNIQUE (run_id, company_id, local_id)
 );
+
+--
+-- From 0005/0007, 0010 and 0011 (company-parse), hand-written: only the columns this service reads.
+--
+
+CREATE TABLE public.company_registry (
+    company_id bigint PRIMARY KEY REFERENCES public.company(company_id) ON DELETE CASCADE,
+    source text NOT NULL CHECK (source = ANY (ARRAY['dadata'::text, 'egrul'::text])),
+    inn text NOT NULL,
+    address text,
+    head text,
+    fetched_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public.company_classification (
+    run_id integer NOT NULL REFERENCES public.classifier_run(run_id) ON DELETE CASCADE,
+    company_id bigint NOT NULL REFERENCES public.company(company_id) ON DELETE CASCADE,
+    vpk_category text NOT NULL,
+    vpk_probability real,
+    vpk_level text NOT NULL CHECK (vpk_level = ANY (ARRAY['decided'::text, 'review'::text])),
+    decided_by text NOT NULL CHECK (decided_by = ANY (ARRAY['jev'::text, 'rule'::text])),
+    direction_label text,
+    direction_secondary text,
+    reliability character(2),
+    reliability_note text,
+    sanctions_gur text[],
+    sanctions_new text[],
+    explanation text NOT NULL,
+    enrichment_run_id integer REFERENCES public.enrichment_run(run_id) ON DELETE SET NULL,
+    PRIMARY KEY (run_id, company_id)
+);
+
+CREATE TABLE public.company_sanction_found (
+    run_id integer NOT NULL REFERENCES public.enrichment_run(run_id) ON DELETE CASCADE,
+    company_id bigint NOT NULL REFERENCES public.company(company_id) ON DELETE CASCADE,
+    jurisdiction text NOT NULL,
+    list_name text,
+    listed_raw text,
+    local_fact_id integer NOT NULL,
+    in_gur boolean NOT NULL,
+    PRIMARY KEY (run_id, company_id, jurisdiction, local_fact_id)
+);
+
+CREATE TABLE public.company_contact (
+    contact_id bigserial PRIMARY KEY,
+    run_id integer NOT NULL REFERENCES public.enrichment_run(run_id) ON DELETE CASCADE,
+    employer_profile_id bigint REFERENCES public.employer_profile(employer_profile_id) ON DELETE CASCADE,
+    company_id bigint REFERENCES public.company(company_id) ON DELETE CASCADE,
+    kind text NOT NULL CHECK (kind = ANY (ARRAY['inn'::text, 'ogrn'::text, 'legal_name'::text,
+        'website'::text, 'phone'::text, 'email'::text, 'head'::text, 'address'::text])),
+    value text NOT NULL,
+    detail text,
+    url text,
+    quote text,
+    verified boolean NOT NULL,
+    verify_note text,
+    CHECK (employer_profile_id IS NOT NULL OR company_id IS NOT NULL)
+);

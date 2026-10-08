@@ -10,6 +10,7 @@ import { useData } from '../../data/DataContext'
 import { useApi } from '../../data/useApi'
 import { fmt, longDate, money } from '../../domain/format'
 import { categoryOf, effectiveCategory, sourceName } from '../../domain/labels'
+import type { ApiCompanyContact } from '../../api/types'
 import type { EmployerDetail } from '../../domain/types'
 import { useAgent } from '../../features/agent/AgentContext'
 import { EmployerBadgeGroups } from '../../ui/EmployerBadgeGroups'
@@ -70,7 +71,14 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
   const [e, setEmployer] = useState(loaded)
   const { ask } = useAgent()
   const gur = e.gur
-  const address = gur?.address_uk?.trim()
+  const contacts = (kind: ApiCompanyContact['kind']) => e.contacts.filter((c) => c.kind === kind)
+  const contactAddress = contacts('address')[0]
+  const address = gur?.address_uk?.trim() || e.registry?.address?.trim() || contactAddress?.value
+  // EGRUL writes the head as 'ПОСАДА: Прізвище Ім'я'.
+  const [headRole, headName] = splitHead(e.registry?.head)
+  const contactHead = contacts('head')[0]
+  // A website found and opened by the search agent beats company.website, which is sometimes a news link.
+  const website = contacts('website')[0]?.value ?? gur?.website
   // A probable (name-only) match must not pass the company's registry numbers off as the employer's.
   const gurIds = gur?.match === 'name' ? null : gur
   const ogrn = e.ogrn ?? gurIds?.ogrn
@@ -149,16 +157,31 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
           <div className="panel">
             <div className="panel-head"><h3>Коротко</h3></div>
             <dl className="facts">
-              <div><dt>Напрям</dt><dd>{categoryOf(category).name}</dd></div>
+              <div><dt>Напрям</dt><dd>{(!e.human_review?.category && e.classification?.direction_label) || categoryOf(category).name}</dd></div>
               <div><dt>Регіон</dt><dd>{e.region ?? '—'}</dd></div>
-              {address && <div className="facts-address"><dt>Місце підприємства</dt><dd>{address}</dd></div>}
-              <div><dt>ІПН</dt><dd>{e.inn ?? gurIds?.inn ?? '—'}</dd></div>
+              {address && (
+                <div className="facts-address">
+                  <dt>Місце підприємства</dt>
+                  <dd>{address}{address === contactAddress?.value && <SourceLink url={contactAddress.url} />}</dd>
+                </div>
+              )}
+              <div><dt>ІПН</dt><dd>{e.inn ?? gurIds?.inn ?? contacts('inn')[0]?.value ?? '—'}</dd></div>
               {ogrn && <div><dt>ОДРН</dt><dd>{ogrn}</dd></div>}
               {kpp && <div><dt>КПП</dt><dd>{kpp}</dd></div>}
-              <div><dt>Телефон</dt><dd className="fact-missing">Відсутньо</dd></div>
-              <div><dt>Email</dt><dd className="fact-missing">Відсутньо</dd></div>
-              <div><dt>Контактна особа</dt><dd className="fact-missing">Відсутньо</dd></div>
-              {gur?.website && <div className="facts-address"><dt>Вебресурс</dt><dd><a href={gur.website} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
+              <ContactFact label="Телефон" items={contacts('phone')} />
+              <ContactFact label="Email" items={contacts('email')} href={(v) => `mailto:${v}`} />
+              <div className="facts-address">
+                <dt>Контактна особа</dt>
+                {headName ? (
+                  <dd>{headName}<span className="fact-detail">Керівник{headRole ? ` · ${headRole.toLowerCase()}` : ''} · за реєстром</span></dd>
+                ) : contactHead ? (
+                  <dd>
+                    {contactHead.value}
+                    <span className="fact-detail">Керівник{contactHead.detail ? ` · ${contactHead.detail}` : ''}{contactHead.url && <> · <SourceLink url={contactHead.url} /></>}</span>
+                  </dd>
+                ) : <dd className="fact-missing">Відсутньо</dd>}
+              </div>
+              {website && <div className="facts-address"><dt>Вебресурс</dt><dd><a href={website} target="_blank" rel="noreferrer noopener">{hostOf(website)}<Icon name="external" /></a></dd></div>}
               {e.profile_url && <div><dt>Профіль роботодавця</dt><dd><a href={e.profile_url} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
               <div><dt>Джерело</dt><dd>{sourceName(e.source)}</dd></div>
               <div><dt>Остання вакансія</dt><dd>{e.last_published_at ? longDate(e.last_published_at) : '—'}</dd></div>
@@ -187,4 +210,43 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
       </div>
     </>
   )
+}
+
+/** Small link to the page a contact was found on. */
+function SourceLink({ url }: { url: string | null | undefined }) {
+  if (!url) return null
+  return <a className="fact-source" href={url} target="_blank" rel="noreferrer noopener" title={url}>джерело</a>
+}
+
+/** Up to three verified corporate contacts of one kind, each with its department and source. */
+function ContactFact({ label, items, href }: { label: string; items: ApiCompanyContact[]; href?: (value: string) => string }) {
+  if (items.length === 0) return <div><dt>{label}</dt><dd className="fact-missing">Відсутньо</dd></div>
+  return (
+    <div className="facts-address">
+      <dt>{label}</dt>
+      <dd className="fact-list">
+        {items.slice(0, 3).map((c) => (
+          <span key={c.value}>
+            {href ? <a href={href(c.value)}>{c.value}</a> : c.value}
+            {(c.detail || c.url) && <span className="fact-detail">{[c.detail, c.url && <SourceLink key="src" url={c.url} />].filter(Boolean).flatMap((x, i) => (i ? [' · ', x] : [x]))}</span>}
+          </span>
+        ))}
+      </dd>
+    </div>
+  )
+}
+
+function splitHead(head: string | null | undefined): [string | null, string | null] {
+  const text = head?.trim()
+  if (!text) return [null, null]
+  const i = text.indexOf(':')
+  return i > 0 ? [text.slice(0, i).trim(), text.slice(i + 1).trim()] : [null, text]
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
 }

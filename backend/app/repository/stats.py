@@ -39,6 +39,42 @@ async def overview(session: AsyncSession) -> Row:
             WHERE {ON_GUR}
         """)
     )
+    # Only 'vpk' counts as a ВПК enterprise; agencies and foreign intermediaries are counted apart.
+    totals.update(
+        await one("""
+            WITH latest AS (
+                SELECT DISTINCT ON (cc.company_id) cc.vpk_category, cc.vpk_level
+                FROM company_classification cc JOIN classifier_run r USING (run_id)
+                WHERE r.classifier = 'company_classification'
+                ORDER BY cc.company_id, r.started_at DESC
+            )
+            SELECT count(*) FILTER (WHERE vpk_category = 'vpk') AS vpk_companies,
+                   count(*) FILTER (WHERE vpk_category = 'vpk' AND vpk_level = 'decided')
+                       AS vpk_companies_decided,
+                   count(*) FILTER (WHERE vpk_category = 'agency_vpk') AS agency_vpk_companies,
+                   count(*) FILTER (WHERE vpk_category = 'foreign_intermediary')
+                       AS foreign_intermediary_companies
+            FROM latest
+        """)
+    )
+    totals.update(
+        await one(f"""
+            WITH {CTE},
+            agency AS (
+                SELECT employer_profile_id FROM (
+                    SELECT DISTINCT ON (ec.employer_profile_id) ec.employer_profile_id, ec.category
+                    FROM employer_classification ec JOIN classifier_run r USING (run_id)
+                    WHERE r.classifier = 'employer_agency'
+                    ORDER BY ec.employer_profile_id, r.started_at DESC
+                ) a
+                WHERE category = 'agency_vpk'
+            )
+            SELECT (SELECT count(*) FROM agency) AS agency_employers,
+                   count(v.vacancy_id) AS agency_vacancies
+            FROM v JOIN agency USING (employer_profile_id)
+            WHERE {VPK}
+        """)
+    )
     totals["by_source"] = await many(f"""
         WITH {CTE}
         SELECT source, count(*) AS vacancies, count(*) FILTER (WHERE {VPK}) AS vpk_vacancies

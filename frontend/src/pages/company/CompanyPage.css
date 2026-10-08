@@ -78,3 +78,7 @@
 @media (max-width: 540px) {
   .prof-analytics .bar-row { grid-template-columns: minmax(0, 110px) minmax(0, 1fr) auto; gap: 8px; }
 }
+.facts .fact-list { display: grid; gap: 6px; }
+.facts .fact-detail { display: block; font-size: 12px; line-height: 16px; font-weight: 450; color: var(--label-2); }
+.facts .fact-source { margin-left: 6px; font-size: 12px; font-weight: 450; color: var(--info); }
+.facts .fact-detail .fact-source { margin-left: 0; }

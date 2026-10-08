@@ -183,10 +183,59 @@ class CompanyProfileOut(BaseModel):
     company_id: int
     origin: str
     created_at: datetime
+    # Start of the search run that produced the profile.
+    updated_at: datetime
     activity_tags: list[str] | None
     products_ru: list[str] | None
     description_ru: str | None
     sources: list[ProfileSourceOut]
+
+
+class SanctionFoundOut(BaseModel):
+    jurisdiction: str
+    list_name: str | None
+    listed_raw: str | None
+    in_gur: bool
+    url: str | None
+
+
+class CompanyClassificationOut(BaseModel):
+    """Final ВПК decision for the legal entity (latest `company_classification` run)."""
+
+    vpk_category: str
+    vpk_probability: float | None
+    vpk_level: Literal["decided", "review"]
+    direction_label: str | None
+    direction_secondary: str | None
+    reliability: str | None
+    reliability_note: str | None
+    sanctions_gur: list[str] | None
+    sanctions_new: list[str] | None
+    sanctions_found: list[SanctionFoundOut]
+    explanation: str
+
+
+class CompanyContactOut(BaseModel):
+    """Verified corporate requisite or contact; `url` is the page it was found on."""
+
+    kind: Literal["inn", "ogrn", "legal_name", "website", "phone", "email", "head", "address"]
+    value: str
+    detail: str | None
+    url: str | None
+
+
+class CompanyRegistryOut(BaseModel):
+    address: str | None
+    head: str | None
+
+
+class EmployerAgencyOut(BaseModel):
+    """Recruitment-agency decision for a page with no legal entity."""
+
+    category: str | None
+    level: str
+    score: float | None
+    raw_label: str
 
 
 class EmployerDetailOut(EmployerOut):
@@ -195,7 +244,14 @@ class EmployerDetailOut(EmployerOut):
     localities: list[LocalityOut]
     hiring_locations: list[HiringLocationOut]
     gur: GurCompanyOut | None
+    # Legal entity behind the page; 'candidate' marks a probable link.
+    company_id: int | None
+    company_link: Literal["auto", "candidate"] | None
+    classification: CompanyClassificationOut | None
     profile: CompanyProfileOut | None
+    registry: CompanyRegistryOut | None
+    contacts: list[CompanyContactOut]
+    agency: EmployerAgencyOut | None
     human_reviews: list[EmployerReviewOut]
 
 
@@ -290,6 +346,14 @@ class StatsOut(BaseModel):
     sanctioned_companies: int
     company_relations: int
     matched_employers: int
+    # Legal entities by the final classification (latest run); agencies and intermediaries apart.
+    vpk_companies: int
+    vpk_companies_decided: int
+    agency_vpk_companies: int
+    foreign_intermediary_companies: int
+    # Employer pages of recruitment agencies hiring for the ВПК, and their ВПК vacancies.
+    agency_employers: int
+    agency_vacancies: int
     by_source: list[SourceCount]
     by_level: list[LevelCount]
     by_category: list[CategoryCount]

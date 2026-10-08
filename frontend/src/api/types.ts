@@ -44,6 +44,14 @@ export type ApiStats = {
   sanctioned_companies: number
   company_relations: number
   matched_employers: number
+  /** Legal entities by the final classification; agencies and intermediaries are counted apart. */
+  vpk_companies: number
+  vpk_companies_decided: number
+  agency_vpk_companies: number
+  foreign_intermediary_companies: number
+  /** Employer pages of recruitment agencies hiring for the ВПК, and their ВПК vacancies. */
+  agency_employers: number
+  agency_vacancies: number
   by_source: { source: string; vacancies: number; vpk_vacancies: number }[]
   by_level: { level: Level; vacancies: number }[]
   by_category: { category: Category; vacancies: number }[]
@@ -145,11 +153,43 @@ export type ApiCompanyProfile = {
   company_id: number
   origin: string
   created_at: string
+  /** Start of the search run that produced the profile. */
+  updated_at: string
   activity_tags: string[] | null
   products_ru: string[] | null
   description_ru: string | null
   sources: ApiProfileSource[]
 }
+
+export type VpkCategory = 'vpk' | 'agency_vpk' | 'foreign_intermediary' | 'foreign_other' | 'civil_sanctioned' | 'out' | 'unknown'
+
+/** Final ВПК decision for the legal entity (latest classification run). */
+export type ApiCompanyClassification = {
+  vpk_category: VpkCategory
+  /** Empty when a rule decided. */
+  vpk_probability: number | null
+  vpk_level: 'decided' | 'review'
+  direction_label: string | null
+  direction_secondary: string | null
+  /** Admiralty code: A1, B3, … */
+  reliability: string | null
+  reliability_note: string | null
+  sanctions_gur: string[] | null
+  sanctions_new: string[] | null
+  sanctions_found: { jurisdiction: string; list_name: string | null; listed_raw: string | null; in_gur: boolean; url: string | null }[]
+  /** Russian text: decision, probabilities, evidence. */
+  explanation: string
+}
+
+/** Verified corporate requisite or contact; `url` is the page it was found on. */
+export type ApiCompanyContact = {
+  kind: 'inn' | 'ogrn' | 'legal_name' | 'website' | 'phone' | 'email' | 'head' | 'address'
+  value: string
+  detail: string | null
+  url: string | null
+}
+
+export type ApiEmployerAgency = { category: string | null; level: string; score: number | null; raw_label: string }
 
 export type ApiProfession = {
   title: string
@@ -173,7 +213,15 @@ export type ApiEmployerDetail = ApiEmployer & {
     vacancy_url: string
   }[]
   gur: ApiGurCompany | null
+  /** Legal entity behind the page; 'candidate' marks a probable link. */
+  company_id: number | null
+  company_link: 'auto' | 'candidate' | null
+  classification: ApiCompanyClassification | null
   profile: ApiCompanyProfile | null
+  registry: { address: string | null; head: string | null } | null
+  contacts: ApiCompanyContact[]
+  /** Recruitment-agency decision, only for a page without a legal entity. */
+  agency: ApiEmployerAgency | null
   human_reviews: ApiEmployerReview[]
 }
 

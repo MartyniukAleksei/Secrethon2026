@@ -16,16 +16,20 @@ class TTLCache:
     def __init__(self, ttl: float = TTL_SECONDS, maxsize: int = 256) -> None:
         self.ttl = ttl
         self.maxsize = maxsize
+        # key -> (expires_at, value)
         self._items: OrderedDict[Hashable, tuple[float, Any]] = OrderedDict()
 
-    async def get_or_load(self, key: Hashable, load: Callable[[], Awaitable[Any]]) -> Any:
+    async def get_or_load(
+        self, key: Hashable, load: Callable[[], Awaitable[Any]], ttl: float | None = None
+    ) -> Any:
+        """`ttl` overrides the default for data that is reloaded more often."""
         hit = self._items.get(key)
         now = time.monotonic()
-        if hit and now - hit[0] < self.ttl:
+        if hit and now < hit[0]:
             self._items.move_to_end(key)
             return hit[1]
         value = await load()
-        self._items[key] = (now, value)
+        self._items[key] = (now + (self.ttl if ttl is None else ttl), value)
         self._items.move_to_end(key)
         while len(self._items) > self.maxsize:
             self._items.popitem(last=False)

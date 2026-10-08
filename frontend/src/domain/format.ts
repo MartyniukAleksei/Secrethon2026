@@ -2,6 +2,9 @@
 
 export const fmt = (n: number) => Math.round(n).toLocaleString('uk-UA')
 
+/** 0.62 → "62%". */
+export const pct = (share: number) => `${Math.round(share * 100)}%`
+
 export const money = (rub: number | null | undefined) => (rub == null ? '—' : `${fmt(rub)} ₽`)
 
 export const moneyK = (rub: number | null | undefined) => (rub == null ? '—' : `${fmt(Math.round(rub / 1000))} тис. ₽`)

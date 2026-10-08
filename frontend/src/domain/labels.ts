@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiRelation, HumanSanctions, HumanSource, HumanVpk, Reliability } from '../api/types'
+import type { ApiEmployer, ApiRelation, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
 import type { Category, Level } from './types'
 
 /** Classifier categories (stored in Russian by the pipeline) → display name and color token. */
@@ -36,6 +36,33 @@ export const RELIABILITY: Record<Reliability, string> = {
   A: 'Повністю надійне', B: 'Зазвичай надійне', C: 'Досить надійне',
   D: 'Зазвичай ненадійне', E: 'Ненадійне', F: 'Неможливо оцінити',
 }
+/** Admiralty code of the company classification: letter = best source, digit = agreement. */
+const RELIABILITY_SOURCE: Record<string, string> = {
+  A: 'офіційний реєстр, санкційний список', B: 'ГУР, сайт компанії', C: 'вакансії, агрегатори, ЗМІ',
+  D: 'інше', F: 'прямого джерела немає',
+}
+const RELIABILITY_AGREEMENT: Record<string, string> = {
+  '1': 'підтверджено кількома джерелами', '2': 'ймовірно', '3': 'можливо', '4': 'сумнівно', '6': 'неможливо оцінити',
+}
+export function reliabilityName(code: string): string {
+  const [letter, digit] = code.trim()
+  return [RELIABILITY_SOURCE[letter], digit && RELIABILITY_AGREEMENT[digit]].filter(Boolean).join('; ')
+}
+
+/** Final ВПК category of the legal entity. */
+export const VPK_CATEGORY: Record<VpkCategory, string> = {
+  vpk: 'ВПК',
+  agency_vpk: 'Кадрове агентство: наймає у ВПК',
+  foreign_intermediary: 'Іноземний посередник',
+  foreign_other: "Іноземна, не пов'язана з рф",
+  civil_sanctioned: 'Цивільна, під санкціями',
+  out: 'Не ВПК',
+  unknown: 'Недостатньо даних',
+}
+export const vpkCategoryName = (c: string) => VPK_CATEGORY[c as VpkCategory] ?? c
+/** Categories that tie the company to the ВПК in some way (highlighted). */
+export const VPK_RELATED = new Set<string>(['vpk', 'agency_vpk', 'foreign_intermediary', 'civil_sanctioned'])
+
 export const HUMAN_SANCTIONS: Record<HumanSanctions, string> = { sanctioned: 'Під санкціями', not_sanctioned: 'Санкцій не виявлено' }
 export const HUMAN_VPK: Record<HumanVpk, string> = { confirmed: 'ВПК підтверджено', likely: 'ВПК ймовірно', no: 'Не ВПК' }
 

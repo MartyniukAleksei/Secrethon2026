@@ -32,8 +32,8 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
         "company_relations": 2,
         "company_products": 2,
         "company_sources": 0,
-        "employers": 2,
-        "vacancies": 6,  # active only; the inactive vacancy 7 is left out
+        "employers": 3,
+        "vacancies": 7,  # active only; the inactive vacancy 7 is left out
     }
     vacancies = next(d for d in catalog["datasets"] if d["name"] == "vacancies")
     assert vacancies["urls"]["csv"] == "/api/export/vacancies.csv"

@@ -38,6 +38,26 @@ export function OverviewPage() {
         <div><dt>Медіана зарплати / місяць</dt><dd><CountUp value={stats.median_salary} format={money} /></dd></div>
       </dl>
 
+      <section className="overview-classification" aria-labelledby="overview-classification-title">
+        <div className="overview-section-head">
+          <h2 id="overview-classification-title">Юрособи за підсумковою класифікацією</h2>
+        </div>
+        <dl className="overview-metrics">
+          <div>
+            <dt>Підприємств ВПК</dt>
+            <dd><CountUp value={stats.vpk_companies} /></dd>
+            <p className="overview-metric-note">з них рішення прийнято: {fmt(stats.vpk_companies_decided)}</p>
+          </div>
+          <div><dt>Іноземних посередників</dt><dd><CountUp value={stats.foreign_intermediary_companies} /></dd></div>
+          <div>
+            <dt>Кадрових агентств, що наймають у ВПК</dt>
+            <dd><CountUp value={stats.agency_employers} /></dd>
+            <p className="overview-metric-note">профілі роботодавців; серед юросіб — {fmt(stats.agency_vpk_companies)}</p>
+          </div>
+          <div><dt>Вакансій ВПК через агентства</dt><dd><CountUp value={stats.agency_vacancies} /></dd></div>
+        </dl>
+      </section>
+
       <div className="overview-body">
         <section className="overview-routes" aria-labelledby="overview-routes-title">
           <div className="overview-section-head">

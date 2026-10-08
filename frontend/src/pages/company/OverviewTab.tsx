@@ -43,8 +43,10 @@ export function OverviewTab({ employer: e }: TabProps) {
   const gur = e.gur
   const profile = e.profile
   const category = categoryOf(effectiveCategory(e))
+  // The company's own direction wins over the vacancy category, unless a human set the category.
+  const direction = !e.human_review?.category ? e.classification?.direction_label : undefined
   const baseTags = uniq([
-    ...(category.key ? [category.name] : []),
+    ...(direction ? [direction] : category.key ? [category.name] : []),
     ...(gur?.activity_tags ?? []),
     ...(gur?.products_uk ?? []),
   ])
@@ -52,8 +54,8 @@ export function OverviewTab({ employer: e }: TabProps) {
   const fromOpenSources = tags.length > baseTags.length
   const gurDescription = gur?.description_uk?.trim()
   const profileDescription = !gurDescription ? profile?.description_ru?.trim() : undefined
-  const probableMatch = gur?.match === 'name' && (
-    <span className="badge warning sm">зв’язок з юрособою ймовірний (за назвою)</span>
+  const probableMatch = (e.company_link === 'candidate' || gur?.match === 'name') && (
+    <span className="badge warning sm" title="Юрособу знайдено за назвою чи сайтом, а не за ІПН">зв’язок з юрособою ймовірний</span>
   )
 
   return (
@@ -67,7 +69,7 @@ export function OverviewTab({ employer: e }: TabProps) {
         ) : <p className="empty-row">Дані про напрями діяльності поки відсутні.</p>}
         {tags.length > 0 && (
           <p className="analytics-note">
-            Напрям — за класифікацією вакансій; продукція та зв’язки з БпЛА й озброєнням — за даними ГУР
+            Напрям — {direction ? 'за підсумковою класифікацією підприємства' : 'за класифікацією вакансій'}; продукція та зв’язки з БпЛА й озброєнням — за даними ГУР
             {fromOpenSources ? '; частина напрямів — за відкритими джерелами' : ''}.
           </p>
         )}
@@ -100,7 +102,7 @@ export function OverviewTab({ employer: e }: TabProps) {
                 </div>
               )}
               <p className="src">
-                Опис зібрано автоматично з відкритих джерел, мовою оригіналу ({longDate(profile.created_at)}).
+                Опис зібрано автоматично з відкритих джерел, мовою оригіналу ({longDate(profile.updated_at)}).
               </p>
             </>
           )}

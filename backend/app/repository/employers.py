@@ -180,13 +180,26 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
     if employer["gur"] is not None:
         employer["gur"]["match"] = gur_match
 
-    profile_company_id = match["company_id"] if match is not None else gur_id
-    employer["profile"] = await _company_profile(session, profile_company_id)
+    # The legal entity behind the page: the matched company, else the GUR card found by INN.
+    company_id = match["company_id"] if match is not None else gur_id
+    employer["company_id"] = company_id
+    employer["company_link"] = None
+    if company_id is not None:
+        by_inn = company_id == employer["gur_company_id"]
+        sure = by_inn or match is None or match["status"] == "auto"
+        employer["company_link"] = "auto" if sure else "candidate"
+    employer["profile"] = await _company_profile(session, company_id)
+    employer["classification"] = await _company_classification(session, company_id)
+    employer["registry"] = await _company_registry(session, company_id)
+    employer["contacts"] = await _company_contacts(session, company_id, employer_id)
+    employer["agency"] = (
+        await _employer_agency(session, employer_id) if company_id is None else None
+    )
     return employer
 
 
 async def _matched_company(session: AsyncSession, employer_id: int) -> Row | None:
-    """Best company link for the employer: 'auto' (by INN) or a confident candidate (>= 0.8).
+    """Best company link for the employer: 'auto' (by INN) or any non-rejected link with confidence >= 0.8.
 
     Duplicates are resolved to their canonical company row.
     """
@@ -196,8 +209,8 @@ async def _matched_company(session: AsyncSession, employer_id: int) -> Row | Non
                 SELECT coalesce(d.canonical_id, m.company_id) AS company_id, m.status, m.confidence
                 FROM employer_company_match m
                 LEFT JOIN company_duplicate d ON d.company_id = m.company_id
-                    WHERE m.employer_profile_id = :id
-                  AND (m.status = 'auto' OR (m.status = 'candidate' AND m.confidence >= 0.8))
+                WHERE m.employer_profile_id = :id
+                  AND m.status <> 'rejected' AND (m.status = 'auto' OR m.confidence >= 0.8)
                 ORDER BY m.status = 'auto' DESC, m.confidence DESC, company_id
                 LIMIT 1
             )
@@ -220,26 +233,115 @@ async def _company_profile(session: AsyncSession, company_id: int | None) -> Row
         text("""
             WITH prof AS (
                 SELECT p.company_id, p.run_id, p.activity_tags, p.products_ru, p.description_ru,
-                       p.created_at
-                FROM company_profile p
+                       p.created_at, er.started_at AS updated_at, er.method AS origin
+                FROM company_profile p JOIN enrichment_run er USING (run_id)
                 WHERE p.company_id = :cid AND p.status = ANY(:statuses)
-                ORDER BY p.created_at DESC, p.run_id DESC
+                ORDER BY er.started_at DESC, p.run_id DESC
                 LIMIT 1
             )
-            SELECT prof.*, r.method AS origin,
+            SELECT prof.*,
                    coalesce(json_agg(json_build_object(
                        'n', f.local_id, 'url', f.url, 'quote', f.quote, 'claim', f.claim_ru,
                        'source_type', f.source_type, 'grade', f.grade) ORDER BY f.local_id)
                      FILTER (WHERE f.fact_id IS NOT NULL), '[]') AS sources
             FROM prof
-            JOIN enrichment_run r ON r.run_id = prof.run_id
             LEFT JOIN company_fact f
                    ON f.company_id = prof.company_id AND f.run_id = prof.run_id
                   AND f.quote_verified
             GROUP BY prof.company_id, prof.run_id, prof.activity_tags, prof.products_ru,
-                     prof.description_ru, prof.created_at, r.method
+                     prof.description_ru, prof.created_at, prof.updated_at, prof.origin
         """),
         {"cid": company_id, "statuses": statuses},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
+
+
+async def _company_classification(session: AsyncSession, company_id: int | None) -> Row | None:
+    """Final ВПК decision for the company from the latest classification run."""
+    if company_id is None:
+        return None
+    result = await session.execute(
+        text("""
+            SELECT cc.vpk_category, cc.vpk_probability, cc.vpk_level, cc.direction_label,
+                   cc.direction_secondary, cc.reliability, cc.reliability_note,
+                   cc.sanctions_gur, cc.sanctions_new, cc.explanation, cc.enrichment_run_id
+            FROM company_classification cc JOIN classifier_run r USING (run_id)
+            WHERE r.classifier = 'company_classification' AND cc.company_id = :cid
+            ORDER BY r.started_at DESC LIMIT 1
+        """),
+        {"cid": company_id},
+    )
+    row = result.mappings().first()
+    if row is None:
+        return None
+    classification = dict(row)
+    # Sanctions found outside GUR, each backed by a verified fact of the same search run.
+    sanctions = await session.execute(
+        text("""
+            WITH run AS (
+                SELECT coalesce(CAST(:run_id AS int), (
+                    SELECT s.run_id FROM company_sanction_found s
+                    JOIN enrichment_run er USING (run_id)
+                    WHERE s.company_id = :cid ORDER BY er.started_at DESC LIMIT 1)) AS run_id
+            )
+            SELECT s.jurisdiction, s.list_name, s.listed_raw, s.in_gur, min(f.url) AS url
+            FROM company_sanction_found s
+            JOIN run USING (run_id)
+            JOIN company_fact f ON f.run_id = s.run_id AND f.company_id = s.company_id
+                               AND f.local_id = s.local_fact_id AND f.quote_verified
+            WHERE s.company_id = :cid
+            GROUP BY s.jurisdiction, s.list_name, s.listed_raw, s.in_gur
+            ORDER BY s.jurisdiction, s.list_name
+        """),
+        {"cid": company_id, "run_id": classification.pop("enrichment_run_id")},
+    )
+    classification["sanctions_found"] = [dict(r) for r in sanctions.mappings()]
+    return classification
+
+
+async def _company_registry(session: AsyncSession, company_id: int | None) -> Row | None:
+    if company_id is None:
+        return None
+    result = await session.execute(
+        text("SELECT address, head FROM company_registry WHERE company_id = :cid"),
+        {"cid": company_id},
+    )
+    row = result.mappings().first()
+    return dict(row) if row else None
+
+
+async def _company_contacts(
+    session: AsyncSession, company_id: int | None, employer_id: int
+) -> list[Row]:
+    """Verified corporate requisites and contacts, the newest value of each kind first."""
+    result = await session.execute(
+        text("""
+            SELECT kind, value, detail, url FROM (
+                SELECT DISTINCT ON (cc.kind, cc.value) cc.kind, cc.value, cc.detail, cc.url,
+                       r.started_at
+                FROM company_contact cc JOIN enrichment_run r USING (run_id)
+                WHERE cc.verified
+                  AND (cc.company_id = :cid OR cc.employer_profile_id = :id)
+                ORDER BY cc.kind, cc.value, r.started_at DESC
+            ) c
+            ORDER BY kind, started_at DESC, value
+        """),
+        {"cid": company_id, "id": employer_id},
+    )
+    return [dict(r) for r in result.mappings()]
+
+
+async def _employer_agency(session: AsyncSession, employer_id: int) -> Row | None:
+    """Recruitment-agency decision for a page that has no legal entity."""
+    result = await session.execute(
+        text("""
+            SELECT ec.category, ec.level, ec.score, ec.raw_label
+            FROM employer_classification ec JOIN classifier_run r USING (run_id)
+            WHERE r.classifier = 'employer_agency' AND ec.employer_profile_id = :id
+            ORDER BY r.started_at DESC LIMIT 1
+        """),
+        {"id": employer_id},
     )
     row = result.mappings().first()
     return dict(row) if row else None
