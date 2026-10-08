@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiEmployerDetail, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -11,7 +11,7 @@ export class ApiError extends Error {
 
 type Params = Record<string, string | number | undefined | null>
 
-const query = (params: Params) => {
+export const query = (params: Params) => {
   const q = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') q.set(k, String(v))
@@ -39,7 +39,12 @@ export type VacancyQuery = {
   offset?: number
 }
 
+/** Download link for an export dataset; `vacancies` takes the same filters as the list. */
+export const exportUrl = (dataset: string, format: ExportFormat, params: Params = {}) =>
+  `/api/export/${dataset}.${format}${query(params)}`
+
 export const api = {
+  exportCatalog: (signal?: AbortSignal) => get<ApiExportCatalog>('/export', signal),
   mapPoints: (signal?: AbortSignal) => get<ApiMapPoint[]>('/employers/map-points', signal),
   mapNetwork: (signal?: AbortSignal) => get<ApiMapNetwork>('/employers/map-network', signal),
   stats: (signal?: AbortSignal) => get<ApiStats>('/stats', signal),

@@ -10,6 +10,7 @@ const NAV: { section: Section; to: string; label: string }[] = [
   { section: 'companies', to: '/companies', label: 'Підприємства' },
   { section: 'vacancies', to: '/vacancies', label: 'Вакансії' },
   { section: 'map', to: '/map', label: 'Карта' },
+  { section: 'opendata', to: '/open-data', label: 'Відкриті дані' },
   { section: 'methodology', to: '/methodology', label: 'Про дані' },
 ]
 

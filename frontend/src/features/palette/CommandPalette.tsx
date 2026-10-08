@@ -15,6 +15,7 @@ const PAGES: [string, string, IconName][] = [
   ['Вакансії', '/vacancies', 'briefcase'],
   ['Професії', '/vacancies/professions', 'list'],
   ['Сигнали', '/signals', 'bell'],
+  ['Відкриті дані', '/open-data', 'download'],
   ['Про дані', '/methodology', 'doc'],
 ]
 

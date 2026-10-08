@@ -8,6 +8,7 @@ import { CompanyPage } from '../pages/company/CompanyPage'
 import { MapPage } from '../pages/MapPage'
 import { MethodologyPage } from '../pages/MethodologyPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { OpenDataPage } from '../pages/OpenDataPage'
 import { OverviewPage } from '../pages/OverviewPage'
 import { RegionPage } from '../pages/RegionPage'
 import { VacanciesPage } from '../pages/VacanciesPage'
@@ -34,6 +35,7 @@ export function App() {
                   <Route path="vacancies/:id" element={<VacancyPage />} />
                   <Route path="regions/:id" element={<RegionPage />} />
                   <Route path="methodology" element={<MethodologyPage />} />
+                  <Route path="open-data" element={<OpenDataPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Routes>

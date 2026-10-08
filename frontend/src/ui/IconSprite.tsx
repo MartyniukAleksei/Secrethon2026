@@ -27,6 +27,7 @@ export function IconSprite() {
         <symbol id="i-send" viewBox="0 0 24 24" {...line} strokeWidth={2}><path d="M12 19V5M6 11l6-6 6 6" /></symbol>
         <symbol id="i-graph" viewBox="0 0 24 24" {...line}><circle cx="5" cy="12" r="2.5" /><circle cx="19" cy="5" r="2.5" /><circle cx="19" cy="19" r="2.5" /><path d="M7.3 11l9.4-5M7.3 13l9.4 5" /></symbol>
         <symbol id="i-chev" viewBox="0 0 24 24" {...line} strokeWidth={2}><path d="M9 6l6 6-6 6" /></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24" {...line} strokeWidth={1.9}><path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" /></symbol>
         <symbol id="i-doc" viewBox="0 0 24 24" {...line}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></symbol>
       </defs>
     </svg>

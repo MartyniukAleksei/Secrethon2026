@@ -203,3 +203,26 @@ export type ApiVacancyReview = ApiVacancyReviewInput & {
 }
 
 export type ApiVacancyPage = { total: number; items: ApiVacancy[] }
+
+export type ApiExportColumn = { name: string; type: 'int' | 'float' | 'text' | 'bool' | 'date' | 'timestamp' | 'text[]'; description: string }
+
+export type ApiExportDataset = {
+  name: string
+  title: string
+  description: string
+  key: string[]
+  filterable: boolean
+  columns: ApiExportColumn[]
+  row_count: number
+  urls: Record<ExportFormat, string>
+  schema_url: string
+}
+
+export type ExportFormat = 'csv' | 'json' | 'jsonl' | 'parquet'
+
+export type ApiExportCatalog = {
+  as_of: string | null
+  formats: ExportFormat[]
+  snapshot: { zip: string; sql: string }
+  datasets: ApiExportDataset[]
+}

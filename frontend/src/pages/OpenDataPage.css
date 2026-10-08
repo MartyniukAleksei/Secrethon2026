@@ -1,0 +1,26 @@
+.opendata { max-width: 980px; display: grid; gap: 12px; }
+.opendata section { padding: 18px 22px; }
+.opendata h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.opendata p, .opendata li { font-size: 15px; line-height: 23px; color: var(--label-1); font-weight: 450; }
+.opendata ul { margin: 6px 0 10px; padding-left: 20px; }
+.opendata code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; padding: 1px 5px; border-radius: 6px; background: var(--fill-1); }
+.opendata-skeleton { height: 420px; max-width: 980px; }
+.opendata-title { font-size: 20px; font-weight: 600; margin-top: 12px; }
+
+.opendata-snapshot, .opendata-card-head { display: flex; gap: 18px; align-items: flex-start; justify-content: space-between; }
+.opendata-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.opendata-actions .btn { text-decoration: none; }
+.opendata-meta { margin-top: 4px; color: var(--label-2) !important; font-size: 14px !important; }
+.opendata-meta code + code { margin-left: 4px; }
+
+.opendata details { margin-top: 10px; }
+.opendata summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--label-2); }
+.opendata table.data { min-width: 0; }
+.opendata td.opendata-desc { white-space: normal; color: var(--label-2); }
+
+.opendata pre { margin: 10px 0; padding: 14px 16px; border-radius: var(--r-inner); background: var(--fill-1); overflow-x: auto; }
+.opendata pre code { padding: 0; background: none; font-size: 13px; line-height: 20px; white-space: pre; }
+
+@media (max-width: 720px) {
+  .opendata-snapshot, .opendata-card-head { flex-direction: column; }
+}
