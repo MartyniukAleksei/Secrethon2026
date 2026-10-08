@@ -34,9 +34,13 @@ export type ApiMapNetwork = {
 
 export type ApiStats = {
   as_of: string | null
+  /** Start of the final vacancy labelling run (`vacancy_final`); null while the fallback is used. */
+  final_run_at: string | null
   vacancies: number
   vpk_vacancies: number
   confirmed_vacancies: number
+  /** ВПК vacancies on review (`likely`). */
+  on_review_vacancies: number
   vpk_employers: number
   regions: number
   median_salary: number | null
@@ -49,11 +53,13 @@ export type ApiStats = {
   vpk_companies_decided: number
   agency_vpk_companies: number
   foreign_intermediary_companies: number
-  /** Employer pages of recruitment agencies hiring for the ВПК, and their ВПК vacancies. */
+  foreign_intermediary_decided: number
+  /** Employer pages of recruitment agencies hiring for the ВПК and their vacancies; not part of vpk_*. */
   agency_employers: number
   agency_vacancies: number
   by_source: { source: string; vacancies: number; vpk_vacancies: number }[]
   by_level: { level: Level; vacancies: number }[]
+  by_basis: { category: FinalCategory; basis: string; vacancies: number }[]
   by_category: { category: Category; vacancies: number }[]
   regions_list: { region_id: number; name: string; vpk_vacancies: number; employers: number }[]
   monthly: ApiMonthPoint[]
@@ -69,6 +75,9 @@ export type ApiEmployer = {
   profile_url: string | null
   vpk_vacancies: number
   confirmed_vacancies: number
+  on_review_vacancies: number
+  /** Vacancies placed as a recruitment agency hiring for the ВПК. */
+  agency_vacancies: number
   total_vacancies: number
   new_30d: number
   median_salary: number | null
@@ -255,7 +264,16 @@ export type ApiVacancy = {
   published_at: string | null
   level: Level
   category: Category
+  final_category: FinalCategory
+  /** Basis of the final label: company_vpk, company_vpk_review, text_jev, legacy, … */
+  final_basis: string
+  /** Explicit ВПК markers in the text (state secret, GOZ, military acceptance…). */
+  has_markers: boolean
 }
+
+/** Final vacancy label: of a ВПК enterprise, through a recruitment agency, or not shown. */
+export type FinalCategory = 'vpk' | 'agency' | 'excluded'
+export type ApiEvidence = { signal: string; origin: string; weight: number | null; snippet: string | null }
 
 export type ApiVacancyDetail = ApiVacancy & {
   address: string | null
@@ -265,6 +283,11 @@ export type ApiVacancyDetail = ApiVacancy & {
   conditions: string | null
   skills_raw: string | null
   education: string | null
+  final_level: Level
+  final_score: number | null
+  /** Counted and listed on the site; excluded vacancies stay reachable by a direct link. */
+  shown: boolean
+  evidence: ApiEvidence[]
   classifier_name: string
   classifier_version: string | null
   reviews: ApiVacancyReview[]

@@ -63,7 +63,7 @@ class EmployerAgencyOut(BaseModel):
 
 
 class EmployerOut(BaseModel):
-    """An employer from job sites with at least one vacancy classified as ВПК."""
+    """An employer from job sites; listed when it has a shown vacancy (ВПК or through an agency)."""
 
     id: int
     name: str
@@ -74,6 +74,9 @@ class EmployerOut(BaseModel):
     profile_url: str | None
     vpk_vacancies: int
     confirmed_vacancies: int
+    # ВПК vacancies on review (`likely`) and vacancies placed as a recruitment agency.
+    on_review_vacancies: int
+    agency_vacancies: int
     total_vacancies: int
     new_30d: int
     median_salary: float | None
@@ -286,6 +289,18 @@ class VacancyOut(BaseModel):
     published_at: datetime | None
     level: Level
     category: str | None
+    # Final label: `vpk` or `agency`; basis company_vpk, company_vpk_review, text_jev, legacy, …
+    final_category: str
+    final_basis: str
+    # Explicit ВПК markers in the text (state secret, GOZ, military acceptance…).
+    has_markers: bool
+
+
+class EvidenceOut(BaseModel):
+    signal: str
+    origin: str
+    weight: float | None
+    snippet: str | None
 
 
 class VacancyReviewIn(BaseModel):
@@ -311,6 +326,11 @@ class VacancyDetailOut(VacancyOut):
     conditions: str | None
     skills_raw: str | None
     education: str | None
+    final_level: str
+    final_score: float | None
+    # Counted and listed on the site (excluded vacancies stay reachable by a direct link).
+    shown: bool
+    evidence: list[EvidenceOut]
     classifier_name: str
     classifier_version: str | None
     reviews: list[VacancyReviewOut]
@@ -332,6 +352,12 @@ class LevelCount(BaseModel):
     vacancies: int
 
 
+class BasisCount(BaseModel):
+    category: str
+    basis: str
+    vacancies: int
+
+
 class CategoryCount(BaseModel):
     category: str | None
     vacancies: int
@@ -346,9 +372,12 @@ class RegionOut(BaseModel):
 
 class StatsOut(BaseModel):
     as_of: datetime | None
+    # Start of the final vacancy labelling run; None while the fallback is in use.
+    final_run_at: datetime | None
     vacancies: int
     vpk_vacancies: int
     confirmed_vacancies: int
+    on_review_vacancies: int
     vpk_employers: int
     regions: int
     median_salary: float | None
@@ -361,11 +390,14 @@ class StatsOut(BaseModel):
     vpk_companies_decided: int
     agency_vpk_companies: int
     foreign_intermediary_companies: int
-    # Employer pages of recruitment agencies hiring for the ВПК, and their ВПК vacancies.
+    foreign_intermediary_decided: int
+    # Employer pages of recruitment agencies hiring for the ВПК, and their vacancies; not part
+    # of vpk_employers / vpk_vacancies.
     agency_employers: int
     agency_vacancies: int
     by_source: list[SourceCount]
     by_level: list[LevelCount]
+    by_basis: list[BasisCount]
     by_category: list[CategoryCount]
     regions_list: list[RegionOut]
     monthly: list[MonthPoint]

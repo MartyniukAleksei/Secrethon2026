@@ -9,12 +9,12 @@ export class ApiError extends Error {
   }
 }
 
-type Params = Record<string, string | number | undefined | null>
+type Params = Record<string, string | number | boolean | undefined | null>
 
 export const query = (params: Params) => {
   const q = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') q.set(k, String(v))
+    if (v !== undefined && v !== null && v !== '' && v !== false) q.set(k, String(v))
   })
   const s = q.toString()
   return s ? `?${s}` : ''
@@ -27,7 +27,11 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export type VacancyQuery = {
+  /** ВПК enterprises (default), recruitment agencies hiring for the ВПК, or both. */
+  scope?: 'vpk' | 'agency' | 'all'
   level?: 'vpk' | 'confirmed' | 'likely' | 'all'
+  /** Only vacancies with explicit ВПК markers in the text. */
+  markers?: boolean
   employer_id?: number
   region_id?: number
   category?: string

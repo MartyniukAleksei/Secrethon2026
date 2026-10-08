@@ -8,9 +8,9 @@ import { ReviewBadge, VacancyReviews } from '../components/VacancyReviews'
 import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
 import { longDate, salaryRange } from '../domain/format'
-import { experienceName, sourceName } from '../domain/labels'
+import { experienceName, FINAL_BASIS, sourceName } from '../domain/labels'
 import type { VacancyDetail } from '../domain/types'
-import { CategoryBadge, LevelBadge } from '../ui/badges'
+import { CategoryBadge, VacancyBadges } from '../ui/badges'
 import { CompanyMark } from '../ui/CompanyMark'
 import { Icon } from '../ui/Icon'
 import { NotFoundPage } from './NotFoundPage'
@@ -77,6 +77,9 @@ function VacancyProfile({ vacancy: v }: { vacancy: VacancyDetail }) {
         <div className="badges prof-badges">
           <ReviewBadge source="human" review={reviews.find((r) => r.source === 'human')} />
           <ReviewBadge source="llm" review={reviews.find((r) => r.source === 'llm')} />
+          {v.shown
+            ? <VacancyBadges vacancy={v} />
+            : <span className="badge">Не входить до вибірки ВПК</span>}
           {v.category && <CategoryBadge category={v.category} />}
         </div>
         <dl className="vacancy-stats">
@@ -109,8 +112,20 @@ function VacancyProfile({ vacancy: v }: { vacancy: VacancyDetail }) {
             </dl>
           </section>
           <section className="panel">
-            <div className="panel-head"><h3>Класифікація джерела</h3></div>
-            <div className="vacancy-classification"><LevelBadge level={v.level} /><p className="src">{v.classifier_name}{v.classifier_version ? ` · ${v.classifier_version}` : ''}</p><p className="src">Це оцінка з поточного збору даних, окрема від Human review та LLM review.</p></div>
+            <div className="panel-head"><h3>Чому ця вакансія тут</h3></div>
+            <div className="vacancy-classification">
+              {v.shown ? <VacancyBadges vacancy={v} /> : <span className="badge">Не входить до вибірки ВПК</span>}
+              {v.shown
+                ? FINAL_BASIS[v.final_basis] && <p>{FINAL_BASIS[v.final_basis]}</p>
+                : <p>Роботодавця не віднесено до ВПК (або підстав у тексті замало), тому вакансію не показано в списках і не враховано в лічильниках.</p>}
+              {v.evidence.length > 0 && (
+                <ul className="vacancy-evidence">
+                  {v.evidence.map((e) => <li key={e.signal + (e.snippet ?? '')}><b>{e.signal}</b>{e.snippet ? `: ${e.snippet}` : ''}</li>)}
+                </ul>
+              )}
+              <p className="src">{v.classifier_name}{v.classifier_version ? ` · ${v.classifier_version}` : ''}</p>
+              <p className="src">Це оцінка з поточного збору даних, окрема від Human review та LLM review.</p>
+            </div>
           </section>
           {employer && <section className="panel vacancy-employer">
             <div className="panel-head"><h3>Підприємство</h3></div>

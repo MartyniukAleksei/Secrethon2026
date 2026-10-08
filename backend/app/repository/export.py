@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.db import engine
-from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, ON_GUR, with_human_review
+from app.repository.sql import AS_OF, CTE, EMPLOYER_SELECT, LISTED, ON_GUR, with_human_review
 from app.repository.vacancies import VacancyFilter
 from app.reviews import employer_reviews_ready
 
@@ -47,7 +47,7 @@ class Dataset:
     def query(self, f: VacancyFilter | None = None) -> tuple[str, dict[str, Any]]:
         if not self.filterable:
             return self.sql, {}
-        where, params = (f or VacancyFilter(level="all")).where()
+        where, params = (f or VacancyFilter(level="all", scope="all")).where()
         return self.sql.replace("{where}", where), params
 
 
@@ -213,7 +213,8 @@ EMPLOYERS = Dataset(
     title="Роботодавці ВПК",
     description=(
         "Роботодавці з сайтів вакансій (hh.ru, «Работа России») з хоча б однією активною "
-        "вакансією ВПК, з агрегатами за вакансіями та зв'язком з компанією."
+        "вакансією ВПК або кадрового агентства, що наймає у ВПК, з агрегатами за вакансіями "
+        "та зв'язком з компанією."
     ),
     key=("employer_id",),
     columns=_cols(
@@ -228,7 +229,8 @@ EMPLOYERS = Dataset(
         ("locality", "text", "Найчастіший населений пункт вакансій"),
         ("category", "text", "Найчастіший напрям вакансій ВПК"),
         ("vpk_vacancies", "int", "Активні вакансії ВПК (confirmed + likely)"),
-        ("confirmed_vacancies", "int", "Активні вакансії з рівнем confirmed"),
+        ("confirmed_vacancies", "int", "Активні вакансії ВПК з рівнем confirmed"),
+        ("agency_vacancies", "int", "Активні вакансії, розміщені як кадрове агентство для ВПК"),
         ("total_vacancies", "int", "Усі активні вакансії"),
         ("new_30d", "int", "Нові вакансії ВПК за 30 днів до дати зрізу"),
         ("median_salary", "float", "Медіана місячної зарплати вакансій ВПК, RUB"),
@@ -246,9 +248,10 @@ EMPLOYERS = Dataset(
         ("human_reviewed_at", "timestamp", "Human review: коли перевірено"),
     ),
     sql=f"""
-        WITH e AS ({EMPLOYER_SELECT} WHERE a.vpk_vacancies > 0)
+        WITH e AS ({EMPLOYER_SELECT} WHERE {LISTED})
         SELECT e.id AS employer_id, e.name, e.source, e.profile_url, e.inn, e.ogrn, e.kpp,
                e.region, e.locality, e.category, e.vpk_vacancies::int, e.confirmed_vacancies::int,
+               e.agency_vacancies::int,
                e.total_vacancies::int, e.new_30d::int, e.median_salary::float8, e.last_published_at,
                e.gur_company_id::int,
                coalesce(e.gur_company_id, m.company_id)::int AS matched_company_id,
@@ -276,8 +279,9 @@ VACANCIES = Dataset(
     name="vacancies",
     title="Вакансії",
     description=(
-        "Активні вакансії з рівнем класифікації ВПК (останній запуск класифікатора). "
-        "Фільтри: level, region_id, category, title, q, days, employer_id."
+        "Активні вакансії, показані на сайті: підсумкова мітка (запуск vacancy_final) — "
+        "вакансії підприємств ВПК і кадрових агентств, що наймають у ВПК; без дублів. "
+        "Фільтри: scope, level, markers, region_id, category, title, q, days, employer_id."
     ),
     key=("vacancy_id",),
     filterable=True,
@@ -288,7 +292,18 @@ VACANCIES = Dataset(
         ("employer_id", "int", "Роботодавець → employers.employer_id"),
         ("employer_name", "text", "Назва роботодавця"),
         ("title", "text", "Назва посади"),
-        ("level", "text", "Зв'язок з ВПК: confirmed, likely, review, no"),
+        (
+            "final_category",
+            "text",
+            "Підсумкова мітка: vpk — підприємство ВПК, agency — кадрове агентство",
+        ),
+        ("level", "text", "Рішення: confirmed — прийнято, likely — на перевірці"),
+        ("final_basis", "text", "Підстава: company_vpk, company_vpk_review, text_jev"),
+        (
+            "has_markers",
+            "bool",
+            "Явні ознаки ВПК у тексті (держтаємниця, ДОЗ, військове приймання…)",
+        ),
         ("category", "text", "Напрям (виробництво, НДІ/КБ тощо)"),
         ("region_id", "int", "Ідентифікатор регіону"),
         ("region", "text", "Регіон (для hh.ru — за містом)"),
@@ -308,7 +323,7 @@ VACANCIES = Dataset(
     sql=f"""
         WITH {CTE}
         SELECT v.vacancy_id, v.source, v.url, v.employer_profile_id AS employer_id, v.employer_name,
-               v.title, v.level, v.category, v.region_id, r.name AS region, v.locality,
+               v.title, v.final_category, v.level, v.final_basis, v.has_markers, v.category, v.region_id, r.name AS region, v.locality,
                v.lat::float8, v.lng::float8, v.salary_from::float8, v.salary_to::float8,
                v.salary_currency, v.salary_period, v.monthly_salary::float8,
                v.experience, v.schedule, v.employment, v.published_at

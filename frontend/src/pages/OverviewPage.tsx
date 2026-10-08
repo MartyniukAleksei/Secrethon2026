@@ -32,8 +32,16 @@ export function OverviewPage() {
       </header>
 
       <dl className="overview-metrics">
-        <div><dt>Активних вакансій ВПК</dt><dd><Link to="/vacancies"><CountUp value={stats.vpk_vacancies} /></Link></dd></div>
-        <div><dt>Профілів роботодавців</dt><dd><Link to="/companies"><CountUp value={stats.vpk_employers} /></Link></dd></div>
+        <div>
+          <dt>Активних вакансій ВПК</dt>
+          <dd><Link to="/vacancies"><CountUp value={stats.vpk_vacancies} /></Link></dd>
+          <p className="overview-metric-note">з них на перевірці: {fmt(stats.on_review_vacancies)}</p>
+        </div>
+        <div>
+          <dt>Профілів роботодавців</dt>
+          <dd><Link to="/companies"><CountUp value={stats.vpk_employers} /></Link></dd>
+          <p className="overview-metric-note">вакансії всіх підрозділів підприємств ВПК, не лише профільні</p>
+        </div>
         <div><dt>Регіонів найму</dt><dd><Link to="/map"><CountUp value={stats.regions} /></Link></dd></div>
         <div><dt>Медіана зарплати / місяць</dt><dd><CountUp value={stats.median_salary} format={money} /></dd></div>
       </dl>
@@ -48,13 +56,21 @@ export function OverviewPage() {
             <dd><CountUp value={stats.vpk_companies} /></dd>
             <p className="overview-metric-note">з них рішення прийнято: {fmt(stats.vpk_companies_decided)}</p>
           </div>
-          <div><dt>Іноземних посередників</dt><dd><CountUp value={stats.foreign_intermediary_companies} /></dd></div>
+          <div>
+            <dt>Іноземних посередників</dt>
+            <dd><CountUp value={stats.foreign_intermediary_companies} /></dd>
+            <p className="overview-metric-note">з них рішення прийнято: {fmt(stats.foreign_intermediary_decided)}</p>
+          </div>
           <div>
             <dt>Кадрових агентств, що наймають у ВПК</dt>
             <dd><CountUp value={stats.agency_employers} /></dd>
             <p className="overview-metric-note">профілі роботодавців; серед юросіб — {fmt(stats.agency_vpk_companies)}</p>
           </div>
-          <div><dt>Вакансій ВПК через агентства</dt><dd><CountUp value={stats.agency_vacancies} /></dd></div>
+          <div>
+            <dt>Вакансій ВПК через агентства</dt>
+            <dd><Link to="/vacancies?scope=agency"><CountUp value={stats.agency_vacancies} /></Link></dd>
+            <p className="overview-metric-note">усього з агентствами: {fmt(stats.vpk_vacancies + stats.agency_vacancies)}</p>
+          </div>
         </dl>
       </section>
 

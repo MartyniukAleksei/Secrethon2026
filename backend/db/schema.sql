@@ -1893,3 +1893,17 @@ CREATE TABLE public.company_contact (
     verify_note text,
     CHECK (employer_profile_id IS NOT NULL OR company_id IS NOT NULL)
 );
+
+-- From 0008_dedup (company-parse), hand-written: vacancy duplicates and the deduplicated view.
+CREATE TABLE public.vacancy_duplicate (
+    vacancy_id bigint PRIMARY KEY REFERENCES public.vacancy ON DELETE CASCADE,
+    canonical_id bigint NOT NULL REFERENCES public.vacancy ON DELETE CASCADE,
+    method text NOT NULL,
+    score real NOT NULL,
+    evidence jsonb,
+    CHECK (vacancy_id <> canonical_id)
+);
+
+CREATE VIEW public.vacancy_unique AS
+SELECT v.* FROM public.vacancy v
+WHERE NOT EXISTS (SELECT 1 FROM public.vacancy_duplicate d WHERE d.vacancy_id = v.vacancy_id);

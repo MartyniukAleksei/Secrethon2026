@@ -5,7 +5,7 @@ import { FilterBar } from '../components/FilterBar'
 import { downloadText, toCsv, toJson } from '../data/download'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
-import { CATEGORIES, isSanctioned, isVpkConfirmed } from '../domain/labels'
+import { CATEGORIES, isSanctioned, isVpkConfirmed, shownVacancies } from '../domain/labels'
 import type { Employer } from '../domain/types'
 import { useFilters } from '../state/FiltersContext'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
@@ -15,7 +15,7 @@ import './CompaniesPage.css'
 
 type Sort = 'vacancies' | 'confirmed' | 'salary' | 'new' | 'sanctions'
 const SORTS: Record<Sort, { label: string; key: (e: Employer) => number }> = {
-  vacancies: { label: 'Спершу більше вакансій', key: (e) => e.vpk_vacancies },
+  vacancies: { label: 'Спершу більше вакансій', key: (e) => e.vpk_vacancies + e.agency_vacancies },
   confirmed: { label: 'Спершу більше підтверджених', key: (e) => e.confirmed_vacancies },
   new: { label: 'Спершу більше нових за 30 днів', key: (e) => e.new_30d },
   salary: { label: 'Спершу вища зарплата', key: (e) => e.median_salary ?? -1 },
@@ -164,7 +164,7 @@ export function CompaniesPage() {
                     <h3>{e.name}</h3>
                     <p className="place"><Icon name="pin" />{[e.locality, e.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>
                     <dl className="stats">
-                      <div><dt>Вакансій ВПК</dt><dd>{fmt(e.vpk_vacancies)}</dd></div>
+                      <div><dt>{shownVacancies(e).label}</dt><dd>{fmt(shownVacancies(e).value)}</dd></div>
                       <div><dt>Медіана</dt><dd>{money(e.median_salary)}</dd></div>
                       <div><dt>Нових за 30 днів</dt><dd>{fmt(e.new_30d)}</dd></div>
                     </dl>

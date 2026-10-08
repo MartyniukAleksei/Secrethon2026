@@ -6,6 +6,7 @@ import { MapSlot } from '../components/MapSlot'
 import { EmployerRow } from '../components/rows'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
+import { shownVacancies } from '../domain/labels'
 import { useFilters } from '../state/FiltersContext'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { Icon } from '../ui/Icon'
@@ -64,7 +65,7 @@ export function MapPage() {
                 <h4>{sel.name}</h4>
                 <p className="place"><Icon name="pin" />{[sel.locality, sel.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>
                 <dl className="stats" style={{ marginTop: 12 }}>
-                  <div><dt>Вакансій ВПК</dt><dd>{fmt(sel.vpk_vacancies)}</dd></div>
+                  <div><dt>{shownVacancies(sel).label}</dt><dd>{fmt(shownVacancies(sel).value)}</dd></div>
                   <div><dt>Медіана</dt><dd>{money(sel.median_salary)}</dd></div>
                   <div><dt>Нових за 30 днів</dt><dd>{fmt(sel.new_30d)}</dd></div>
                 </dl>

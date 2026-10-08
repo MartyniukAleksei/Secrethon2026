@@ -12,13 +12,20 @@ from app.db import make_engine
 
 def test_stats(client: TestClient) -> None:
     stats = client.get("/api/stats").json()
+    # No `vacancy_final` run in the fixture: the latest run of any classifier stands in.
+    assert stats["final_run_at"] is None
     assert stats["vacancies"] == 7
-    # confirmed + likely; vacancy 3 counts as likely because the latest run wins
-    assert stats["vpk_vacancies"] == 6
+    # confirmed + likely; vacancy 3 counts as likely because the latest run wins. Employers 2
+    # and 4 are ВПК recruitment agencies (employer_agency), so their vacancies count apart.
+    assert stats["vpk_vacancies"] == 3
     assert stats["confirmed_vacancies"] == 1
-    assert stats["vpk_employers"] == 3
+    assert stats["on_review_vacancies"] == 2
+    assert stats["vpk_employers"] == 1
+    assert stats["agency_employers"] == 2
+    assert stats["agency_vacancies"] == 3
+    assert stats["foreign_intermediary_decided"] == 1
     assert stats["matched_employers"] == 1
-    assert {r["name"] for r in stats["regions_list"]} == {"Тульская область", "Город Москва"}
+    assert {r["name"] for r in stats["regions_list"]} == {"Тульская область"}
     assert len(stats["monthly"]) == 12
 
 
@@ -270,22 +277,37 @@ def test_map_network_preserves_relationships_and_sources(client: TestClient) -> 
 
 def test_vacancies_paging_and_filters(client: TestClient) -> None:
     page = client.get("/api/vacancies", params={"limit": 2}).json()
-    assert page["total"] == 6
-    assert [v["id"] for v in page["items"]] == [4, 3]  # newest first
+    assert page["total"] == 3
+    assert [v["id"] for v in page["items"]] == [3, 1]  # newest first
     # hh vacancy without a region inherits it from trudvsem vacancies in the same city
     tula = client.get("/api/vacancies", params={"region_id": 64}).json()
     assert {v["id"] for v in tula["items"]} == {1, 2, 3}
-    assert client.get("/api/vacancies", params={"q": "БпЛА"}).json()["total"] == 1
-    assert client.get("/api/vacancies", params={"level": "all"}).json()["total"] == 7
-    by_salary = client.get("/api/vacancies", params={"sort": "salary"}).json()["items"]
-    assert by_salary[0]["id"] == 4
+    # Agency vacancies are listed apart; the non-ВПК bakery vacancy 6 never is.
+    assert client.get("/api/vacancies", params={"q": "БпЛА"}).json()["total"] == 0
+    agency = client.get("/api/vacancies", params={"q": "БпЛА", "scope": "agency"}).json()
+    assert agency["total"] == 1
+    assert client.get("/api/vacancies", params={"level": "all"}).json()["total"] == 3
+    assert client.get("/api/vacancies", params={"scope": "all"}).json()["total"] == 6
+    assert client.get("/api/vacancies", params={"level": "likely"}).json()["total"] == 2
+    by_salary = client.get("/api/vacancies", params={"sort": "salary", "scope": "all"}).json()
+    assert by_salary["items"][0]["id"] == 4
 
 
 def test_vacancy_detail(client: TestClient) -> None:
     vacancy = client.get("/api/vacancies/1").json()
     assert vacancy["description"] == "Обработка деталей"
     assert vacancy["url"] == "https://trudvsem.ru/vacancy/1"
+    assert vacancy["shown"] is True and vacancy["final_basis"] == "legacy"
+    # Not counted, but still reachable by a direct link.
+    assert client.get("/api/vacancies/6").json()["shown"] is False
     assert client.get("/api/vacancies/999").status_code == 404
+
+
+def test_employer_page_without_shown_vacancies(client: TestClient) -> None:
+    bakery = client.get("/api/employers/3")
+    assert bakery.status_code == 200
+    assert bakery.json()["vpk_vacancies"] == 0 and bakery.json()["professions"] == []
+    assert client.get("/api/employers/999").status_code == 404
 
 
 def test_professions(client: TestClient) -> None:
@@ -370,7 +392,7 @@ def test_human_and_llm_reviews_are_independent_and_persistent(client: TestClient
     ]
     assert detail["level"] == "confirmed"  # Pipeline classification is preserved.
     assert client.get("/api/vacancies/2").json()["reviews"] == []
-    assert client.get("/api/stats").json()["vpk_vacancies"] == 6
+    assert client.get("/api/stats").json()["vpk_vacancies"] == 3
 
 
 def test_review_requires_existing_active_vacancy(client: TestClient) -> None:

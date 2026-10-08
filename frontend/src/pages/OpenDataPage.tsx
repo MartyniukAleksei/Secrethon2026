@@ -148,12 +148,14 @@ function ApiGuide({ catalog }: { catalog: ApiExportCatalog }) {
         </li>
       </ul>
       <p>
-        Датасет <code>vacancies</code> приймає ті самі фільтри, що й список вакансій: <code>level</code> (vpk, confirmed, likely, all),{' '}
-        <code>region_id</code>, <code>category</code>, <code>employer_id</code>, <code>q</code>, <code>days</code>.
+        Датасет <code>vacancies</code> містить лише показані на сайті вакансії, без дублів, і приймає ті самі фільтри, що й список вакансій:{' '}
+        <code>scope</code> (vpk — підприємства ВПК, agency — кадрові агентства, all — усі; типово all), <code>level</code> (confirmed, likely, all),{' '}
+        <code>markers</code> (true — лише з явними ознаками ВПК у тексті), <code>region_id</code>, <code>category</code>, <code>employer_id</code>,{' '}
+        <code>q</code>, <code>days</code>.
       </p>
       <pre>
         <code>{`curl -u логін:пароль -o vacancies.csv \\
-  "${origin}/api/export/vacancies.csv?level=vpk&days=30"`}</code>
+  "${origin}/api/export/vacancies.csv?scope=vpk&days=30"`}</code>
       </pre>
       <pre>
         <code>{`import pandas as pd, requests, io

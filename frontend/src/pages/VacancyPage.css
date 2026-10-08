@@ -18,3 +18,4 @@
   .vacancy-head .prof-id .grow { flex-basis: 100%; padding-top: 0; }
   .vacancy-head .prof-id h1 { font-size: 23px; line-height: 29px; }
 }
+.vacancy-evidence { display: grid; gap: 4px; margin: 0; padding-left: 18px; font-size: 13px; line-height: 18px; }

@@ -9,15 +9,19 @@ import { ago, fmt, money, plural, salaryRange } from '../domain/format'
 import { experienceName } from '../domain/labels'
 import { useDebounced } from '../hooks/useDebounced'
 import { useFilters } from '../state/FiltersContext'
-import { CategoryBadge, LevelBadge } from '../ui/badges'
+import { CategoryBadge, VacancyBadges } from '../ui/badges'
 import { Icon } from '../ui/Icon'
 import './VacanciesPage.css'
 
 const PAGE = 50
+const SCOPES: [NonNullable<VacancyQuery['scope']>, string][] = [
+  ['vpk', 'Підприємства ВПК'],
+  ['agency', 'Через кадрові агентства'],
+]
 const LEVELS: [NonNullable<VacancyQuery['level']>, string][] = [
-  ['vpk', 'Усі ВПК'],
-  ['confirmed', 'Підтверджені'],
-  ['likely', 'Ймовірні'],
+  ['vpk', 'Усі'],
+  ['confirmed', 'Рішення прийнято'],
+  ['likely', 'На перевірці'],
 ]
 
 /** Read/write URL search params; changing any filter resets the page. */
@@ -36,11 +40,15 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
   const navigate = useNavigate()
   const filters = useFilters()
   const [params, update] = useParams()
+  const scope = (params.get('scope') as VacancyQuery['scope']) || 'vpk'
   const level = (params.get('level') as VacancyQuery['level']) || 'vpk'
+  const markers = params.get('markers') === 'true'
 
-  // Shared by both tabs: the top filters plus the ВПК level.
+  // Shared by both tabs: the top filters plus the final label (scope, level, explicit markers).
   const base: VacancyQuery = {
+    scope,
     level,
+    markers: markers || undefined,
     region_id: filters.region === 'all' ? undefined : filters.region,
     category: filters.category === 'all' ? undefined : filters.category,
     days: filters.period || undefined,
@@ -51,7 +59,7 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
       <div className="page-head">
         <div>
           <h1>Вакансії</h1>
-          <p>Оголошення з hh.ru і «Работы России», які класифікатор відніс до ВПК. Кожне веде на оригінал.</p>
+          <p>Усі оголошення підприємств ВПК — не лише профільні посади. Вакансії кадрових агентств, що наймають у ВПК, — окремо. Кожне веде на оригінал.</p>
         </div>
         <div className="segmented">
           <button type="button" aria-pressed={tab === 'listings'} onClick={() => navigate('/vacancies')}>Оголошення</button>
@@ -60,11 +68,20 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
       </div>
       <div className="vac-filters">
         <FilterBar />
-        <div className="segmented sm" aria-label="Дотичність до ВПК">
+        <div className="segmented sm" aria-label="Хто наймає">
+          {SCOPES.map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={scope === k} onClick={() => update({ scope: k === 'vpk' ? null : k })}>{label}</button>
+          ))}
+        </div>
+        <div className="segmented sm" aria-label="Стан рішення">
           {LEVELS.map(([k, label]) => (
             <button key={k} type="button" aria-pressed={level === k} onClick={() => update({ level: k === 'vpk' ? null : k })}>{label}</button>
           ))}
         </div>
+        <label className="row">
+          <input type="checkbox" checked={markers} onChange={(e) => update({ markers: e.target.checked ? 'true' : null })} />
+          Лише з явними ознаками ВПК у тексті
+        </label>
       </div>
       {tab === 'professions' ? <Professions base={base} /> : <Listings base={base} params={params} update={update} />}
     </>
@@ -140,7 +157,7 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
                   <td>{v.locality ?? '—'}</td>
                   <td className="num">{salaryRange(v) ?? '—'}</td>
                   <td>{experienceName(v.experience) ?? '—'}</td>
-                  <td><LevelBadge level={v.level} /></td>
+                  <td className="wrap"><VacancyBadges vacancy={v} /></td>
                   <td className="num">{ago(v.published_at, asOf)}</td>
                 </tr>
               ))}

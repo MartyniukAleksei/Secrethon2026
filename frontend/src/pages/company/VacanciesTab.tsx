@@ -10,7 +10,7 @@ const PAGE = 30
 export function VacanciesTab({ employer }: TabProps) {
   const [page, setPage] = useState(0)
   const state = useApi(`emp-vac:${employer.id}:${page}`, (signal) =>
-    api.vacancies({ employer_id: employer.id, limit: PAGE, offset: page * PAGE }, signal),
+    api.vacancies({ employer_id: employer.id, scope: 'all', limit: PAGE, offset: page * PAGE }, signal),
   )
   const data = state.status === 'ready' ? state.data : state.status === 'loading' ? state.stale : undefined
   const pages = data ? Math.ceil(data.total / PAGE) : 0
@@ -19,13 +19,14 @@ export function VacanciesTab({ employer }: TabProps) {
     <div className="panel">
       <div className="panel-head">
         <div>
-          <h3>Вакансії ВПК</h3>
+          <h3>{employer.vpk_vacancies || !employer.agency_vacancies ? 'Вакансії ВПК' : 'Вакансії через кадрове агентство'}</h3>
           <p>
             {data ? `${fmt(data.total)} ${plural(data.total, 'оголошення', 'оголошення', 'оголошень')}, нові спершу` : 'Завантаження…'}
           </p>
         </div>
       </div>
       {state.status === 'error' && <p className="empty-row">Не вдалося завантажити вакансії.</p>}
+      {data && data.total === 0 && <p className="empty-row">Вакансій, пов’язаних з ВПК, немає.</p>}
       <div className="vac-rows" style={{ opacity: state.status === 'loading' ? 0.6 : 1 }}>
         {data?.items.map((v) => <VacancyRow key={v.id} vacancy={v} showEmployer={false} />)}
       </div>

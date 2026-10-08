@@ -14,7 +14,7 @@ from app.api.schemas import (
     VacancyReviewOut,
 )
 from app.repository import vacancies
-from app.repository.vacancies import LevelFilter, Sort, VacancyFilter
+from app.repository.vacancies import LevelFilter, Scope, Sort, VacancyFilter
 
 router = APIRouter(tags=["vacancies"])
 
@@ -27,9 +27,19 @@ def _filter(
     title: str | None = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    scope: Scope = "vpk",
+    markers: bool = False,
 ) -> VacancyFilter:
     return VacancyFilter(
-        level, employer_id, region_id, category, title, (q or "").strip() or None, days
+        level=level,
+        employer_id=employer_id,
+        region_id=region_id,
+        category=category,
+        title=title,
+        q=(q or "").strip() or None,
+        days=days,
+        scope=scope,
+        markers=markers,
     )
 
 
@@ -43,11 +53,14 @@ async def list_vacancies(
     title: str | None = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    scope: Scope = "vpk",
+    markers: bool = False,
     sort: Sort = "published",
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> VacancyPage:
-    f = _filter(level, employer_id, region_id, category, title, q, days)
+    """Shown vacancies: of ВПК enterprises (`scope=vpk`), recruitment agencies, or both."""
+    f = _filter(level, employer_id, region_id, category, title, q, days, scope, markers)
     total, rows = await vacancies.list_vacancies(session, f, sort, limit, offset)
     return VacancyPage(total=total, items=[VacancyOut.model_validate(r) for r in rows])
 
@@ -83,10 +96,12 @@ async def list_professions(
     region_id: int | None = None,
     category: str | None = None,
     days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    scope: Scope = "vpk",
+    markers: bool = False,
     limit: Annotated[int, Query(ge=1, le=200)] = 60,
 ) -> list[ProfessionOut]:
     """Most demanded job titles among the filtered vacancies."""
-    f = _filter(level, None, region_id, category, None, None, days)
+    f = _filter(level, None, region_id, category, None, None, days, scope, markers)
     return [
         ProfessionOut.model_validate(r) for r in await vacancies.list_professions(session, f, limit)
     ]

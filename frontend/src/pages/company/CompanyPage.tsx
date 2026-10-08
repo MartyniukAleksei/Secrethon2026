@@ -9,7 +9,7 @@ import { EmployerRow } from '../../components/rows'
 import { useData } from '../../data/DataContext'
 import { useApi } from '../../data/useApi'
 import { fmt, longDate, money } from '../../domain/format'
-import { categoryOf, effectiveCategory, sourceName } from '../../domain/labels'
+import { categoryOf, effectiveCategory, shownVacancies, sourceName } from '../../domain/labels'
 import type { ApiCompanyContact } from '../../api/types'
 import type { EmployerDetail } from '../../domain/types'
 import { useAgent } from '../../features/agent/AgentContext'
@@ -123,7 +123,7 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
           <EmployerBadgeGroups employer={e} />
         </div>
         <dl className="prof-stats">
-          <div className="card"><dt>Вакансій ВПК</dt><dd>{fmt(e.vpk_vacancies)}</dd></div>
+          <div className="card"><dt>{shownVacancies(e).label}</dt><dd>{fmt(shownVacancies(e).value)}</dd></div>
           <div className="card"><dt>З них підтверджено</dt><dd>{fmt(e.confirmed_vacancies)}</dd></div>
           <div className="card"><dt>Медіана зарплати</dt><dd>{money(e.median_salary)}</dd></div>
           <div className="card"><dt>Нових за 30 днів</dt><dd>{fmt(e.new_30d)}</dd></div>

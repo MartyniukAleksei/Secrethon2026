@@ -10,7 +10,7 @@ from app.export_snapshot import snapshots, to_parquet
 from app.repository import export
 from app.repository.cache import cache
 from app.repository.export import DATASETS, Dataset
-from app.repository.vacancies import LevelFilter, VacancyFilter
+from app.repository.vacancies import LevelFilter, Scope, VacancyFilter
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -113,18 +113,29 @@ async def download(
     title: str | None = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    scope: Scope = "all",
+    markers: bool = False,
 ) -> StreamingResponse:
     """Датасет у форматі csv, json, jsonl або parquet, наприклад `vacancies.csv`.
 
-    Фільтри (level, employer_id, region_id, category, title, q, days) застосовуються лише
-    до `vacancies` і мають той самий зміст, що в `/api/vacancies`; без фільтрів — усі активні.
+    Фільтри (scope, level, markers, employer_id, region_id, category, title, q, days)
+    застосовуються лише до `vacancies` і мають той самий зміст, що в `/api/vacancies`; без
+    фільтрів — усі показані на сайті активні вакансії (ВПК і через кадрові агентства).
     """
     name, _, fmt = filename.rpartition(".")
     dataset = _dataset(name)
     if fmt not in FORMATS:
         raise HTTPException(404, f"Невідомий формат: {fmt}. Доступні: {', '.join(FORMATS)}")
     f = VacancyFilter(
-        level, employer_id, region_id, category, title, (q or "").strip() or None, days
+        level=level,
+        employer_id=employer_id,
+        region_id=region_id,
+        category=category,
+        title=title,
+        q=(q or "").strip() or None,
+        days=days,
+        scope=scope,
+        markers=markers,
     )
     as_of = await export.snapshot_date()
     rows = export.stream_rows(dataset, f)

@@ -33,7 +33,7 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
         "company_products": 2,
         "company_sources": 0,
         "employers": 3,
-        "vacancies": 7,  # active only; the inactive vacancy 7 is left out
+        "vacancies": 6,  # shown and active; the bakery vacancy 6 and inactive 7 are left out
     }
     vacancies = next(d for d in catalog["datasets"] if d["name"] == "vacancies")
     assert vacancies["urls"]["csv"] == "/api/export/vacancies.csv"
@@ -86,7 +86,14 @@ def test_products_union(client: TestClient) -> None:
 
 
 def test_vacancy_filters_match_the_list(client: TestClient) -> None:
-    for params in ("level=vpk", "level=vpk&region_id=64", "level=confirmed", "level=vpk&q=Токарь"):
+    # The export defaults to every shown vacancy (scope=all); the list to ВПК ones.
+    for params in (
+        "scope=vpk&level=vpk",
+        "scope=vpk&level=vpk&region_id=64",
+        "scope=vpk&level=confirmed",
+        "scope=agency",
+        "scope=all&q=Токарь",
+    ):
         listed = client.get(f"/api/vacancies?{params}").json()["total"]
         exported = client.get(f"/api/export/vacancies.json?{params}").json()["items"]
         assert len(exported) == listed, params
@@ -102,13 +109,13 @@ def test_unknown_dataset_or_format(client: TestClient) -> None:
 
 
 def test_parquet_follows_the_field_dictionary(client: TestClient) -> None:
-    response = client.get("/api/export/vacancies.parquet?level=vpk")
+    response = client.get("/api/export/vacancies.parquet?scope=vpk")
     assert response.status_code == 200
     assert "content-encoding" not in response.headers
     table = pq.read_table(io.BytesIO(response.content))
     assert table.schema.names == [c.name for c in DATASETS["vacancies"].columns]
     assert str(table.schema.field("published_at").type) == "timestamp[us, tz=UTC]"
-    assert table.num_rows == client.get("/api/vacancies?level=vpk").json()["total"]
+    assert table.num_rows == client.get("/api/vacancies?scope=vpk").json()["total"]
     companies = pq.read_table(io.BytesIO(client.get("/api/export/companies.parquet").content))
     assert companies.schema.field("products_uk").type == pa.list_(pa.string())
 

@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repository.sql import AS_OF, CTE, ON_GUR, VPK
+from app.repository.sql import AGENCY, AS_OF, CTE, FINAL_RUN, ON_GUR, SHOWN, VPK
 
 Row = dict[str, Any]
 
@@ -20,12 +20,18 @@ async def overview(session: AsyncSession) -> Row:
     totals = await one(f"""
         WITH {CTE}
         SELECT {AS_OF} AS as_of,
+               (SELECT max(started_at) FROM classifier_run WHERE classifier = '{FINAL_RUN}')
+                   AS final_run_at,
                count(*) AS vacancies,
                count(*) FILTER (WHERE {VPK}) AS vpk_vacancies,
-               count(*) FILTER (WHERE level = 'confirmed') AS confirmed_vacancies,
+               count(*) FILTER (WHERE {VPK} AND final_level = 'confirmed') AS confirmed_vacancies,
+               count(*) FILTER (WHERE {VPK} AND final_level = 'likely') AS on_review_vacancies,
                count(DISTINCT employer_profile_id) FILTER (WHERE {VPK}) AS vpk_employers,
                count(DISTINCT region_id) FILTER (WHERE {VPK}) AS regions,
-               percentile_cont(0.5) WITHIN GROUP (ORDER BY monthly_salary) FILTER (WHERE {VPK}) AS median_salary
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY monthly_salary) FILTER (WHERE {VPK}) AS median_salary,
+               -- Recruitment agencies hiring for the ВПК: their pages and vacancies, counted apart.
+               count(DISTINCT employer_profile_id) FILTER (WHERE {AGENCY}) AS agency_employers,
+               count(*) FILTER (WHERE {AGENCY}) AS agency_vacancies
         FROM v
     """)
     totals.update(
@@ -53,26 +59,10 @@ async def overview(session: AsyncSession) -> Row:
                        AS vpk_companies_decided,
                    count(*) FILTER (WHERE vpk_category = 'agency_vpk') AS agency_vpk_companies,
                    count(*) FILTER (WHERE vpk_category = 'foreign_intermediary')
-                       AS foreign_intermediary_companies
+                       AS foreign_intermediary_companies,
+                   count(*) FILTER (WHERE vpk_category = 'foreign_intermediary' AND vpk_level = 'decided')
+                       AS foreign_intermediary_decided
             FROM latest
-        """)
-    )
-    totals.update(
-        await one(f"""
-            WITH {CTE},
-            agency AS (
-                SELECT employer_profile_id FROM (
-                    SELECT DISTINCT ON (ec.employer_profile_id) ec.employer_profile_id, ec.category
-                    FROM employer_classification ec JOIN classifier_run r USING (run_id)
-                    WHERE r.classifier = 'employer_agency'
-                    ORDER BY ec.employer_profile_id, r.started_at DESC
-                ) a
-                WHERE category = 'agency_vpk'
-            )
-            SELECT (SELECT count(*) FROM agency) AS agency_employers,
-                   count(v.vacancy_id) AS agency_vacancies
-            FROM v JOIN agency USING (employer_profile_id)
-            WHERE {VPK}
         """)
     )
     totals["by_source"] = await many(f"""
@@ -82,6 +72,12 @@ async def overview(session: AsyncSession) -> Row:
     """)
     totals["by_level"] = await many(f"""
         WITH {CTE} SELECT level, count(*) AS vacancies FROM v GROUP BY level ORDER BY count(*) DESC
+    """)
+    totals["by_basis"] = await many(f"""
+        WITH {CTE}
+        SELECT final_category AS category, final_basis AS basis, count(*) AS vacancies
+        FROM v WHERE {SHOWN}
+        GROUP BY final_category, final_basis ORDER BY count(*) DESC
     """)
     totals["by_category"] = await many(f"""
         WITH {CTE}

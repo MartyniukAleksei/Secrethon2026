@@ -17,7 +17,7 @@ export function EmployerRow({ employer: e, to, current, value }: { employer: Emp
       <span className="val">
         {value ?? (
           <>
-            <b>{fmt(e.vpk_vacancies)}</b>
+            <b>{fmt(e.vpk_vacancies + e.agency_vacancies)}</b>
             <span>вакансій</span>
           </>
         )}

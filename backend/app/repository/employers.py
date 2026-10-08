@@ -9,8 +9,9 @@ from app.repository.sql import (
     CTE,
     EMPLOYER_SELECT,
     HUMAN_REVIEW_FIELDS,
+    LISTED,
     ON_GUR,
-    VPK,
+    SHOWN,
     with_human_review,
 )
 from app.reviews import employer_reviews_ready, list_employer_reviews
@@ -19,7 +20,7 @@ Row = dict[str, Any]
 
 
 async def map_points(session: AsyncSession) -> list[Row]:
-    """Hiring locations from active VPK vacancies; never infer company addresses."""
+    """Hiring locations from active shown vacancies (ВПК and agencies); never infer company addresses."""
     result = await session.execute(
         text(f"""
             WITH {CTE}
@@ -27,7 +28,7 @@ async def map_points(session: AsyncSession) -> list[Row]:
                    min(locality) AS locality, min(region_id) AS region_id,
                    count(*) AS vacancies
             FROM v
-            WHERE {VPK} AND employer_profile_id IS NOT NULL
+            WHERE {SHOWN} AND employer_profile_id IS NOT NULL
               AND lat BETWEEN -85 AND 85 AND lng BETWEEN -180 AND 180
             GROUP BY employer_profile_id, lat, lng
             ORDER BY employer_profile_id, lat, lng
@@ -51,10 +52,13 @@ def _employer_row(row: Any) -> Row:
 
 
 async def list_employers(session: AsyncSession) -> list[Row]:
-    """Employers with at least one ВПК vacancy, biggest first."""
+    """Employers with at least one shown vacancy (ВПК or through an agency), biggest first."""
     sql = await _employer_select(session)
     result = await session.execute(
-        text(sql + " WHERE a.vpk_vacancies > 0 ORDER BY a.vpk_vacancies DESC, a.id")
+        text(
+            sql + f" WHERE {LISTED}"
+            " ORDER BY a.vpk_vacancies DESC, a.agency_vacancies DESC, ep.employer_profile_id"
+        )
     )
     employers = [_employer_row(r) for r in result.mappings()]
     await _attach_classifications(session, employers)
@@ -164,7 +168,9 @@ async def map_network(session: AsyncSession) -> Row:
 
 async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
     sql = await _employer_select(session)
-    result = await session.execute(text(sql + " WHERE a.id = :id"), {"id": employer_id})
+    result = await session.execute(
+        text(sql + " WHERE ep.employer_profile_id = :id"), {"id": employer_id}
+    )
     row = result.mappings().first()
     if row is None:
         return None
@@ -184,7 +190,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
             )
             SELECT m.month, count(v.vacancy_id) AS vacancies
             FROM months m
-            LEFT JOIN v ON v.employer_profile_id = :id AND {VPK}
+            LEFT JOIN v ON v.employer_profile_id = :id AND {SHOWN}
                        AND date_trunc('month', v.published_at)::date = m.month
             GROUP BY m.month ORDER BY m.month
         """),
@@ -197,7 +203,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
             WITH {CTE}
             SELECT title, count(*) AS vacancies,
                    percentile_cont(0.5) WITHIN GROUP (ORDER BY monthly_salary) AS median_salary
-            FROM v WHERE employer_profile_id = :id AND {VPK}
+            FROM v WHERE employer_profile_id = :id AND {SHOWN}
             GROUP BY title ORDER BY count(*) DESC, title LIMIT 15
         """),
         params,
@@ -209,7 +215,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
             WITH {CTE}
             SELECT v.locality, r.name AS region, count(*) AS vacancies
             FROM v LEFT JOIN region r ON r.region_id = v.region_id
-            WHERE v.employer_profile_id = :id AND v.locality IS NOT NULL AND {VPK}
+            WHERE v.employer_profile_id = :id AND v.locality IS NOT NULL AND {SHOWN}
             GROUP BY v.locality, r.name ORDER BY count(*) DESC LIMIT 6
         """),
         params,
@@ -227,7 +233,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
                             THEN v.lng END AS lng,
                        v.source, v.vacancy_id, v.url AS vacancy_url, v.published_at
                 FROM v JOIN vacancy vac USING (vacancy_id)
-                WHERE v.employer_profile_id = :id AND {VPK}
+                WHERE v.employer_profile_id = :id AND {SHOWN}
             )
             SELECT DISTINCT ON (source, address, locality, lat, lng)
                    address, locality, lat, lng, source, vacancy_id, vacancy_url

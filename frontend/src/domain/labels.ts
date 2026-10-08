@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiRelation, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
+import type { ApiEmployer, ApiRelation, ApiVacancy, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
 import { pct } from './format'
 import type { Category, Level } from './types'
 
@@ -19,6 +19,29 @@ export const LEVELS: Record<Level, { name: string; badge: string }> = {
   review: { name: 'На перевірку', badge: '' },
   no: { name: 'Не ВПК', badge: '' },
   out_of_scope: { name: 'Поза темою', badge: '' },
+}
+
+/**
+ * Badges of a vacancy by its final label. An ordinary vacancy of a ВПК enterprise has none:
+ * every vacancy of the enterprise counts, whatever the post.
+ */
+export function vacancyBadges(v: Pick<ApiVacancy, 'final_category' | 'final_basis' | 'level' | 'has_markers'>) {
+  const badges: { name: string; badge: string }[] = []
+  const review = v.level === 'likely'
+  if (v.final_category === 'agency') badges.push({ name: 'Через кадрове агентство', badge: 'warning' })
+  if (v.final_basis === 'company_vpk_review') badges.push({ name: 'Підприємство на перевірці', badge: 'warning' })
+  else if (v.final_basis === 'text_jev') badges.push({ name: `ВПК за текстом вакансії${review ? ' · на перевірці' : ''}`, badge: review ? 'warning' : 'hostile' })
+  else if (v.final_basis === 'legacy') badges.push(LEVELS[v.level])
+  if (v.has_markers) badges.push({ name: 'Явні ознаки ВПК у тексті', badge: '' })
+  return badges
+}
+
+/** Final-label bases, for «Чому ця вакансія тут». */
+export const FINAL_BASIS: Record<string, string> = {
+  company_vpk: 'Роботодавець — підприємство ВПК: зараховано всі його вакансії, не лише профільні.',
+  company_vpk_review: 'Роботодавець — ймовірне підприємство ВПК, рішення щодо нього ще на перевірці.',
+  text_jev: 'Про роботодавця даних замало, тож вирішив текст вакансії (класифікатор JEV).',
+  legacy: 'Позначено фільтром ключових слів за текстом вакансії (попередня методика).',
 }
 
 export const SOURCES: Record<string, string> = {
@@ -66,6 +89,13 @@ export const VPK_RELATED = new Set<string>(['vpk', 'agency_vpk', 'foreign_interm
 
 export const HUMAN_SANCTIONS: Record<HumanSanctions, string> = { sanctioned: 'Під санкціями', not_sanctioned: 'Санкцій не виявлено' }
 export const HUMAN_VPK: Record<HumanVpk, string> = { confirmed: 'ВПК підтверджено', likely: 'ВПК ймовірно', no: 'Не ВПК' }
+
+/** The employer's shown vacancies: its own ВПК ones and those it places as a recruitment agency. */
+export function shownVacancies(e: Pick<ApiEmployer, 'vpk_vacancies' | 'agency_vacancies'>) {
+  const value = e.vpk_vacancies + e.agency_vacancies
+  if (!e.agency_vacancies) return { label: 'Вакансій ВПК', value }
+  return { label: e.vpk_vacancies ? 'Вакансій ВПК, з агентськими' : 'Вакансій через агентство', value }
+}
 
 // Effective employer values: a human review wins over the automatic classification.
 export const autoVpk = (e: ApiEmployer): HumanVpk => (e.confirmed_vacancies > 0 ? 'confirmed' : 'likely')
