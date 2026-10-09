@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { longDate, pct } from '../domain/format'
-import { autoDirectionName, autoReliabilityName, autoVpkName, effectiveVpk, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, reliabilityName, sourceName, VPK_CATEGORY, VPK_RELATED, vpkCategoryName } from '../domain/labels'
+import { longDate, pct, plural } from '../domain/format'
+import { autoDirectionName, autoReliabilityName, autoVpkName, effectiveVpk, FOCUS, focusTitle, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, reliabilityName, sanctionsOf, sourceName, VPK_CATEGORY, VPK_RELATED, vpkCategoryName } from '../domain/labels'
 import type { Employer, EmployerDetail } from '../domain/types'
 import { CategoryBadge } from './badges'
 import { Icon } from './Icon'
@@ -15,10 +15,13 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
   const details = 'explanation' in (cls ?? {}) ? (cls as NonNullable<EmployerDetail['classification']>) : null
   const agency = e.agency?.category === 'agency_vpk' ? e.agency : null
   const source = e.source === 'trudvsem' ? 'trudvsem.ru' : sourceName(e.source)
-  const autoSanctions = e.sanctions_count > 0 ? `Під санкціями: ${e.sanctions_count}` : e.gur_company_id != null ? 'Не зафіксовано' : 'Немає даних'
-  // Sanctions found in open sources that GUR does not show yet.
-  const newSanctions = cls?.sanctions_new ?? []
-  const gurSanctions = cls?.sanctions_gur ?? []
+  // Every jurisdiction counts once: GUR's and those found in open sources besides.
+  const sanctions = sanctionsOf(e)
+  const jurisdictions = (n: number) => `${n} ${plural(n, 'юрисдикція', 'юрисдикції', 'юрисдикцій')}`
+  const autoSanctions =
+    sanctions.total > 0
+      ? `Санкції: ${jurisdictions(sanctions.total)}${cls ? ` (${sanctions.gur} за ГУР + ${sanctions.extra} знайдено додатково)` : ''}`
+      : e.gur_company_id != null || cls ? 'Не зафіксовано' : 'Немає даних'
   const newSanctionsTitle = details?.sanctions_found
     .filter((s) => !s.in_gur)
     .map((s) => [s.jurisdiction, s.list_name, s.listed_raw && `з ${s.listed_raw}`].filter(Boolean).join(' · '))
@@ -70,22 +73,27 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
                 : <CategoryBadge category={e.category} />}
           </dd>
         </div>
+        {e.focus && (
+          <div>
+            <dt>Фокус</dt>
+            <dd>
+              {e.focus.length
+                ? e.focus.map((f) => <span key={f.focus} className="badge warning" title={focusTitle(f)}>{FOCUS[f.focus]}</span>)
+                : <span className="badge" title="Підприємство ВПК без ознак БпЛА, ракет чи КАБ">{FOCUS.other}</span>}
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Санкції</dt>
           <dd>
             {hr?.sanctions
               ? human(autoSanctions, <span className={`badge ${hr.sanctions === 'sanctioned' ? 'hostile' : ''}`}>{HUMAN_SANCTIONS[hr.sanctions]}</span>)
-              : <>
-                  {/* Without an INN match the GUR jurisdictions still come with the company classification. */}
-                  {e.sanctions_count === 0 && gurSanctions.length > 0
-                    ? <span className="badge hostile" title="За даними ГУР">ГУР: {gurSanctions.join(', ')}</span>
-                    : (newSanctions.length === 0 || e.sanctions_count > 0) && <span className={`badge ${e.sanctions_count > 0 ? 'hostile' : ''}`}>{autoSanctions}</span>}
-                  {newSanctions.length > 0 && (
-                    <span className="badge hostile" title={newSanctionsTitle || undefined}>
-                      {newSanctions.join(', ')} · за OpenSanctions / відкритими джерелами
-                    </span>
-                  )}
-                </>}
+              : <span
+                  className={`badge ${sanctions.total > 0 ? 'hostile' : ''}`}
+                  title={[sanctions.codes.join(', '), newSanctionsTitle].filter(Boolean).join('\n') || undefined}
+                >
+                  {autoSanctions}
+                </span>}
           </dd>
         </div>
       </dl>

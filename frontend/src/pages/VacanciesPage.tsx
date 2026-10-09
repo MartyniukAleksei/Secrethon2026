@@ -50,7 +50,9 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
     level,
     markers: markers || undefined,
     region_id: filters.region === 'all' ? undefined : filters.region,
-    category: filters.category === 'all' ? undefined : filters.category,
+    focus: filters.focus === 'all' ? undefined : filters.focus,
+    domain: filters.domain === 'all' ? undefined : filters.domain,
+    role: filters.role === 'all' ? undefined : filters.role,
     days: filters.period || undefined,
   }
 

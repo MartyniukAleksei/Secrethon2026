@@ -8,7 +8,7 @@ from app.repository.vacancies import VacancyFilter
 
 GROUPS = {
     "summary": ("(1::integer)", "'Уся вибірка'::text"),
-    "company": ("v.employer_profile_id", "coalesce(ep.name, v.employer_name, 'Невідомо')"),
+    "company": ("v.card_id", "coalesce(ep.name, v.employer_name, 'Невідомо')"),
     "region": ("v.region_id", "coalesce(r.name, 'Регіон не вказано')"),
     "category": ("v.category", "coalesce(v.category, 'Напрям не вказано')"),
     "month": (
@@ -33,7 +33,7 @@ async def analytics(
         where += " AND (ep.name ILIKE :name OR ep.inn = :exact)"
         params.update(name=f"%{query}%", exact=query)
     if employer_ids:
-        where += " AND v.employer_profile_id = ANY(:ids)"
+        where += " AND v.card_id = ANY(:ids)"
         params["ids"] = employer_ids
     if only_sanctioned:
         where += " AND coalesce(g.sanctions_count, 0) > 0"
@@ -52,7 +52,7 @@ async def analytics(
                    count(*) FILTER (WHERE v.level = 'confirmed') AS confirmed_vacancies,
                    max(coalesce(g.sanctions_count, 0)) AS sanctions_count
             FROM v
-            LEFT JOIN employer_profile ep ON ep.employer_profile_id = v.employer_profile_id
+            LEFT JOIN employer_profile ep ON ep.employer_profile_id = v.card_id
             LEFT JOIN region r ON r.region_id = v.region_id
             LEFT JOIN gur g ON g.inn = ep.inn
             WHERE {where}

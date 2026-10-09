@@ -5,9 +5,9 @@ import { FilterBar } from '../components/FilterBar'
 import { downloadText, toCsv, toJson } from '../data/download'
 import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
-import { CATEGORIES, isSanctioned, isVpkConfirmed, shownVacancies } from '../domain/labels'
+import { FOCUS, isSanctioned, isVpkConfirmed, sanctionsOf, shownVacancies } from '../domain/labels'
 import type { Employer } from '../domain/types'
-import { useFilters } from '../state/FiltersContext'
+import { useFilters, type Filters } from '../state/FiltersContext'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { CompanyTile } from '../ui/CompanyMark'
 import { Icon } from '../ui/Icon'
@@ -19,7 +19,7 @@ const SORTS: Record<Sort, { label: string; key: (e: Employer) => number }> = {
   confirmed: { label: 'Спершу більше підтверджених', key: (e) => e.confirmed_vacancies },
   new: { label: 'Спершу більше нових за 30 днів', key: (e) => e.new_30d },
   salary: { label: 'Спершу вища зарплата', key: (e) => e.median_salary ?? -1 },
-  sanctions: { label: 'Спершу більше санкцій', key: (e) => (isSanctioned(e) ? Math.max(e.sanctions_count, 1) : 0) },
+  sanctions: { label: 'Спершу більше санкцій', key: (e) => (isSanctioned(e) ? Math.max(sanctionsOf(e).total, 1) : 0) },
 }
 const PAGE = 60
 
@@ -87,20 +87,14 @@ export function CompaniesPage() {
       <div className="cat">
         <aside className="panel cat-filters" aria-label="Фільтри">
           <div>
-            <div className="group-title">Напрям</div>
-            {CATEGORIES.map((c) => (
-              <label key={c.key} className="check">
-                <input
-                  type="radio"
-                  name="category"
-                  checked={filters.category === c.key}
-                  onChange={() => filters.set({ category: c.key })}
-                />{' '}
-                {c.name}
+            <div className="group-title">Фокус</div>
+            {(Object.entries(FOCUS) as [Filters['focus'], string][]).map(([k, name]) => (
+              <label key={k} className="check">
+                <input type="radio" name="focus" checked={filters.focus === k} onChange={() => filters.set({ focus: k })} /> {name}
               </label>
             ))}
             <label className="check">
-              <input type="radio" name="category" checked={filters.category === 'all'} onChange={() => filters.set({ category: 'all' })} /> Усі
+              <input type="radio" name="focus" checked={filters.focus === 'all'} onChange={() => filters.set({ focus: 'all' })} /> Усі
             </label>
           </div>
           <div>

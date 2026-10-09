@@ -45,12 +45,24 @@ class CompanyClassificationBriefOut(BaseModel):
     vpk_category: str
     vpk_probability: float | None
     vpk_level: Literal["decided", "review"]
+    # Industry and role of the company (filters «Галузь» and «Роль»).
+    direction_domain: str | None = None
+    direction_role: str | None = None
     direction_label: str | None
     direction_secondary: str | None
     reliability: str | None
     reliability_note: str | None
     sanctions_gur: list[str] | None
     sanctions_new: list[str] | None
+
+
+class FocusOut(BaseModel):
+    """Customer focus tag of a ВПК company: drone, missile or kab, with its strongest basis."""
+
+    focus: Literal["drone", "missile", "kab"]
+    basis: str
+    score: float | None
+    evidence: dict | None
 
 
 class EmployerAgencyOut(BaseModel):
@@ -63,7 +75,10 @@ class EmployerAgencyOut(BaseModel):
 
 
 class EmployerOut(BaseModel):
-    """An employer from job sites; listed when it has a shown vacancy (ВПК or through an agency)."""
+    """An enterprise card: the profiles of one legal entity on job sites (branches apart).
+
+    `id` is the card (the group's main profile); listed when it has a shown vacancy.
+    """
 
     id: int
     name: str
@@ -95,6 +110,13 @@ class EmployerOut(BaseModel):
     agency: EmployerAgencyOut | None = None
     # Logo from the company's GUR card.
     logo_url: str | None = None
+    # Job-site profiles merged into the card; a branch card of its legal entity.
+    profiles: int = 1
+    is_branch: bool = False
+    # Focus tags of a ВПК company ([] = adjacent defence; None = not a ВПК company).
+    focus: list[FocusOut] | None = None
+    # A profile of the card has a questionable link to its legal entity (employer_match_conflict).
+    match_conflict: bool = False
 
 
 class MapPointOut(BaseModel):
@@ -251,6 +273,22 @@ class CompanyRegistryOut(BaseModel):
     head: str | None
 
 
+class CardSourceOut(BaseModel):
+    employer_profile_id: int
+    source: str
+    name: str
+    url: str | None
+    vacancies: int
+
+
+class MatchConflictOut(BaseModel):
+    """A questionable link of a profile to its legal entity, for a person to check."""
+
+    employer_profile_id: int
+    kind: Literal["different_inn", "peer_other_region"]
+    evidence: dict | None
+
+
 class EmployerDetailOut(EmployerOut):
     monthly: list[MonthPoint]
     professions: list[ProfessionOut]
@@ -266,6 +304,11 @@ class EmployerDetailOut(EmployerOut):
     contacts: list[CompanyContactOut]
     agency: EmployerAgencyOut | None
     human_reviews: list[EmployerReviewOut]
+    # «Джерела вакансій»: the card's job-site profiles with their shown vacancies.
+    sources: list[CardSourceOut]
+    # A branch card: the card of its head office, if there is one.
+    parent_card_id: int | None
+    match_conflicts: list[MatchConflictOut]
 
 
 class VacancyOut(BaseModel):
@@ -372,13 +415,18 @@ class RegionOut(BaseModel):
 
 class StatsOut(BaseModel):
     as_of: datetime | None
-    # Start of the final vacancy labelling run; None while the fallback is in use.
+    # Start of the final vacancy labelling run; None when it is missing (preliminary data).
     final_run_at: datetime | None
     vacancies: int
     vpk_vacancies: int
     confirmed_vacancies: int
     on_review_vacancies: int
+    # Enterprise cards with ВПК vacancies; the job-site profiles and legal entities behind them.
     vpk_employers: int
+    vpk_profiles: int
+    vpk_legal_entities: int
+    # ВПК vacancies with a monthly RUB salary (the median is over these).
+    salary_samples: int
     regions: int
     median_salary: float | None
     gur_companies: int

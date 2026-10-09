@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import reviews
@@ -14,53 +15,58 @@ from app.api.schemas import (
     VacancyReviewOut,
 )
 from app.repository import vacancies
-from app.repository.vacancies import LevelFilter, Scope, Sort, VacancyFilter
+from app.repository.vacancies import Focus, LevelFilter, Scope, Sort, VacancyFilter
 
 router = APIRouter(tags=["vacancies"])
 
 
-def _filter(
-    level: LevelFilter = "vpk",
-    employer_id: int | None = None,
-    region_id: int | None = None,
-    category: str | None = None,
-    title: str | None = None,
-    q: Annotated[str | None, Query(max_length=200)] = None,
-    days: Annotated[int | None, Query(ge=1, le=3650)] = None,
-    scope: Scope = "vpk",
-    markers: bool = False,
-) -> VacancyFilter:
-    return VacancyFilter(
-        level=level,
-        employer_id=employer_id,
-        region_id=region_id,
-        category=category,
-        title=title,
-        q=(q or "").strip() or None,
-        days=days,
-        scope=scope,
-        markers=markers,
-    )
+def filter_params(default_scope: Scope = "vpk") -> Callable[..., VacancyFilter]:
+    """Query parameters of the vacancy filter, shared by the list, professions and export."""
+
+    def params(
+        level: LevelFilter = "vpk",
+        employer_id: int | None = None,
+        region_id: int | None = None,
+        category: str | None = None,
+        title: str | None = None,
+        q: Annotated[str | None, Query(max_length=200)] = None,
+        days: Annotated[int | None, Query(ge=1, le=3650)] = None,
+        scope: Scope = default_scope,
+        markers: bool = False,
+        focus: Focus | None = None,
+        domain: Annotated[str | None, Query(max_length=40)] = None,
+        role: Annotated[str | None, Query(max_length=40)] = None,
+    ) -> VacancyFilter:
+        return VacancyFilter(
+            level=level,
+            employer_id=employer_id,
+            region_id=region_id,
+            category=category,
+            title=title,
+            q=(q or "").strip() or None,
+            days=days,
+            scope=scope,
+            markers=markers,
+            focus=focus,
+            domain=domain,
+            role=role,
+        )
+
+    return params
+
+
+Filter = Annotated[VacancyFilter, Depends(filter_params())]
 
 
 @router.get("/vacancies")
 async def list_vacancies(
     session: Session,
-    level: LevelFilter = "vpk",
-    employer_id: int | None = None,
-    region_id: int | None = None,
-    category: str | None = None,
-    title: str | None = None,
-    q: Annotated[str | None, Query(max_length=200)] = None,
-    days: Annotated[int | None, Query(ge=1, le=3650)] = None,
-    scope: Scope = "vpk",
-    markers: bool = False,
+    f: Filter,
     sort: Sort = "published",
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> VacancyPage:
     """Shown vacancies: of ВПК enterprises (`scope=vpk`), recruitment agencies, or both."""
-    f = _filter(level, employer_id, region_id, category, title, q, days, scope, markers)
     total, rows = await vacancies.list_vacancies(session, f, sort, limit, offset)
     return VacancyPage(total=total, items=[VacancyOut.model_validate(r) for r in rows])
 
@@ -92,16 +98,10 @@ async def add_review(
 @router.get("/professions")
 async def list_professions(
     session: Session,
-    level: LevelFilter = "vpk",
-    region_id: int | None = None,
-    category: str | None = None,
-    days: Annotated[int | None, Query(ge=1, le=3650)] = None,
-    scope: Scope = "vpk",
-    markers: bool = False,
+    f: Filter,
     limit: Annotated[int, Query(ge=1, le=200)] = 60,
 ) -> list[ProfessionOut]:
     """Most demanded job titles among the filtered vacancies."""
-    f = _filter(level, None, region_id, category, None, None, days, scope, markers)
     return [
         ProfessionOut.model_validate(r) for r in await vacancies.list_professions(session, f, limit)
     ]

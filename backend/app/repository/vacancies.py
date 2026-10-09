@@ -4,7 +4,7 @@ from typing import Any, Literal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repository.sql import AS_OF, CTE, FINAL_RUN, SHOWN
+from app.repository.sql import AS_OF, CLASSIFICATION_SELECT, CTE, FINAL_RUN, FOCUS_SELECT, SHOWN
 
 Row = dict[str, Any]
 # Only shown vacancies are ever listed; `level` narrows them to decided (`confirmed`) or on
@@ -12,6 +12,8 @@ Row = dict[str, Any]
 LevelFilter = Literal["vpk", "confirmed", "likely", "all"]
 # Vacancies of ВПК enterprises, of recruitment agencies hiring for the ВПК, or both.
 Scope = Literal["vpk", "agency", "all"]
+# Customer focus of the card's legal entity; `other` is a ВПК company with no focus tag.
+Focus = Literal["drone", "missile", "kab", "other"]
 Sort = Literal["published", "salary"]
 
 
@@ -27,6 +29,10 @@ class VacancyFilter:
     scope: Scope = "vpk"
     # Only vacancies with explicit ВПК markers in the text (state secret, GOZ, military acceptance…).
     markers: bool = False
+    # The card's legal entity: its focus tag, industry (direction_domain) and role.
+    focus: Focus | None = None
+    domain: str | None = None
+    role: str | None = None
 
     def where(self) -> tuple[str, dict[str, Any]]:
         clauses: list[str] = [f"v.{SHOWN}"]
@@ -40,8 +46,26 @@ class VacancyFilter:
         if self.markers:
             clauses.append("v.has_markers")
         if self.employer_id is not None:
-            clauses.append("v.employer_profile_id = :employer_id")
+            clauses.append("v.card_id = :employer_id")
             params["employer_id"] = self.employer_id
+        if self.focus == "other":
+            clauses.append(
+                f"v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
+                " WHERE c.vpk_category = 'vpk')"
+                f" AND v.company_id NOT IN (SELECT company_id FROM ({FOCUS_SELECT}) f)"
+            )
+        elif self.focus:
+            clauses.append(
+                f"v.company_id IN (SELECT company_id FROM ({FOCUS_SELECT}) f WHERE f.focus = :focus)"
+            )
+            params["focus"] = self.focus
+        for column in ("domain", "role"):
+            if value := getattr(self, column):
+                clauses.append(
+                    f"v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
+                    f" WHERE c.direction_{column} = :{column})"
+                )
+                params[column] = value
         if self.region_id is not None:
             clauses.append("v.region_id = :region_id")
             params["region_id"] = self.region_id
@@ -61,7 +85,7 @@ class VacancyFilter:
 
 
 LIST_COLUMNS = """
-    v.vacancy_id AS id, v.source, v.url, v.employer_profile_id AS employer_id, v.employer_name, v.title,
+    v.vacancy_id AS id, v.source, v.url, v.card_id AS employer_id, v.employer_name, v.title,
     v.locality, v.region_id, r.name AS region, v.salary_from, v.salary_to, v.salary_currency, v.salary_period,
     v.monthly_salary, v.experience, v.schedule, v.employment, v.published_at, v.level, v.category,
     v.final_category, v.final_basis, v.has_markers
@@ -143,7 +167,7 @@ async def list_professions(session: AsyncSession, f: VacancyFilter, limit: int) 
     rows = await session.execute(
         text(f"""
             WITH {CTE}
-            SELECT title, count(*) AS vacancies, count(DISTINCT employer_profile_id) AS employers,
+            SELECT title, count(*) AS vacancies, count(DISTINCT card_id) AS employers,
                    percentile_cont(0.5) WITHIN GROUP (ORDER BY monthly_salary) AS median_salary,
                    mode() WITHIN GROUP (ORDER BY category) AS category
             FROM v WHERE {where}

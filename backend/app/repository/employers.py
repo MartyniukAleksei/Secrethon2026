@@ -6,8 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.repository.sql import (
     AS_OF,
+    CARD_OF,
+    CLASSIFICATION,
     CTE,
     EMPLOYER_SELECT,
+    FOCUS,
     HUMAN_REVIEW_FIELDS,
     LISTED,
     ON_GUR,
@@ -24,14 +27,14 @@ async def map_points(session: AsyncSession) -> list[Row]:
     result = await session.execute(
         text(f"""
             WITH {CTE}
-            SELECT employer_profile_id AS employer_id, lat, lng,
+            SELECT card_id AS employer_id, lat, lng,
                    min(locality) AS locality, min(region_id) AS region_id,
                    count(*) AS vacancies
             FROM v
             WHERE {SHOWN} AND employer_profile_id IS NOT NULL
               AND lat BETWEEN -85 AND 85 AND lng BETWEEN -180 AND 180
-            GROUP BY employer_profile_id, lat, lng
-            ORDER BY employer_profile_id, lat, lng
+            GROUP BY card_id, lat, lng
+            ORDER BY card_id, lat, lng
         """)
     )
     return [dict(r) for r in result.mappings()]
@@ -56,8 +59,8 @@ async def list_employers(session: AsyncSession) -> list[Row]:
     sql = await _employer_select(session)
     result = await session.execute(
         text(
-            sql + f" WHERE {LISTED}"
-            " ORDER BY a.vpk_vacancies DESC, a.agency_vacancies DESC, ep.employer_profile_id"
+            sql + f" AND {LISTED}"
+            " ORDER BY a.vpk_vacancies DESC, a.agency_vacancies DESC, eg.group_id"
         )
     )
     employers = [_employer_row(r) for r in result.mappings()]
@@ -66,31 +69,19 @@ async def list_employers(session: AsyncSession) -> list[Row]:
 
 
 async def _attach_classifications(session: AsyncSession, employers: list[Row]) -> None:
-    """Short company classification and agency decision for list cards, as on the company page."""
-    # Same legal entity as get_employer: the best confident match, else the GUR card by INN.
-    matches = await session.execute(
-        text("""
-            SELECT DISTINCT ON (m.employer_profile_id) m.employer_profile_id,
-                   coalesce(d.canonical_id, m.company_id) AS company_id
-            FROM employer_company_match m
-            LEFT JOIN company_duplicate d ON d.company_id = m.company_id
-            WHERE m.status <> 'rejected' AND (m.status = 'auto' OR m.confidence >= 0.8)
-            ORDER BY m.employer_profile_id, m.status = 'auto' DESC, m.confidence DESC, 2
-        """)
-    )
-    company_by_employer = {r.employer_profile_id: r.company_id for r in matches}
+    """Short company classification, focus and agency decision for list cards, as on the page."""
+    # Same legal entity as get_employer: the card's group, else the GUR card by INN.
     for e in employers:
-        e["company_id"] = company_by_employer.get(e["id"], e["gur_company_id"])
+        e["company_id"] = e["company_id"] or e["gur_company_id"]
 
     company_ids = sorted({e["company_id"] for e in employers if e["company_id"] is not None})
     classifications = await session.execute(
-        text("""
-            SELECT DISTINCT ON (cc.company_id) cc.company_id, cc.vpk_category, cc.vpk_probability,
-                   cc.vpk_level, cc.direction_label, cc.direction_secondary, cc.reliability,
-                   cc.reliability_note, cc.sanctions_gur, cc.sanctions_new
-            FROM company_classification cc JOIN classifier_run r USING (run_id)
-            WHERE r.classifier = 'company_classification' AND cc.company_id = ANY(:ids)
-            ORDER BY cc.company_id, r.started_at DESC
+        text(f"""
+            WITH {CLASSIFICATION}
+            SELECT company_id, vpk_category, vpk_probability, vpk_level, direction_domain,
+                   direction_role, direction_label, direction_secondary, reliability,
+                   reliability_note, sanctions_gur, sanctions_new
+            FROM cls WHERE company_id = ANY(:ids)
         """),
         {"ids": company_ids},
     )
@@ -98,6 +89,11 @@ async def _attach_classifications(session: AsyncSession, employers: list[Row]) -
     for r in classifications.mappings():
         row = dict(r)
         by_company[row.pop("company_id")] = row
+    focus = await _focus(session, company_ids)
+    conflicts = await session.execute(
+        text("SELECT DISTINCT employer_profile_id FROM employer_match_conflict")
+    )
+    conflicted = {r.employer_profile_id for r in conflicts}
 
     agencies = await session.execute(
         text("""
@@ -127,8 +123,33 @@ async def _attach_classifications(session: AsyncSession, employers: list[Row]) -
     for e in employers:
         company_id = e.pop("company_id")
         e["classification"] = by_company.get(company_id)
+        e["focus"] = _vpk_focus(e["classification"], focus.get(company_id))
+        e["match_conflict"] = any(p in conflicted for p in e.pop("profile_ids"))
+        e.pop("profile_inn", None)
         e["agency"] = by_employer.get(e["id"]) if company_id is None else None
         e["logo_url"] = logo_by_company.get(e["gur_company_id"] or company_id)
+
+
+async def _focus(session: AsyncSession, company_ids: list[int]) -> dict[int, list[Row]]:
+    result = await session.execute(
+        text(f"""
+            WITH {FOCUS}
+            SELECT * FROM focus WHERE company_id = ANY(:ids) ORDER BY company_id, focus
+        """),
+        {"ids": company_ids},
+    )
+    by_company: dict[int, list[Row]] = {}
+    for r in result.mappings():
+        row = dict(r)
+        by_company.setdefault(row.pop("company_id"), []).append(row)
+    return by_company
+
+
+def _vpk_focus(classification: Row | None, focus: list[Row] | None) -> list[Row] | None:
+    """Focus tags of a ВПК company (an empty list means "adjacent"); None for any other card."""
+    if not classification or classification["vpk_category"] != "vpk":
+        return None
+    return focus or []
 
 
 async def map_network(session: AsyncSession) -> Row:
@@ -166,16 +187,29 @@ async def map_network(session: AsyncSession) -> Row:
     }
 
 
-async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
-    sql = await _employer_select(session)
+async def card_of(session: AsyncSession, profile_id: int) -> int | None:
+    """The card (group's main profile) a job-site profile belongs to; None for an unknown id."""
     result = await session.execute(
-        text(sql + " WHERE ep.employer_profile_id = :id"), {"id": employer_id}
+        text(f"SELECT {CARD_OF} FROM employer_profile WHERE employer_profile_id = :id"),
+        {"id": profile_id},
     )
+    return result.scalar_one_or_none()
+
+
+async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
+    """The card of any profile of the group: `id` of the result is the card (may differ)."""
+    card_id = await card_of(session, employer_id)
+    if card_id is None:
+        return None
+    sql = await _employer_select(session)
+    result = await session.execute(text(sql + " AND eg.group_id = :id"), {"id": card_id})
     row = result.mappings().first()
     if row is None:
         return None
     employer = _employer_row(row)
-    employer["human_reviews"] = await list_employer_reviews(session, employer_id)
+    employer_id = card_id
+    profile_ids = employer.pop("profile_ids")
+    employer["human_reviews"] = await list_employer_reviews(session, profile_ids)
     params = {"id": employer_id}
 
     monthly = await session.execute(
@@ -190,7 +224,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
             )
             SELECT m.month, count(v.vacancy_id) AS vacancies
             FROM months m
-            LEFT JOIN v ON v.employer_profile_id = :id AND {SHOWN}
+            LEFT JOIN v ON v.card_id = :id AND {SHOWN}
                        AND date_trunc('month', v.published_at)::date = m.month
             GROUP BY m.month ORDER BY m.month
         """),
@@ -203,7 +237,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
             WITH {CTE}
             SELECT title, count(*) AS vacancies,
                    percentile_cont(0.5) WITHIN GROUP (ORDER BY monthly_salary) AS median_salary
-            FROM v WHERE employer_profile_id = :id AND {SHOWN}
+            FROM v WHERE card_id = :id AND {SHOWN}
             GROUP BY title ORDER BY count(*) DESC, title LIMIT 15
         """),
         params,
@@ -215,7 +249,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
             WITH {CTE}
             SELECT v.locality, r.name AS region, count(*) AS vacancies
             FROM v LEFT JOIN region r ON r.region_id = v.region_id
-            WHERE v.employer_profile_id = :id AND v.locality IS NOT NULL AND {SHOWN}
+            WHERE v.card_id = :id AND v.locality IS NOT NULL AND {SHOWN}
             GROUP BY v.locality, r.name ORDER BY count(*) DESC LIMIT 6
         """),
         params,
@@ -233,7 +267,7 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
                             THEN v.lng END AS lng,
                        v.source, v.vacancy_id, v.url AS vacancy_url, v.published_at
                 FROM v JOIN vacancy vac USING (vacancy_id)
-                WHERE v.employer_profile_id = :id AND {SHOWN}
+                WHERE v.card_id = :id AND {SHOWN}
             )
             SELECT DISTINCT ON (source, address, locality, lat, lng)
                    address, locality, lat, lng, source, vacancy_id, vacancy_url
@@ -246,57 +280,114 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
     )
     employer["hiring_locations"] = [dict(r) for r in hiring_locations.mappings()]
 
-    match = await _matched_company(session, employer_id)
-    gur_id, gur_match = employer["gur_company_id"], "inn"
-    if gur_id is None and match is not None and match["on_gur"]:
-        gur_id, gur_match = match["company_id"], "auto" if match["status"] == "auto" else "name"
+    # The legal entity behind the card: the group's, else the GUR card found by INN.
+    company_id = employer["company_id"] or employer["gur_company_id"]
+    link = await _company_link(session, employer_id, profile_ids, company_id)
+    # By INN only when the main profile itself carries it (hh cards take the company's INN).
+    by_inn = employer.pop("profile_inn") is not None and employer["gur_company_id"] is not None
+    sure = by_inn or link is None or link["status"] == "auto"
+    gur_id = employer["gur_company_id"]
+    if gur_id is None and link is not None and link["on_gur"]:
+        gur_id = company_id
     employer["gur"] = await _gur_company(session, gur_id)
     if employer["gur"] is not None:
-        employer["gur"]["match"] = gur_match
+        employer["gur"]["match"] = "inn" if by_inn else "auto" if sure else "name"
 
-    # The legal entity behind the page: the matched company, else the GUR card found by INN.
-    company_id = match["company_id"] if match is not None else gur_id
     employer["company_id"] = company_id
     employer["company_link"] = None
     if company_id is not None:
-        by_inn = company_id == employer["gur_company_id"]
-        sure = by_inn or match is None or match["status"] == "auto"
         employer["company_link"] = "auto" if sure else "candidate"
     employer["logo_url"] = employer["gur"]["logo_url"] if employer["gur"] else None
     employer["profile"] = await _company_profile(session, company_id)
     employer["classification"] = await _company_classification(session, company_id)
+    employer["focus"] = _vpk_focus(
+        employer["classification"],
+        (await _focus(session, [company_id])).get(company_id) if company_id else None,
+    )
     employer["registry"] = await _company_registry(session, company_id)
-    employer["contacts"] = await _company_contacts(session, company_id, employer_id)
+    employer["contacts"] = await _company_contacts(session, company_id, profile_ids)
     employer["agency"] = (
         await _employer_agency(session, employer_id) if company_id is None else None
     )
+    employer["sources"] = await _card_sources(session, employer_id)
+    employer["parent_card_id"] = (
+        await _parent_card(session, company_id) if employer["is_branch"] else None
+    )
+    employer["match_conflicts"] = await _match_conflicts(session, profile_ids)
     return employer
 
 
-async def _matched_company(session: AsyncSession, employer_id: int) -> Row | None:
-    """Best company link for the employer: 'auto' (by INN) or any non-rejected link with confidence >= 0.8.
-
-    Duplicates are resolved to their canonical company row.
-    """
+async def _card_sources(session: AsyncSession, card_id: int) -> list[Row]:
+    """Job-site profiles of the card, with their shown active vacancies."""
     result = await session.execute(
         text(f"""
-            WITH best AS (
-                SELECT coalesce(d.canonical_id, m.company_id) AS company_id, m.status, m.confidence
-                FROM employer_company_match m
-                LEFT JOIN company_duplicate d ON d.company_id = m.company_id
-                WHERE m.employer_profile_id = :id
-                  AND m.status <> 'rejected' AND (m.status = 'auto' OR m.confidence >= 0.8)
-                ORDER BY m.status = 'auto' DESC, m.confidence DESC, company_id
-                LIMIT 1
-            )
-            -- on_gur: the company has a GUR portal card, not only registry data.
-            SELECT b.company_id, b.status, c.{ON_GUR} AS on_gur
-            FROM best b JOIN company c USING (company_id)
+            WITH {CTE}
+            SELECT ep.employer_profile_id, ep.source, ep.name, ep.url,
+                   count(v.vacancy_id) AS vacancies
+            FROM employer_group g JOIN employer_profile ep USING (employer_profile_id)
+            LEFT JOIN v ON v.employer_profile_id = ep.employer_profile_id AND v.{SHOWN}
+            WHERE g.group_id = :id
+            GROUP BY 1, 2, 3, 4 ORDER BY vacancies DESC, 1
         """),
-        {"id": employer_id},
+        {"id": card_id},
+    )
+    return [dict(r) for r in result.mappings()]
+
+
+async def _parent_card(session: AsyncSession, company_id: int | None) -> int | None:
+    """The head-office card of a branch: the main card of the company's head-office group."""
+    if company_id is None:
+        return None
+    result = await session.execute(
+        text("""
+            SELECT group_id FROM employer_group
+            WHERE company_id = :cid AND method = 'company' AND is_head
+            ORDER BY group_id LIMIT 1
+        """),
+        {"cid": company_id},
+    )
+    return result.scalar_one_or_none()
+
+
+async def _match_conflicts(session: AsyncSession, profile_ids: list[int]) -> list[Row]:
+    """Questionable links of the card's profiles to a legal entity, for a person to check."""
+    result = await session.execute(
+        text("""
+            SELECT employer_profile_id, kind, evidence FROM employer_match_conflict
+            WHERE employer_profile_id = ANY(:ids) ORDER BY employer_profile_id, kind
+        """),
+        {"ids": profile_ids},
+    )
+    return [dict(r) for r in result.mappings()]
+
+
+async def _company_link(
+    session: AsyncSession, card_id: int, profile_ids: list[int], company_id: int | None
+) -> Row | None:
+    """How the card is linked to its legal entity: the main profile's link first, else any
+    profile's ('auto' by INN, or a candidate). Duplicates resolve to their canonical company."""
+    if company_id is None:
+        return None
+    result = await session.execute(
+        text(f"""
+            SELECT m.status, c.{ON_GUR} AS on_gur
+            FROM employer_company_match m
+            LEFT JOIN company_duplicate d ON d.company_id = m.company_id
+            JOIN company c ON c.company_id = :cid
+            WHERE m.employer_profile_id = ANY(:ids) AND m.status <> 'rejected'
+              AND coalesce(d.canonical_id, m.company_id) = :cid
+            ORDER BY m.employer_profile_id = :card DESC, m.status = 'auto' DESC, m.confidence DESC
+            LIMIT 1
+        """),
+        {"ids": profile_ids, "cid": company_id, "card": card_id},
     )
     row = result.mappings().first()
-    return dict(row) if row else None
+    if row is not None:
+        return dict(row)
+    on_gur = await session.execute(
+        text(f"SELECT {ON_GUR} FROM company WHERE company_id = :cid"), {"cid": company_id}
+    )
+    return {"status": "auto", "on_gur": bool(on_gur.scalar_one_or_none())}
 
 
 async def _company_profile(session: AsyncSession, company_id: int | None) -> Row | None:
@@ -338,7 +429,8 @@ async def _company_classification(session: AsyncSession, company_id: int | None)
         return None
     result = await session.execute(
         text("""
-            SELECT cc.vpk_category, cc.vpk_probability, cc.vpk_level, cc.direction_label,
+            SELECT cc.vpk_category, cc.vpk_probability, cc.vpk_level, cc.direction_domain,
+                   cc.direction_role, cc.direction_label,
                    cc.direction_secondary, cc.reliability, cc.reliability_note,
                    cc.sanctions_gur, cc.sanctions_new, cc.explanation, cc.enrichment_run_id
             FROM company_classification cc JOIN classifier_run r USING (run_id)
@@ -387,7 +479,7 @@ async def _company_registry(session: AsyncSession, company_id: int | None) -> Ro
 
 
 async def _company_contacts(
-    session: AsyncSession, company_id: int | None, employer_id: int
+    session: AsyncSession, company_id: int | None, profile_ids: list[int]
 ) -> list[Row]:
     """Verified corporate requisites and contacts, the newest value of each kind first."""
     result = await session.execute(
@@ -397,12 +489,12 @@ async def _company_contacts(
                        r.started_at
                 FROM company_contact cc JOIN enrichment_run r USING (run_id)
                 WHERE cc.verified
-                  AND (cc.company_id = :cid OR cc.employer_profile_id = :id)
+                  AND (cc.company_id = :cid OR cc.employer_profile_id = ANY(:ids))
                 ORDER BY cc.kind, cc.value, r.started_at DESC
             ) c
             ORDER BY kind, started_at DESC, value
         """),
-        {"cid": company_id, "id": employer_id},
+        {"cid": company_id, "ids": profile_ids},
     )
     return [dict(r) for r in result.mappings()]
 

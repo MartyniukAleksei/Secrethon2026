@@ -12,17 +12,20 @@ from app.db import make_engine
 
 def test_stats(client: TestClient) -> None:
     stats = client.get("/api/stats").json()
-    # No `vacancy_final` run in the fixture: the latest run of any classifier stands in.
-    assert stats["final_run_at"] is None
-    assert stats["vacancies"] == 7
-    # confirmed + likely; vacancy 3 counts as likely because the latest run wins. Employers 2
-    # and 4 are ВПК recruitment agencies (employer_agency), so their vacancies count apart.
-    assert stats["vpk_vacancies"] == 3
-    assert stats["confirmed_vacancies"] == 1
+    assert stats["final_run_at"].startswith("2026-10-09")
+    assert stats["vacancies"] == 9  # active and unique: the inactive 7 and the repost 9 are out
+    # The final label decides: the repost 9 and the excluded 5, 6 are not counted; the agency
+    # vacancy 8 is counted apart.
+    assert stats["vpk_vacancies"] == 6
+    assert stats["confirmed_vacancies"] == 4
     assert stats["on_review_vacancies"] == 2
-    assert stats["vpk_employers"] == 1
-    assert stats["agency_employers"] == 2
-    assert stats["agency_vacancies"] == 3
+    # Profiles 1, 2, 5, 6 → cards 1 (КБП: trudvsem + hh), 2, 6 (a branch) → companies 570, 600.
+    assert stats["vpk_profiles"] == 4
+    assert stats["vpk_employers"] == 3
+    assert stats["vpk_legal_entities"] == 2
+    assert stats["salary_samples"] == 3  # vacancies 1, 2, 4
+    assert stats["agency_employers"] == 1
+    assert stats["agency_vacancies"] == 1
     assert stats["foreign_intermediary_decided"] == 1
     assert stats["matched_employers"] == 1
     assert {r["name"] for r in stats["regions_list"]} == {"Тульская область"}
@@ -31,10 +34,17 @@ def test_stats(client: TestClient) -> None:
 
 def test_employers_only_vpk(client: TestClient) -> None:
     employers = client.get("/api/employers").json()
-    assert [e["id"] for e in employers] == [1, 2, 4]  # bakery (no ВПК vacancies) is excluded
+    # One card per enterprise: profile 5 is in card 1, the branch 6 is a card of its own; the
+    # bakery (no shown vacancies) is excluded.
+    assert [e["id"] for e in employers] == [1, 2, 6, 4]
     kbp = employers[0]
-    assert kbp["vpk_vacancies"] == 3
-    assert kbp["confirmed_vacancies"] == 1
+    assert kbp["vpk_vacancies"] == 4  # vacancies 1, 2, 3 of profile 1 and 10 of profile 5
+    assert kbp["confirmed_vacancies"] == 3
+    assert kbp["profiles"] == 2 and kbp["is_branch"] is False
+    assert [f["focus"] for f in kbp["focus"]] == ["drone", "missile"]
+    assert employers[1]["focus"] == []  # a ВПК company without a focus tag: adjacent
+    assert employers[1]["match_conflict"] is True
+    assert employers[2]["is_branch"] is True
     assert kbp["region"] == "Тульская область"
     assert kbp["category"] == "производство"
     assert kbp["gur_company_id"] == 570
@@ -84,6 +94,15 @@ def test_hiring_locations_are_separate_from_company_address(client: TestClient) 
             "source": "hh",
             "vacancy_id": 3,
             "vacancy_url": "https://hh.ru/vacancy/3",
+        },
+        {
+            "address": None,
+            "locality": "Тула",
+            "lat": None,
+            "lng": None,
+            "source": "hh",
+            "vacancy_id": 10,
+            "vacancy_url": "https://hh.ru/vacancy/10",
         },
         {
             "address": "Тула, ул. Найма, 1",
@@ -210,8 +229,8 @@ def test_classification_counters(client: TestClient) -> None:
     assert stats["vpk_companies_decided"] == 1
     assert stats["foreign_intermediary_companies"] == 1
     assert stats["agency_vpk_companies"] == 0
-    assert stats["agency_employers"] == 2
-    assert stats["agency_vacancies"] == 3  # employer 2: vacancies 4, 5; employer 4: vacancy 8
+    assert stats["agency_employers"] == 1
+    assert stats["agency_vacancies"] == 1  # employer 4: vacancy 8
 
 
 def test_map_points(client: TestClient) -> None:
@@ -277,18 +296,24 @@ def test_map_network_preserves_relationships_and_sources(client: TestClient) -> 
 
 def test_vacancies_paging_and_filters(client: TestClient) -> None:
     page = client.get("/api/vacancies", params={"limit": 2}).json()
-    assert page["total"] == 3
-    assert [v["id"] for v in page["items"]] == [3, 1]  # newest first
+    assert page["total"] == 6
+    assert [v["id"] for v in page["items"]] == [10, 4]  # newest first
     # hh vacancy without a region inherits it from trudvsem vacancies in the same city
     tula = client.get("/api/vacancies", params={"region_id": 64}).json()
-    assert {v["id"] for v in tula["items"]} == {1, 2, 3}
-    # Agency vacancies are listed apart; the non-ВПК bakery vacancy 6 never is.
-    assert client.get("/api/vacancies", params={"q": "БпЛА"}).json()["total"] == 0
-    agency = client.get("/api/vacancies", params={"q": "БпЛА", "scope": "agency"}).json()
-    assert agency["total"] == 1
-    assert client.get("/api/vacancies", params={"level": "all"}).json()["total"] == 3
-    assert client.get("/api/vacancies", params={"scope": "all"}).json()["total"] == 6
+    assert {v["id"] for v in tula["items"]} == {1, 2, 3, 10}
+    # Agency vacancies are listed apart; the excluded 5, 6 and the repost 9 never are.
+    assert client.get("/api/vacancies", params={"q": "БпЛА"}).json()["total"] == 1
+    agency = client.get("/api/vacancies", params={"scope": "agency"}).json()
+    assert [v["id"] for v in agency["items"]] == [8]
+    assert client.get("/api/vacancies", params={"level": "all"}).json()["total"] == 6
+    assert client.get("/api/vacancies", params={"scope": "all"}).json()["total"] == 7
     assert client.get("/api/vacancies", params={"level": "likely"}).json()["total"] == 2
+    assert [
+        v["id"] for v in client.get("/api/vacancies", params={"markers": True}).json()["items"]
+    ] == [1]
+    # The card's vacancies come from all its profiles; employer_id is the card.
+    card = client.get("/api/vacancies", params={"employer_id": 1}).json()["items"]
+    assert {v["id"] for v in card} == {1, 2, 3, 10} and {v["employer_id"] for v in card} == {1}
     by_salary = client.get("/api/vacancies", params={"sort": "salary", "scope": "all"}).json()
     assert by_salary["items"][0]["id"] == 4
 
@@ -297,7 +322,12 @@ def test_vacancy_detail(client: TestClient) -> None:
     vacancy = client.get("/api/vacancies/1").json()
     assert vacancy["description"] == "Обработка деталей"
     assert vacancy["url"] == "https://trudvsem.ru/vacancy/1"
-    assert vacancy["shown"] is True and vacancy["final_basis"] == "legacy"
+    assert vacancy["shown"] is True and vacancy["final_basis"] == "company_vpk"
+    assert [e["signal"] for e in vacancy["evidence"]] == [
+        "компания: vpk",
+        "явные признаки ВПК в тексте",
+    ]
+    assert client.get("/api/vacancies/9").status_code == 404  # a repost
     # Not counted, but still reachable by a direct link.
     assert client.get("/api/vacancies/6").json()["shown"] is False
     assert client.get("/api/vacancies/999").status_code == 404
@@ -333,7 +363,7 @@ def test_connection_is_read_only(client: TestClient) -> None:
 
 def test_vacancy_review_sources_start_empty(client: TestClient) -> None:
     detail = client.get("/api/vacancies/1").json()
-    assert detail["classifier_name"] == "trudvsem_vpk_rules"
+    assert detail["classifier_name"] == "vacancy_final"
     assert detail["classifier_version"] == "test"
     assert detail["reviews"] == []
 
@@ -392,7 +422,7 @@ def test_human_and_llm_reviews_are_independent_and_persistent(client: TestClient
     ]
     assert detail["level"] == "confirmed"  # Pipeline classification is preserved.
     assert client.get("/api/vacancies/2").json()["reviews"] == []
-    assert client.get("/api/stats").json()["vpk_vacancies"] == 3
+    assert client.get("/api/stats").json()["vpk_vacancies"] == 6
 
 
 def test_review_requires_existing_active_vacancy(client: TestClient) -> None:
@@ -506,3 +536,48 @@ def test_failed_employer_review_does_not_report_success(client: TestClient, monk
     response = client.post("/api/employers/1/reviews", json=_employer_review())
     assert response.status_code == 503
     assert client.get("/api/employers/1").json()["human_reviews"] == []
+
+
+def test_one_card_per_enterprise(client: TestClient) -> None:
+    # Any profile of the group opens its card; the site page moves there with a 301.
+    card = client.get("/api/employers/5").json()
+    assert card["id"] == 1 and card["vpk_vacancies"] == 4
+    redirect = client.get("/companies/5/vacancies", follow_redirects=False)
+    assert redirect.status_code == 301
+    assert redirect.headers["location"] == "/companies/1/vacancies"
+    assert client.get("/companies/1", follow_redirects=False).status_code != 301
+    assert [(s["employer_profile_id"], s["source"], s["vacancies"]) for s in card["sources"]] == [
+        (1, "trudvsem", 3),
+        (5, "hh", 1),
+    ]
+    # The hh profile has a weak link, but the card's main profile is linked by INN.
+    assert card["company_link"] == "auto" and card["inn"] == "7105514574"
+    assert {f["focus"]: f["basis"] for f in card["focus"]} == {
+        "drone": "vacancies",
+        "missile": "gur_weapon",
+    }
+    assert card["classification"]["direction_domain"] == "missiles_space"
+    branch = client.get("/api/employers/6").json()
+    assert branch["is_branch"] is True and branch["parent_card_id"] == 1
+    # The branch has no INN of its own on hh: it takes its legal entity's.
+    assert branch["inn"] == "7105514574"
+
+
+def test_match_conflicts(client: TestClient) -> None:
+    conflicts = client.get("/api/employers/2").json()["match_conflicts"]
+    assert [(c["kind"], c["evidence"]["other_inn"]) for c in conflicts] == [
+        ("different_inn", "7704721192")
+    ]
+    assert client.get("/api/employers/1").json()["match_conflicts"] == []
+
+
+def test_focus_and_direction_filters(client: TestClient) -> None:
+    def ids(**params: object) -> set[int]:
+        return {v["id"] for v in client.get("/api/vacancies", params=params).json()["items"]}
+
+    assert ids(focus="missile") == {1, 2, 3, 10, 11}  # КБП and its branch
+    assert ids(focus="kab") == set()
+    assert ids(focus="other") == {4}  # Алабуга: ВПК without a focus tag
+    assert ids(domain="uav") == {4}
+    assert ids(role="manufacturer") == {1, 2, 3, 4, 10, 11}
+    assert client.get("/api/vacancies", params={"focus": "nope"}).status_code == 422

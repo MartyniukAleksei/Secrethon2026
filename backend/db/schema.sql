@@ -1856,6 +1856,9 @@ CREATE TABLE public.company_classification (
     vpk_probability real,
     vpk_level text NOT NULL CHECK (vpk_level = ANY (ARRAY['decided'::text, 'review'::text])),
     decided_by text NOT NULL CHECK (decided_by = ANY (ARRAY['jev'::text, 'rule'::text])),
+    direction_domain text,
+    direction_role text,
+    direction_probability real,
     direction_label text,
     direction_secondary text,
     reliability character(2),
@@ -1907,3 +1910,79 @@ CREATE TABLE public.vacancy_duplicate (
 CREATE VIEW public.vacancy_unique AS
 SELECT v.* FROM public.vacancy v
 WHERE NOT EXISTS (SELECT 1 FROM public.vacancy_duplicate d WHERE d.vacancy_id = v.vacancy_id);
+
+-- From 0012_employer_group_focus_discovery (company-parse), as is.
+SET search_path = public;
+
+CREATE TABLE employer_group (
+    employer_profile_id  bigint PRIMARY KEY REFERENCES employer_profile ON DELETE CASCADE,
+    group_id             bigint NOT NULL REFERENCES employer_profile ON DELETE CASCADE,
+    company_id           bigint REFERENCES company ON DELETE CASCADE,
+    is_head              boolean NOT NULL,     -- this profile is the group's main card
+    is_branch            boolean NOT NULL,     -- the profile is a branch of company_id
+    branch_key           text,
+    method               text   NOT NULL CHECK (method IN ('company', 'branch', 'single'))
+);
+
+CREATE INDEX employer_group_group_idx ON employer_group (group_id);
+CREATE INDEX employer_group_company_idx ON employer_group (company_id);
+
+-- Profiles with the same name in the same region that look like one employer but are linked to
+-- different legal entities (at least one link is a name match), or a profile without a legal
+-- entity named like a VPK company of another region. Nothing is changed automatically: a person
+-- decides and records it in employer_company_match (status 'verified' / 'rejected').
+--   kind : 'different_inn' (both linked, different INN), 'peer_other_region' (no link, the
+--          same-name VPK company is elsewhere)
+CREATE TABLE employer_match_conflict (
+    employer_profile_id  bigint NOT NULL REFERENCES employer_profile ON DELETE CASCADE,
+    company_id           bigint REFERENCES company ON DELETE CASCADE,
+    other_profile_id     bigint REFERENCES employer_profile ON DELETE CASCADE,
+    other_company_id     bigint NOT NULL REFERENCES company ON DELETE CASCADE,
+    kind                 text   NOT NULL CHECK (kind IN ('different_inn', 'peer_other_region')),
+    name_key             text   NOT NULL,
+    evidence             jsonb
+);
+
+CREATE INDEX employer_match_conflict_profile_idx ON employer_match_conflict (employer_profile_id);
+
+-- Customer focus categories of a VPK company (several per company possible; none = adjacent).
+-- One classifier_run 'company_focus' per company-focus run.
+--   focus : drone (UAV and loitering munitions), missile (ballistic and cruise missiles,
+--           tactical missile systems, without air defence), kab (guided/glide bombs, UMPK)
+--   basis : gur_weapon, gur_component, gur_uav, jev_direction, vacancies, jev_focus
+CREATE TABLE company_focus (
+    run_id      int    NOT NULL REFERENCES classifier_run ON DELETE CASCADE,
+    company_id  bigint NOT NULL REFERENCES company ON DELETE CASCADE,
+    focus       text   NOT NULL CHECK (focus IN ('drone', 'missile', 'kab')),
+    basis       text   NOT NULL,
+    score       real,                       -- JEV probability; 1 for GUR rules
+    evidence    jsonb,                      -- weapons, models, vacancy quotes, probabilities
+    PRIMARY KEY (run_id, company_id, focus)
+);
+
+CREATE INDEX company_focus_company_idx ON company_focus (company_id);
+
+-- What was searched and found in open sources, per company: every search result, not only the
+-- ones that became facts. Old runs are backfilled from company_profile.searches, company_fact
+-- and company_contact (results that gave no fact are lost for them).
+--   provider : exa, agy (Antigravity agent), opensanctions
+--   status   : query (a search with its results unknown), fact (a verified fact cites the url),
+--              contact (a verified contact cites it), no_fact (found, nothing taken)
+CREATE TABLE discovery_log (
+    log_id               bigserial PRIMARY KEY,
+    run_id               int    NOT NULL REFERENCES enrichment_run ON DELETE CASCADE,
+    company_id           bigint REFERENCES company ON DELETE CASCADE,
+    employer_profile_id  bigint REFERENCES employer_profile ON DELETE CASCADE,
+    provider             text   NOT NULL,
+    query                text,
+    url                  text,
+    title                text,
+    snippet              text,              -- up to 500 characters of the result or quote
+    published            text,              -- as the provider gives it
+    found_at             timestamptz,
+    status               text   NOT NULL CHECK (status IN ('query', 'fact', 'contact', 'no_fact')),
+    CHECK (company_id IS NOT NULL OR employer_profile_id IS NOT NULL)
+);
+
+CREATE INDEX discovery_log_company_idx ON discovery_log (company_id);
+CREATE INDEX discovery_log_run_idx ON discovery_log (run_id);

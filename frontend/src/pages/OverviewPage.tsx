@@ -1,8 +1,9 @@
 import { Link } from 'react-router'
 import { CountUp } from '../components/CountUp'
 import { useData } from '../data/DataContext'
-import { fmt, longDate, money } from '../domain/format'
+import { fmt, longDate, money, plural } from '../domain/format'
 import { Icon } from '../ui/Icon'
+import type { ApiStats } from '../api/types'
 import type { IconName } from '../ui/icons'
 import './OverviewPage.css'
 
@@ -31,6 +32,11 @@ export function OverviewPage() {
         </div>
       </header>
 
+      <p className={`overview-run${stats.final_run_at ? '' : ' warn'}`}>
+        {stats.final_run_at
+          ? <>Дані станом на {longDate(stats.final_run_at)} (підсумкова класифікація вакансій)</>
+          : <>Попередні дані: підсумкова класифікація вакансій ще не готова</>}
+      </p>
       <dl className="overview-metrics">
         <div>
           <dt>Активних вакансій ВПК</dt>
@@ -38,13 +44,20 @@ export function OverviewPage() {
           <p className="overview-metric-note">з них на перевірці: {fmt(stats.on_review_vacancies)}</p>
         </div>
         <div>
-          <dt>Профілів роботодавців</dt>
+          <dt>Підприємств (карток)</dt>
           <dd><Link to="/companies"><CountUp value={stats.vpk_employers} /></Link></dd>
           <p className="overview-metric-note">вакансії всіх підрозділів підприємств ВПК, не лише профільні</p>
         </div>
         <div><dt>Регіонів найму</dt><dd><Link to="/map"><CountUp value={stats.regions} /></Link></dd></div>
-        <div><dt>Медіана зарплати / місяць</dt><dd><CountUp value={stats.median_salary} format={money} /></dd></div>
+        <div>
+          <dt>Медіана зарплати / місяць</dt>
+          <dd><CountUp value={stats.median_salary} format={money} /></dd>
+          <p className="overview-metric-note">
+            медіана місячної зарплати, ₽, за {fmt(stats.salary_samples)} {plural(stats.salary_samples, 'вакансією', 'вакансіями', 'вакансіями')} з зарплатою
+          </p>
+        </div>
       </dl>
+      <p className="overview-dedup"><Dedup stats={stats} /></p>
 
       <section className="overview-classification" aria-labelledby="overview-classification-title">
         <div className="overview-section-head">
@@ -100,5 +113,17 @@ export function OverviewPage() {
         <Link to="/methodology">Джерела й методологія<Icon name="chev" /></Link>
       </footer>
     </div>
+  )
+}
+
+/** Job-site profiles → enterprise cards → legal entities behind the ВПК vacancies. */
+export function Dedup({ stats }: { stats: ApiStats }) {
+  const share = stats.vpk_profiles ? Math.round((1 - stats.vpk_employers / stats.vpk_profiles) * 100) : 0
+  return (
+    <>
+      {fmt(stats.vpk_profiles)} {plural(stats.vpk_profiles, 'профіль', 'профілі', 'профілів')} на сайтах вакансій →{' '}
+      {fmt(stats.vpk_employers)} {plural(stats.vpk_employers, 'картка', 'картки', 'карток')} підприємств (дублі {share}%) →{' '}
+      {fmt(stats.vpk_legal_entities)} {plural(stats.vpk_legal_entities, 'юрособа', 'юрособи', 'юросіб')}
+    </>
   )
 }

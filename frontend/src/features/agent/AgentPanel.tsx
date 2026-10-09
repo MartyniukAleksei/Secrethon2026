@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { Link } from 'react-router'
 import { usePageContext } from '../../app/pageContext'
 import { useData } from '../../data/DataContext'
-import { categoryOf } from '../../domain/labels'
+import { DOMAINS, FOCUS, ROLES } from '../../domain/labels'
 import { useFilters } from '../../state/FiltersContext'
 import { Icon } from '../../ui/Icon'
 import { useAgent } from './AgentContext'
@@ -30,7 +30,9 @@ export function AgentPanel() {
 
   const company = page.companyId ? byId[page.companyId] : undefined
   const scope = [
-    filters.category !== 'all' ? categoryOf(filters.category).name : '',
+    filters.focus !== 'all' ? `Фокус: ${FOCUS[filters.focus]}` : '',
+    filters.domain !== 'all' ? DOMAINS[filters.domain] : '',
+    filters.role !== 'all' ? ROLES[filters.role] : '',
     filters.region !== 'all' ? regionById[filters.region]?.name : '',
     filters.periodName,
   ]

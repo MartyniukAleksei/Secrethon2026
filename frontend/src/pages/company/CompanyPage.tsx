@@ -9,8 +9,8 @@ import { EmployerRow } from '../../components/rows'
 import { useData } from '../../data/DataContext'
 import { useApi } from '../../data/useApi'
 import { fmt, longDate, money } from '../../domain/format'
-import { categoryOf, effectiveCategory, shownVacancies, sourceName } from '../../domain/labels'
-import type { ApiCompanyContact } from '../../api/types'
+import { categoryOf, DOMAINS, effectiveCategory, ROLES, sanctionsOf, shownVacancies, sourceName } from '../../domain/labels'
+import type { ApiCompanyContact, ApiMatchConflict } from '../../api/types'
 import type { EmployerDetail } from '../../domain/types'
 import { useAgent } from '../../features/agent/AgentContext'
 import { EmployerBadgeGroups } from '../../ui/EmployerBadgeGroups'
@@ -62,6 +62,8 @@ export function CompanyPage() {
       </div>
     )
   }
+  // One card per enterprise: another profile of the group opens its card.
+  if (state.data.id !== employerId) return <Navigate to={`/companies/${state.data.id}/${current.id}`} replace />
   return <Profile employer={state.data} tab={current} />
 }
 
@@ -102,6 +104,12 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
           </div>
           <div className="grow">
             <h1>{e.name}</h1>
+            {e.is_branch && (
+              <p className="place">
+                <span className="badge info">Філія</span>
+                {e.parent_card_id != null && <Link to={`/companies/${e.parent_card_id}`}>Головна компанія</Link>}
+              </p>
+            )}
             <p className="place">
               <Icon name="pin" />
               {e.locality ?? 'Місто не вказано'}
@@ -127,7 +135,7 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
           <div className="card"><dt>З них підтверджено</dt><dd>{fmt(e.confirmed_vacancies)}</dd></div>
           <div className="card"><dt>Медіана зарплати</dt><dd>{money(e.median_salary)}</dd></div>
           <div className="card"><dt>Нових за 30 днів</dt><dd>{fmt(e.new_30d)}</dd></div>
-          <div className="card"><dt>Санкцій</dt><dd>{fmt(e.sanctions_count)}</dd></div>
+          <div className="card"><dt>Санкції, юрисдикцій</dt><dd title={sanctionsOf(e).codes.join(', ') || undefined}>{fmt(sanctionsOf(e).total)}</dd></div>
         </dl>
       </section>
 
@@ -158,6 +166,12 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
             <div className="panel-head"><h3>Коротко</h3></div>
             <dl className="facts">
               <div><dt>Напрям</dt><dd>{(!e.human_review?.category && e.classification?.direction_label) || categoryOf(category).name}</dd></div>
+              {(e.classification?.direction_domain || e.classification?.direction_role) && (
+                <div>
+                  <dt>Галузь · роль</dt>
+                  <dd>{[DOMAINS[e.classification.direction_domain ?? ''], ROLES[e.classification.direction_role ?? '']].filter(Boolean).join(' · ')}</dd>
+                </div>
+              )}
               <div><dt>Регіон</dt><dd>{e.region ?? '—'}</dd></div>
               {address && (
                 <div className="facts-address">
@@ -165,7 +179,15 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
                   <dd>{address}{address === contactAddress?.value && <SourceLink url={contactAddress.url} />}</dd>
                 </div>
               )}
-              <div><dt>ІПН</dt><dd>{e.inn ?? gurIds?.inn ?? contacts('inn')[0]?.value ?? '—'}</dd></div>
+              <div>
+                <dt>ІПН</dt>
+                <dd>
+                  {e.inn ?? gurIds?.inn ?? contacts('inn')[0]?.value ?? '—'}
+                  {e.match_conflicts.length > 0 && (
+                    <span className="badge warning" title={e.match_conflicts.map(conflictTitle).join('\n\n')}>зв’язок з юрособою під питанням</span>
+                  )}
+                </dd>
+              </div>
               {ogrn && <div><dt>ОДРН</dt><dd>{ogrn}</dd></div>}
               {kpp && <div><dt>КПП</dt><dd>{kpp}</dd></div>}
               <ContactFact label="Телефон" items={contacts('phone')} />
@@ -182,11 +204,22 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
                 ) : <dd className="fact-missing">Відсутньо</dd>}
               </div>
               {website && <div className="facts-address"><dt>Вебресурс</dt><dd><a href={website} target="_blank" rel="noreferrer noopener">{hostOf(website)}<Icon name="external" /></a></dd></div>}
-              {e.profile_url && <div><dt>Профіль роботодавця</dt><dd><a href={e.profile_url} target="_blank" rel="noreferrer noopener">Відкрити<Icon name="external" /></a></dd></div>}
-              <div><dt>Джерело</dt><dd>{sourceName(e.source)}</dd></div>
+
               <div><dt>Остання вакансія</dt><dd>{e.last_published_at ? longDate(e.last_published_at) : '—'}</dd></div>
               <div><dt>Дані на</dt><dd>{longDate(asOf)}</dd></div>
             </dl>
+          </div>
+          <div className="panel">
+            <div className="panel-head"><h3>Джерела вакансій</h3></div>
+            <ul className="card-sources">
+              {e.sources.map((s) => (
+                <li key={s.employer_profile_id}>
+                  <span className="badge">{sourceName(s.source)}</span>
+                  {s.url ? <a href={s.url} target="_blank" rel="noreferrer noopener">{s.name}<Icon name="external" /></a> : <span>{s.name}</span>}
+                  <span className="fact-detail">{fmt(s.vacancies)} вакансій</span>
+                </li>
+              ))}
+            </ul>
           </div>
           <div className="panel">
             <div className="panel-head"><h3>Запитати агента</h3></div>
@@ -249,4 +282,13 @@ function hostOf(url: string) {
   } catch {
     return url
   }
+}
+
+/** Both sides of a questionable link, for a person to check. */
+function conflictTitle(c: ApiMatchConflict): string {
+  const ev = c.evidence ?? {}
+  if (c.kind === 'different_inn') {
+    return [`${(ev.profile ?? []).join(' · ')} → ІПН ${ev.inn ?? '—'}`, `${(ev.other ?? []).join(' · ')} → ІПН ${ev.other_inn ?? '—'}`].join('\n')
+  }
+  return `Профіль без юрособи названо як ВПК-юрособу з іншого регіону.\nРегіони профілю: ${(ev.profile_regions ?? []).join(', ')}; юрособи: ${(ev.company_regions ?? []).join(', ')}`
 }

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { FocusKey } from '../api/types'
 import type { Employer } from '../domain/types'
 
 export type Period = 7 | 30 | 90 | 365 | 0
@@ -15,12 +16,16 @@ export type Filters = {
   /** Published within N days of the data snapshot; 0 = any time. Applies to vacancies. */
   period: Period
   region: number | 'all'
-  category: string | 'all'
+  /** Customer focus of the legal entity: БпЛА, Ракети, КАБ or «Суміжне» (ВПК without a tag). */
+  focus: FocusKey | 'other' | 'all'
+  /** Industry (`direction_domain`) and role (`direction_role`) of the legal entity. */
+  domain: string | 'all'
+  role: string | 'all'
 }
 
 export type FiltersState = Filters & {
   set: (patch: Partial<Filters>) => void
-  /** Employer matches the region and category filters. */
+  /** Employer matches the region, focus, industry and role filters. */
   matches: (e: Employer) => boolean
   periodName: string
 }

@@ -212,7 +212,8 @@ EMPLOYERS = Dataset(
     name="employers",
     title="Роботодавці ВПК",
     description=(
-        "Роботодавці з сайтів вакансій (hh.ru, «Работа России») з хоча б однією активною "
+        "Картки підприємств (профілі одного юрлиця на різних сайтах вакансій склеєно, філії — "
+        "окремо) з хоча б однією активною "
         "вакансією ВПК або кадрового агентства, що наймає у ВПК, з агрегатами за вакансіями "
         "та зв'язком з компанією."
     ),
@@ -238,6 +239,11 @@ EMPLOYERS = Dataset(
         ("gur_company_id", "int", "Компанія на порталі ГУР за ІПН → companies.company_id"),
         ("matched_company_id", "int", "Найкращий збіг з компанією → companies.company_id"),
         ("match_method", "text", "Спосіб збігу: inn, auto, name"),
+        (
+            "profile_ids",
+            "text[]",
+            "Профілі картки на сайтах вакансій (одна картка — одне підприємство)",
+        ),
         ("sanctions_count", "int", "Санкції компанії з порталу ГУР"),
         ("human_sources", "text[]", "Human review: джерела інформації (у CSV — через «; »)"),
         ("human_reliability", "text", "Human review: надійність джерела, шкала A–F"),
@@ -248,16 +254,18 @@ EMPLOYERS = Dataset(
         ("human_reviewed_at", "timestamp", "Human review: коли перевірено"),
     ),
     sql=f"""
-        WITH e AS ({EMPLOYER_SELECT} WHERE {LISTED})
+        WITH e AS ({EMPLOYER_SELECT} AND {LISTED})
         SELECT e.id AS employer_id, e.name, e.source, e.profile_url, e.inn, e.ogrn, e.kpp,
                e.region, e.locality, e.category, e.vpk_vacancies::int, e.confirmed_vacancies::int,
                e.agency_vacancies::int,
                e.total_vacancies::int, e.new_30d::int, e.median_salary::float8, e.last_published_at,
                e.gur_company_id::int,
-               coalesce(e.gur_company_id, m.company_id)::int AS matched_company_id,
-               CASE WHEN e.gur_company_id IS NOT NULL THEN 'inn'
-                    WHEN m.status = 'auto' THEN 'auto'
-                    WHEN m.company_id IS NOT NULL THEN 'name' END AS match_method,
+               coalesce(e.company_id, e.gur_company_id)::int AS matched_company_id,
+               CASE WHEN e.profile_inn IS NOT NULL AND e.gur_company_id IS NOT NULL THEN 'inn'
+                    WHEN e.company_id IS NULL THEN NULL
+                    WHEN m.status IS NULL OR m.status = 'auto' THEN 'auto'
+                    ELSE 'name' END AS match_method,
+               e.profile_ids::text[] AS profile_ids,
                e.sanctions_count::int,
                e.human_sources, e.human_reliability, e.human_category, e.human_sanctions,
                e.human_vpk, e.human_reviewed_by, e.human_reviewed_at
@@ -266,9 +274,9 @@ EMPLOYERS = Dataset(
             SELECT coalesce(d.canonical_id, cm.company_id) AS company_id, cm.status
             FROM employer_company_match cm
             LEFT JOIN company_duplicate d ON d.company_id = cm.company_id
-            WHERE cm.employer_profile_id = e.id
-              AND (cm.status = 'auto' OR (cm.status = 'candidate' AND cm.confidence >= 0.8))
-            ORDER BY cm.status = 'auto' DESC, cm.confidence DESC, 1
+            WHERE cm.employer_profile_id = ANY(e.profile_ids) AND cm.status <> 'rejected'
+              AND coalesce(d.canonical_id, cm.company_id) = e.company_id
+            ORDER BY cm.employer_profile_id = e.id DESC, cm.status = 'auto' DESC, cm.confidence DESC
             LIMIT 1
         ) m ON true
         ORDER BY e.id
@@ -289,7 +297,8 @@ VACANCIES = Dataset(
         ("vacancy_id", "int", "Ідентифікатор вакансії"),
         ("source", "text", "Сайт вакансій: hh, trudvsem"),
         ("url", "text", "Посилання на вакансію"),
-        ("employer_id", "int", "Роботодавець → employers.employer_id"),
+        ("employer_id", "int", "Картка підприємства → employers.employer_id"),
+        ("employer_profile_id", "int", "Профіль роботодавця на сайті вакансій"),
         ("employer_name", "text", "Назва роботодавця"),
         ("title", "text", "Назва посади"),
         (
@@ -322,7 +331,7 @@ VACANCIES = Dataset(
     ),
     sql=f"""
         WITH {CTE}
-        SELECT v.vacancy_id, v.source, v.url, v.employer_profile_id AS employer_id, v.employer_name,
+        SELECT v.vacancy_id, v.source, v.url, v.card_id AS employer_id, v.employer_profile_id, v.employer_name,
                v.title, v.final_category, v.level, v.final_basis, v.has_markers, v.category, v.region_id, r.name AS region, v.locality,
                v.lat::float8, v.lng::float8, v.salary_from::float8, v.salary_to::float8,
                v.salary_currency, v.salary_period, v.monthly_salary::float8,

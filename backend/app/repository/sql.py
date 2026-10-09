@@ -5,8 +5,9 @@ Definitions used across queries:
   classifier run `vacancy_final` (the pipeline keeps a single run). Its category is `vpk`,
   `agency` (a recruitment agency hiring for the ВПК, counted apart) or `excluded`; its level is
   `confirmed`, `likely` (shown, on review) or `no` (not shown).
-- Until the first `vacancy_final` run exists, the latest row of any run stands in, all as `vpk`.
 - Duplicates are dropped: vacancies are read from `vacancy_unique`.
+- One card per enterprise: profiles of one legal entity on different job sites form a group
+  (`employer_group`, branches apart); the card id is the group's main profile (`group_id`).
 - The direction (производство, НИИ/КБ, ремонт) comes from the source text filters; it is shown
   only and never decides whether a vacancy counts.
 - hh.ru vacancies have no region, only a city; the region is taken from trudvsem
@@ -33,25 +34,6 @@ fin AS (
            vc.raw_label AS final_basis, vc.score AS final_score
     FROM vacancy_classification vc JOIN classifier_run r USING (run_id)
     WHERE r.classifier = '{FINAL_RUN}'
-    UNION ALL
-    -- Fallback until the first final run: the latest row of any run, as before; vacancies of
-    -- employers the `employer_agency` run found to be ВПК recruitment agencies go apart.
-    SELECT l.vacancy_id,
-           CASE WHEN ag.employer_profile_id IS NOT NULL THEN 'agency' ELSE 'vpk' END,
-           l.level, 'legacy', NULL::real
-    FROM (
-        SELECT DISTINCT ON (vacancy_id) vacancy_id, level
-        FROM vacancy_classification
-        ORDER BY vacancy_id, run_id DESC
-    ) l
-    JOIN vacancy lv USING (vacancy_id)
-    LEFT JOIN (
-        SELECT DISTINCT ON (ec.employer_profile_id) ec.employer_profile_id, ec.category
-        FROM employer_classification ec JOIN classifier_run r USING (run_id)
-        WHERE r.classifier = 'employer_agency'
-        ORDER BY ec.employer_profile_id, r.started_at DESC
-    ) ag ON ag.employer_profile_id = lv.employer_profile_id AND ag.category = 'agency_vpk'
-    WHERE NOT EXISTS (SELECT 1 FROM classifier_run WHERE classifier = '{FINAL_RUN}')
 ),
 direction AS (
     SELECT DISTINCT ON (vc.vacancy_id) vc.vacancy_id, vc.category
@@ -74,6 +56,7 @@ city_region AS (
 v AS (
     SELECT
         vac.vacancy_id, vac.source, vac.url, vac.employer_profile_id, vac.employer_name, vac.title,
+        coalesce(g.group_id, vac.employer_profile_id) AS card_id, g.company_id,
         vac.locality, vac.lat, vac.lng, coalesce(vac.region_id, cr.region_id) AS region_id,
         vac.salary_from, vac.salary_to, vac.salary_currency, vac.salary_period,
         vac.experience, vac.schedule, vac.employment, vac.published_at,
@@ -92,6 +75,7 @@ v AS (
     JOIN fin USING (vacancy_id)
     LEFT JOIN direction d USING (vacancy_id)
     LEFT JOIN markers m USING (vacancy_id)
+    LEFT JOIN employer_group g ON g.employer_profile_id = vac.employer_profile_id
     LEFT JOIN city_region cr ON cr.locality = vac.locality
     WHERE vac.is_active
 )
@@ -111,10 +95,28 @@ gur AS (
 )
 """
 
+# The final classification of every legal entity (latest run).
+CLASSIFICATION_SELECT = """
+    SELECT DISTINCT ON (cc.company_id) cc.*
+    FROM company_classification cc JOIN classifier_run r USING (run_id)
+    WHERE r.classifier = 'company_classification'
+    ORDER BY cc.company_id, r.started_at DESC
+"""
+CLASSIFICATION = f"cls AS ({CLASSIFICATION_SELECT})"
+
+# Customer focus tags of ВПК companies (latest `company_focus` run); none means "adjacent".
+FOCUS_SELECT = """
+    SELECT f.company_id, f.focus, f.basis, f.score, f.evidence
+    FROM company_focus f
+    WHERE f.run_id = (SELECT max(run_id) FROM classifier_run WHERE classifier = 'company_focus')
+"""
+FOCUS = f"focus AS ({FOCUS_SELECT})"
+FOCUS_KEYS = ("drone", "missile", "kab")
+
 EMPLOYER_AGG = f"""
 agg AS (
     SELECT
-        employer_profile_id AS id,
+        card_id AS id,
         count(*) FILTER (WHERE {VPK}) AS vpk_vacancies,
         count(*) FILTER (WHERE {VPK} AND final_level = 'confirmed') AS confirmed_vacancies,
         count(*) FILTER (WHERE {VPK} AND final_level = 'likely') AS on_review_vacancies,
@@ -128,21 +130,25 @@ agg AS (
         count(*) FILTER (WHERE {VPK} AND published_at > {AS_OF} - interval '30 days') AS new_30d
     FROM v
     WHERE employer_profile_id IS NOT NULL
-    GROUP BY employer_profile_id
+    GROUP BY card_id
 )
 """
 
 # Employers listed on the site: at least one shown vacancy, of a ВПК enterprise or an agency.
 LISTED = "(a.vpk_vacancies + a.agency_vacancies) > 0"
 
-# The latest human review per employer (app-owned table, see app/reviews.py). Until the first
-# review is saved the table doesn't exist, so queries get an empty stand-in with the same columns.
+# The latest human review per card (app-owned table, see app/reviews.py); reviews saved under
+# any profile of the group count for its card. Until the first review is saved the table doesn't
+# exist, so queries get an empty stand-in with the same columns.
 HUMAN_REVIEW_PLACEHOLDER = "{human_review}"
 HUMAN_REVIEW_LATEST = """
 hr AS (
-    SELECT DISTINCT ON (employer_id) *
-    FROM web_reviews.employer_review
-    ORDER BY employer_id, review_id DESC
+    SELECT DISTINCT ON (card_id) * FROM (
+        SELECT er.*, coalesce(eg.group_id, er.employer_id) AS card_id
+        FROM web_reviews.employer_review er
+        LEFT JOIN employer_group eg ON eg.employer_profile_id = er.employer_id
+    ) x
+    ORDER BY card_id, review_id DESC
 )
 """
 HUMAN_REVIEW_EMPTY = """
@@ -150,7 +156,7 @@ hr AS (
     SELECT NULL::bigint AS review_id, NULL::bigint AS employer_id, NULL::text[] AS sources,
            NULL::text AS reliability, NULL::text AS category, NULL::text AS sanctions,
            NULL::text AS vpk, NULL::text AS reviewed_by, NULL::text AS comment,
-           NULL::timestamptz AS reviewed_at
+           NULL::timestamptz AS reviewed_at, NULL::bigint AS card_id
     WHERE false
 )
 """
@@ -184,19 +190,34 @@ AGG_COUNTS = (
 )
 
 # Contains the `{human_review}` placeholder; run it through with_human_review().
-# Every employer profile, with zero counts when it has no shown vacancy: the company page stays
-# reachable; lists filter by LISTED.
+# Every card (the group's main profile), with zero counts when it has no shown vacancy: the
+# company page stays reachable; lists filter by LISTED. The legal entity is the group's; hh
+# profiles carry no INN, so the card takes the INN of its legal entity.
 EMPLOYER_SELECT = f"""
-WITH {CTE}, {GUR_BY_INN}, {EMPLOYER_AGG}, {HUMAN_REVIEW_PLACEHOLDER}
+WITH {CTE}, {GUR_BY_INN}, {EMPLOYER_AGG}, {HUMAN_REVIEW_PLACEHOLDER},
+members AS (
+    SELECT group_id, count(*) AS profiles, array_agg(employer_profile_id ORDER BY employer_profile_id) AS profile_ids
+    FROM employer_group GROUP BY group_id
+)
 SELECT ep.employer_profile_id AS id,
        {", ".join(f"coalesce(a.{c}, 0) AS {c}" for c in AGG_COUNTS)},
        a.median_salary, a.category, a.locality, a.region_id, a.last_published_at,
-       ep.name, ep.source, ep.inn, ep.ogrn, ep.kpp, ep.url AS profile_url, r.name AS region,
-       g.company_id AS gur_company_id, g.name AS gur_name, coalesce(g.sanctions_count, 0) AS sanctions_count,
+       ep.name, ep.source, coalesce(ep.inn, c.inn) AS inn, coalesce(ep.ogrn, c.ogrn) AS ogrn,
+       ep.inn AS profile_inn, ep.kpp, ep.url AS profile_url, r.name AS region,
+       gu.company_id AS gur_company_id, gu.name AS gur_name, coalesce(gu.sanctions_count, 0) AS sanctions_count,
+       eg.company_id, eg.is_branch, eg.method AS group_method,
+       coalesce(m.profiles, 1) AS profiles, coalesce(m.profile_ids, ARRAY[ep.employer_profile_id]) AS profile_ids,
        {", ".join(f"hr.{c} AS human_{c}" for c in HUMAN_REVIEW_FIELDS)}
-FROM employer_profile ep
-LEFT JOIN agg a ON a.id = ep.employer_profile_id
+FROM employer_group eg
+JOIN employer_profile ep ON ep.employer_profile_id = eg.group_id
+LEFT JOIN company c ON c.company_id = eg.company_id
+LEFT JOIN members m ON m.group_id = eg.group_id
+LEFT JOIN agg a ON a.id = eg.group_id
 LEFT JOIN region r ON r.region_id = a.region_id
-LEFT JOIN gur g ON g.inn = ep.inn
-LEFT JOIN hr ON hr.employer_id = ep.employer_profile_id
+LEFT JOIN gur gu ON gu.inn = coalesce(ep.inn, c.inn)
+LEFT JOIN hr ON hr.card_id = eg.group_id
+WHERE eg.is_head
 """
+
+# The card a profile belongs to (itself when it has no group row).
+CARD_OF = "coalesce((SELECT group_id FROM employer_group WHERE employer_profile_id = :id), :id)"

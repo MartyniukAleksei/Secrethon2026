@@ -41,7 +41,12 @@ export type ApiStats = {
   confirmed_vacancies: number
   /** ВПК vacancies on review (`likely`). */
   on_review_vacancies: number
+  /** Enterprise cards with ВПК vacancies, and the job-site profiles and legal entities behind them. */
   vpk_employers: number
+  vpk_profiles: number
+  vpk_legal_entities: number
+  /** ВПК vacancies with a monthly RUB salary (the median is over these). */
+  salary_samples: number
   regions: number
   median_salary: number | null
   gur_companies: number
@@ -96,6 +101,13 @@ export type ApiEmployer = {
   agency?: ApiEmployerAgency | null
   /** Logo from the company's GUR card. */
   logo_url?: string | null
+  /** One card per enterprise: job-site profiles merged into it; a branch card of its legal entity. */
+  profiles: number
+  is_branch: boolean
+  /** Focus tags of a ВПК company: [] = adjacent defence, null = not a ВПК company. */
+  focus: ApiFocus[] | null
+  /** A profile of the card has a questionable link to its legal entity. */
+  match_conflict: boolean
 }
 
 export type HumanSource = 'hh' | 'trudvsem' | 'superjob' | 'gur' | 'registry' | 'company_site' | 'media' | 'other'
@@ -183,6 +195,9 @@ export type ApiCompanyClassificationBrief = {
   /** Empty when a rule decided. */
   vpk_probability: number | null
   vpk_level: 'decided' | 'review'
+  /** Industry (filter «Галузь») and role (filter «Роль») of the company. */
+  direction_domain: string | null
+  direction_role: string | null
   direction_label: string | null
   direction_secondary: string | null
   /** Admiralty code: A1, B3, … */
@@ -208,6 +223,29 @@ export type ApiCompanyContact = {
 }
 
 export type ApiEmployerAgency = { category: string | null; level: string; score: number | null; raw_label: string }
+
+export type FocusKey = 'drone' | 'missile' | 'kab'
+/** Customer focus tag of a ВПК company with its strongest basis; `evidence` holds every basis found. */
+export type ApiFocus = {
+  focus: FocusKey
+  basis: string
+  score: number | null
+  evidence: {
+    gur_weapon?: { weapon: string }[]
+    gur_component?: { weapon: string }[]
+    gur_uav?: { model: string }[]
+    vacancies?: { vacancy_id: number; quote: string }[]
+  } | null
+}
+
+/** A job-site profile merged into the card, with its shown vacancies. */
+export type ApiCardSource = { employer_profile_id: number; source: string; name: string; url: string | null; vacancies: number }
+/** A questionable link of a profile to its legal entity. */
+export type ApiMatchConflict = {
+  employer_profile_id: number
+  kind: 'different_inn' | 'peer_other_region'
+  evidence: { inn?: string; other_inn?: string; profile?: string[]; other?: string[]; regions?: string[]; company_regions?: string[]; profile_regions?: string[] } | null
+}
 
 export type ApiProfession = {
   title: string
@@ -241,6 +279,11 @@ export type ApiEmployerDetail = ApiEmployer & {
   /** Recruitment-agency decision, only for a page without a legal entity. */
   agency: ApiEmployerAgency | null
   human_reviews: ApiEmployerReview[]
+  /** «Джерела вакансій»: the card's profiles on job sites. */
+  sources: ApiCardSource[]
+  /** A branch card: the card of its head office. */
+  parent_card_id: number | null
+  match_conflicts: ApiMatchConflict[]
 }
 
 export type ApiVacancy = {

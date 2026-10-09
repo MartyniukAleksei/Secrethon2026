@@ -35,7 +35,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     const { filters: f, companyId: id } = ctx.current
     const payload: AgentRequest = { message: q, history: history.current.slice(-12), context: {
       company_id: id, region_id: f.region === 'all' ? undefined : f.region,
-      category: f.category === 'all' ? undefined : f.category, days: f.period,
+      days: f.period,
     } }
     void sendAgentRequest(payload, controller.signal).then(response => {
       const turns: AgentRequest['history'] = [{ role: 'user', text: q }, {

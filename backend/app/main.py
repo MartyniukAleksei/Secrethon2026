@@ -12,10 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES
 
 from app.api import router
+from app.api.deps import Session
 from app.config import settings
 from app.db import engine
 from app.mcp_server import create_server
 from app.mcp_server import http_app as mcp_http_app
+from app.repository import employers
 from app.reviews import engine as review_engine
 
 # Built frontend (frontend/dist). In Docker it is copied to /app/static.
@@ -80,6 +82,23 @@ async def basic_auth(
     if _authorized(request.headers.get("authorization")):
         return await call_next(request)
     return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Secrethon"'})
+
+
+@app.get("/companies/{employer_id}", include_in_schema=False)
+@app.get("/companies/{employer_id}/{tab}", include_in_schema=False)
+async def company_page(employer_id: str, session: Session, tab: str | None = None) -> Response:
+    """One card per enterprise: a profile that is not the card's main one moves to the card."""
+    card_id = (
+        await employers.card_of(session, int(employer_id))
+        if employer_id.isdigit() and len(employer_id) < 19
+        else None
+    )
+    if card_id is not None and card_id != int(employer_id):
+        return RedirectResponse(f"/companies/{card_id}" + (f"/{tab}" if tab else ""), 301)
+    index = STATIC_DIR / "index.html"
+    if not index.is_file():
+        return Response(status_code=404)
+    return FileResponse(index)
 
 
 if STATIC_DIR.is_dir():

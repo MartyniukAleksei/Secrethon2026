@@ -141,7 +141,7 @@ export function answer(question: string, { data, filters, companyId }: Context):
   return {
     body: (
       <>
-        {filters.region !== 'all' || filters.category !== 'all' ? 'За вибраними фільтрами' : 'Загалом'} {fmt(scoped.length)}{' '}
+        {filters.region !== 'all' || filters.focus !== 'all' || filters.domain !== 'all' || filters.role !== 'all' ? 'За вибраними фільтрами' : 'Загалом'} {fmt(scoped.length)}{' '}
         {plural(scoped.length, 'роботодавець', 'роботодавці', 'роботодавців')} з вакансіями ВПК. Найбільше наймають:
         <ul>
           {top.map((e) => (

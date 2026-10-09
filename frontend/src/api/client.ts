@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiEmployer, FocusKey, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -32,6 +32,10 @@ export type VacancyQuery = {
   level?: 'vpk' | 'confirmed' | 'likely' | 'all'
   /** Only vacancies with explicit ВПК markers in the text. */
   markers?: boolean
+  /** The card's legal entity: focus tag (`other` = ВПК without one), industry and role. */
+  focus?: FocusKey | 'other'
+  domain?: string
+  role?: string
   employer_id?: number
   region_id?: number
   category?: string

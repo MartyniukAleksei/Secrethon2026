@@ -116,15 +116,18 @@ async def employer_reviews_ready(conn: AsyncSession | AsyncConnection) -> bool:
     return exists is not None
 
 
-async def list_employer_reviews(session: AsyncSession, employer_id: int) -> list[dict[str, Any]]:
+async def list_employer_reviews(
+    session: AsyncSession, profile_ids: list[int]
+) -> list[dict[str, Any]]:
+    """Reviews of a card: saved under any of its profiles (older reviews predate the cards)."""
     if not await employer_reviews_ready(session):
         return []
     result = await session.execute(
         text(f"""
             SELECT {EMPLOYER_REVIEW_COLUMNS} FROM web_reviews.employer_review
-            WHERE employer_id = :id ORDER BY review_id DESC
+            WHERE employer_id = ANY(:ids) ORDER BY review_id DESC
         """),
-        {"id": employer_id},
+        {"ids": profile_ids},
     )
     return [dict(row) for row in result.mappings()]
 

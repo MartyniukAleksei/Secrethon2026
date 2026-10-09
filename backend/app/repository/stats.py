@@ -26,11 +26,15 @@ async def overview(session: AsyncSession) -> Row:
                count(*) FILTER (WHERE {VPK}) AS vpk_vacancies,
                count(*) FILTER (WHERE {VPK} AND final_level = 'confirmed') AS confirmed_vacancies,
                count(*) FILTER (WHERE {VPK} AND final_level = 'likely') AS on_review_vacancies,
-               count(DISTINCT employer_profile_id) FILTER (WHERE {VPK}) AS vpk_employers,
+               count(DISTINCT card_id) FILTER (WHERE {VPK}) AS vpk_employers,
+               -- Job-site profiles → enterprise cards → legal entities behind ВПК vacancies.
+               count(DISTINCT employer_profile_id) FILTER (WHERE {VPK}) AS vpk_profiles,
+               count(DISTINCT company_id) FILTER (WHERE {VPK}) AS vpk_legal_entities,
+               count(monthly_salary) FILTER (WHERE {VPK}) AS salary_samples,
                count(DISTINCT region_id) FILTER (WHERE {VPK}) AS regions,
                percentile_cont(0.5) WITHIN GROUP (ORDER BY monthly_salary) FILTER (WHERE {VPK}) AS median_salary,
                -- Recruitment agencies hiring for the ВПК: their pages and vacancies, counted apart.
-               count(DISTINCT employer_profile_id) FILTER (WHERE {AGENCY}) AS agency_employers,
+               count(DISTINCT card_id) FILTER (WHERE {AGENCY}) AS agency_employers,
                count(*) FILTER (WHERE {AGENCY}) AS agency_vacancies
         FROM v
     """)
@@ -87,7 +91,7 @@ async def overview(session: AsyncSession) -> Row:
     totals["regions_list"] = await many(f"""
         WITH {CTE}
         SELECT r.region_id, r.name, count(v.vacancy_id) AS vpk_vacancies,
-               count(DISTINCT v.employer_profile_id) AS employers
+               count(DISTINCT v.card_id) AS employers
         FROM region r JOIN v ON v.region_id = r.region_id AND {VPK}
         GROUP BY r.region_id, r.name ORDER BY count(v.vacancy_id) DESC
     """)

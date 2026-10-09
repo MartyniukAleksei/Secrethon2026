@@ -152,3 +152,66 @@ INSERT INTO employer_classification (run_id, employer_profile_id, level, raw_lab
   (5, 2, 'confirmed', 'Агентство', 2, 'agency_vpk');
 
 UPDATE company SET logo_url = 'https://war-sanctions.gur.gov.ua/logo/kbp.png' WHERE company_id = 570;
+
+-- Final vacancy labels (run `vacancy_final`): the enterprise decides, not the vacancy text.
+-- Vacancy 9 reposts vacancy 1 and must not count; 5 and 6 are excluded.
+INSERT INTO classifier_run (run_id, classifier, version, started_at)
+VALUES (10, 'vacancy_final', 'test', '2026-10-09T00:00:00Z');
+INSERT INTO vacancy (vacancy_id, source, external_id, url, employer_profile_id, employer_name,
+                     title, region_id, locality, published_at, first_seen_at, last_seen_at)
+VALUES (9, 'hh', 'v9', 'https://hh.ru/vacancy/9', 1, 'АО "КБП"', 'Токарь', 64, 'Тула',
+        '2026-09-21T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z');
+INSERT INTO vacancy_duplicate (vacancy_id, canonical_id, method, score)
+VALUES (9, 1, 'cross_source', 1);
+
+-- One card per enterprise: КБП also has an hh profile (5) and a Moscow branch (6).
+INSERT INTO employer_profile (employer_profile_id, source, external_id, name, url, inn, first_seen_at, last_seen_at) VALUES
+  (5, 'hh', 'e5', 'КБП им. Шипунова', 'https://hh.ru/employer/5', NULL, '2026-10-05T00:00:00Z', '2026-10-05T00:00:00Z'),
+  (6, 'hh', 'e6', 'КБП, филиал в Москве', NULL, NULL, '2026-10-05T00:00:00Z', '2026-10-05T00:00:00Z');
+INSERT INTO vacancy (vacancy_id, source, external_id, url, employer_profile_id, employer_name,
+                     title, locality, published_at, first_seen_at, last_seen_at) VALUES
+  (10, 'hh', 'v10', 'https://hh.ru/vacancy/10', 5, 'КБП им. Шипунова', 'Бухгалтер', 'Тула',
+   '2026-10-04T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z'),
+  (11, 'hh', 'v11', 'https://hh.ru/vacancy/11', 6, 'КБП, филиал в Москве', 'Инженер-конструктор', 'Москва',
+   '2026-09-30T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z');
+INSERT INTO employer_group (employer_profile_id, group_id, company_id, is_head, is_branch, branch_key, method) VALUES
+  (1, 1, 570, true, false, NULL, 'company'),
+  (5, 1, 570, false, false, NULL, 'company'),
+  (6, 6, 570, true, true, '77', 'branch'),
+  (2, 2, 600, true, false, NULL, 'company'),
+  (3, 3, 522, true, false, NULL, 'company'),
+  (4, 4, NULL, true, false, NULL, 'single');
+INSERT INTO employer_company_match (employer_profile_id, company_id, status, method, confidence) VALUES
+  (5, 570, 'candidate', 'dadata_name', 0.9);
+
+INSERT INTO vacancy_classification (run_id, vacancy_id, level, raw_label, score, category) VALUES
+  (10, 1, 'confirmed', 'company_vpk', 1.0, 'vpk'),
+  (10, 2, 'confirmed', 'company_vpk', 1.0, 'vpk'),
+  (10, 3, 'likely', 'company_vpk_review', 0.62, 'vpk'),
+  (10, 4, 'likely', 'text_jev', 0.7, 'vpk'),
+  (10, 5, 'no', 'company_civil_sanctioned', 0.9, 'excluded'),
+  (10, 6, 'no', 'text_no_signal', NULL, 'excluded'),
+  (10, 8, 'confirmed', 'text_jev', 0.95, 'agency'),
+  (10, 9, 'confirmed', 'company_vpk', 1.0, 'vpk'),
+  (10, 10, 'confirmed', 'company_vpk', 1.0, 'vpk'),
+  (10, 11, 'confirmed', 'company_vpk', 1.0, 'vpk');
+INSERT INTO classification_evidence (run_id, vacancy_id, signal, origin, weight, snippet) VALUES
+  (10, 1, 'компания: vpk', 'company_classification', 1.0, 'АО "КБП": НДДКР'),
+  (10, 1, 'явные признаки ВПК в тексте', 'hidden_vpk', NULL, 'гостайна'),
+  (10, 4, 'JEV по тексту вакансии', 'jev', 0.7, 'vpk 0.70');
+
+-- Industry and role of the legal entities; focus tags of the ВПК ones (Алабуга has none: adjacent).
+UPDATE company_classification SET direction_domain = 'missiles_space', direction_role = 'manufacturer'
+WHERE run_id = 4 AND company_id = 570;
+UPDATE company_classification SET direction_domain = 'uav', direction_role = 'manufacturer'
+WHERE run_id = 4 AND company_id = 600;
+INSERT INTO classifier_run (run_id, classifier, version, started_at)
+VALUES (11, 'company_focus', 'test', '2026-10-09T00:00:00Z');
+INSERT INTO company_focus (run_id, company_id, focus, basis, score, evidence) VALUES
+  (11, 570, 'missile', 'gur_weapon', 1, '{"gur_weapon": [{"slug": "kornet", "weapon": "ПТРК «Корнет»"}]}'),
+  (11, 570, 'drone', 'vacancies', 0.6, '{"vacancies": [{"vacancy_id": 1, "quote": "сборка БпЛА"}]}');
+
+-- Алабуга's hh profile and the bakery: same name key, different INN; a person decides.
+INSERT INTO employer_match_conflict (employer_profile_id, company_id, other_profile_id, other_company_id, kind, name_key, evidence)
+VALUES (2, 600, 3, 522, 'different_inn', 'алабуга',
+        '{"inn": "1650000000", "other_inn": "7704721192", "profile": ["hh", "Алабуга. Менеджмент"], "other": ["hh", "Пекарня"], "regions": ["16"]}');

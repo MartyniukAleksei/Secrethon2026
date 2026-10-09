@@ -111,3 +111,8 @@ table.data.about-coop-table ul { margin: 0; padding-left: 16px; }
 @media (max-width: 540px) {
   .about-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+.card-sources { display: grid; gap: 8px; margin: 0; padding: 4px 12px 12px; list-style: none; font-size: 14px; }
+.card-sources li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.card-sources a { display: inline-flex; align-items: center; gap: 4px; }
+.card-sources .fact-detail { margin-left: auto; font-size: 12px; color: var(--label-2); }
+.card-sources svg { width: 13px; height: 13px; flex: none; }

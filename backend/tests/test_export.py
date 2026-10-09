@@ -32,8 +32,8 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
         "company_relations": 2,
         "company_products": 2,
         "company_sources": 0,
-        "employers": 3,
-        "vacancies": 6,  # shown and active; the bakery vacancy 6 and inactive 7 are left out
+        "employers": 4,  # cards: КБП, Алабуга, the КБП branch, the agency
+        "vacancies": 7,  # shown, active, unique: 1, 2, 3, 4, 8, 10, 11
     }
     vacancies = next(d for d in catalog["datasets"] if d["name"] == "vacancies")
     assert vacancies["urls"]["csv"] == "/api/export/vacancies.csv"
@@ -98,7 +98,7 @@ def test_vacancy_filters_match_the_list(client: TestClient) -> None:
         exported = client.get(f"/api/export/vacancies.json?{params}").json()["items"]
         assert len(exported) == listed, params
     rows = _csv(client, "/api/export/vacancies.csv?level=vpk&region_id=64")
-    assert {r["vacancy_id"] for r in rows} == {"1", "2", "3"}
+    assert {r["vacancy_id"] for r in rows} == {"1", "2", "3", "10"}
     assert rows[0]["salary_from"] == "70000.0"
 
 

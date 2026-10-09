@@ -64,14 +64,16 @@ async def add_review(
     employer_id: int, review: EmployerReviewIn, session: Session
 ) -> EmployerReviewOut:
     """Append a human review; the latest one overrides the card's automatic values."""
-    if await employers.get_employer(session, employer_id) is None:
+    # Saved under the card, whichever profile of the group the request names.
+    card_id = await employers.card_of(session, employer_id)
+    if card_id is None:
         raise HTTPException(status_code=404, detail="employer not found")
     try:
-        row = await reviews.save_employer_review(employer_id, review.model_dump())
+        row = await reviews.save_employer_review(card_id, review.model_dump())
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=503, detail="review storage unavailable; the review was not saved"
         ) from exc
-    cache.invalidate("employers", ("employer", employer_id))
+    cache.invalidate("employers", ("employer", employer_id), ("employer", card_id))
     snapshots.invalidate()
     return EmployerReviewOut.model_validate(row)

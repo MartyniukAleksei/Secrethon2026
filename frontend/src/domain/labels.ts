@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiRelation, ApiVacancy, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
+import type { ApiEmployer, ApiFocus, ApiRelation, ApiVacancy, FocusKey, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
 import { pct } from './format'
 import type { Category, Level } from './types'
 
@@ -101,16 +101,82 @@ export function shownVacancies(e: Pick<ApiEmployer, 'vpk_vacancies' | 'agency_va
 export const autoVpk = (e: ApiEmployer): HumanVpk => (e.confirmed_vacancies > 0 ? 'confirmed' : 'likely')
 export const effectiveCategory = (e: ApiEmployer) => e.human_review?.category ?? e.category
 export const effectiveVpk = (e: ApiEmployer): HumanVpk => e.human_review?.vpk ?? autoVpk(e)
+/**
+ * Sanctions jurisdictions of the legal entity: GUR's and those found in open sources besides,
+ * counted once. Without a company classification, the GUR card's count.
+ */
+export function sanctionsOf(e: Pick<ApiEmployer, 'classification' | 'sanctions_count'>) {
+  const gur = e.classification?.sanctions_gur ?? []
+  const extra = (e.classification?.sanctions_new ?? []).filter((c) => !gur.includes(c))
+  if (!e.classification) return { total: e.sanctions_count, gur: e.sanctions_count, extra: 0, codes: [] as string[] }
+  return { total: gur.length + extra.length, gur: gur.length, extra: extra.length, codes: [...gur, ...extra] }
+}
 export const isSanctioned = (e: ApiEmployer) =>
-  e.human_review?.sanctions
-    ? e.human_review.sanctions === 'sanctioned'
-    : e.sanctions_count > 0 || !!e.classification?.sanctions_gur?.length || !!e.classification?.sanctions_new?.length
+  e.human_review?.sanctions ? e.human_review.sanctions === 'sanctioned' : sanctionsOf(e).total > 0
 /** ВПК confirmed: human review, else a decided company classification, else confirmed vacancies. */
 export const isVpkConfirmed = (e: ApiEmployer) => {
   if (e.human_review?.vpk) return e.human_review.vpk === 'confirmed'
   if (e.classification) return e.classification.vpk_category === 'vpk' && e.classification.vpk_level === 'decided'
   if (e.agency?.category === 'agency_vpk') return false
   return autoVpk(e) === 'confirmed'
+}
+
+/** Customer focus categories; a ВПК company with none is «Суміжне». */
+export const FOCUS: Record<FocusKey | 'other', string> = { drone: 'БпЛА', missile: 'Ракети', kab: 'КАБ', other: 'Суміжне' }
+const FOCUS_BASIS: Record<string, string> = {
+  gur_weapon: 'кооперація з виробництва озброєння (ГУР)',
+  gur_uav: 'моделі БпЛА в базі ГУР',
+  gur_component: 'постачає компоненти (ГУР)',
+  jev_direction: 'напрям діяльності за оцінкою моделі',
+  vacancies: 'згадується у вакансіях',
+  jev_focus: 'за оцінкою моделі',
+}
+/** Why the company has the focus tag: its basis, with the weapons, models or quotes behind it. */
+export function focusTitle(f: ApiFocus): string {
+  const ev = f.evidence ?? {}
+  const names =
+    f.basis === 'gur_weapon' ? ev.gur_weapon?.map((w) => w.weapon)
+      : f.basis === 'gur_uav' ? ev.gur_uav?.map((m) => m.model)
+        : f.basis === 'gur_component' ? ev.gur_component?.map((w) => w.weapon)
+          : f.basis === 'vacancies' ? ev.vacancies?.map((q) => `«${q.quote}»`)
+            : undefined
+  const basis = FOCUS_BASIS[f.basis] ?? f.basis
+  const score = f.basis === 'jev_focus' && f.score != null ? `, p = ${f.score.toFixed(2)}` : ''
+  return [`${basis}${score}`, ...(names ?? []).slice(0, 5)].join('\n')
+}
+/** The card's focus: its tags, «Суміжне» for a ВПК company without one, nothing otherwise. */
+export const focusKeys = (e: Pick<ApiEmployer, 'focus'>): (FocusKey | 'other')[] =>
+  e.focus == null ? [] : e.focus.length ? e.focus.map((f) => f.focus) : ['other']
+
+/** Industry (`direction_domain`) and role (`direction_role`) of the legal entity. */
+export const DOMAINS: Record<string, string> = {
+  aviation: 'Авіабудування',
+  engines: 'Двигуни',
+  missiles_space: 'Ракетно-космічна техніка',
+  air_defense_radar: 'ППО і радіолокація',
+  electronics_comms: "Радіоелектроніка і зв'язок",
+  optics: 'Оптика',
+  armored_vehicles: 'Бронетехніка й артилерія',
+  ammo_chemicals: 'Боєприпаси і спецхімія',
+  shipbuilding: 'Суднобудування',
+  uav: 'БпЛА',
+  small_arms: 'Стрілецька зброя',
+  machining_materials: 'Верстати і матеріали',
+  rnd_institute: 'НДІ і КБ',
+  trade_logistics: 'Торгівля і логістика',
+  finance: 'Фінанси',
+  civil_other: 'Цивільна діяльність',
+}
+export const ROLES: Record<string, string> = {
+  manufacturer: 'Виробник',
+  component_supplier: 'Постачальник компонентів',
+  equipment_supplier: 'Постачальник обладнання',
+  rnd: 'НДДКР',
+  repair: 'Ремонт',
+  intermediary: 'Посередник',
+  finance: 'Фінанси',
+  management: 'Управління холдингом',
+  services: 'Послуги',
 }
 
 /** Experience as written by each job site → one wording. */

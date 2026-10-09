@@ -1,8 +1,8 @@
 import { useData } from '../data/DataContext'
-import { CATEGORIES } from '../domain/labels'
-import { PERIODS, useFilters, type Period } from '../state/FiltersContext'
+import { DOMAINS, FOCUS, ROLES } from '../domain/labels'
+import { PERIODS, useFilters, type Filters, type Period } from '../state/FiltersContext'
 
-/** Period, region and category filters. Shared state: the choice follows the user across pages. */
+/** Period, region, focus, industry and role filters. Shared state: the choice follows the user across pages. */
 export function FilterBar({ period = true }: { period?: boolean }) {
   const { regions } = useData()
   const filters = useFilters()
@@ -28,11 +28,29 @@ export function FilterBar({ period = true }: { period?: boolean }) {
         </select>
       </div>
       <div className="select">
-        <label className="sr" htmlFor="fCategory">Напрям</label>
-        <select className="input" id="fCategory" value={filters.category} onChange={(e) => filters.set({ category: e.target.value })}>
-          <option value="all">Усі напрями</option>
-          {CATEGORIES.map((c) => (
-            <option key={c.key} value={c.key}>{c.name}</option>
+        <label className="sr" htmlFor="fFocus">Фокус</label>
+        <select className="input" id="fFocus" value={filters.focus} onChange={(e) => filters.set({ focus: e.target.value as Filters['focus'] })}>
+          <option value="all">Фокус: усі</option>
+          {Object.entries(FOCUS).map(([k, name]) => (
+            <option key={k} value={k}>Фокус: {name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="select">
+        <label className="sr" htmlFor="fDomain">Галузь</label>
+        <select className="input" id="fDomain" value={filters.domain} onChange={(e) => filters.set({ domain: e.target.value })}>
+          <option value="all">Усі галузі</option>
+          {Object.entries(DOMAINS).map(([k, name]) => (
+            <option key={k} value={k}>{name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="select">
+        <label className="sr" htmlFor="fRole">Роль</label>
+        <select className="input" id="fRole" value={filters.role} onChange={(e) => filters.set({ role: e.target.value })}>
+          <option value="all">Усі ролі</option>
+          {Object.entries(ROLES).map(([k, name]) => (
+            <option key={k} value={k}>{name}</option>
           ))}
         </select>
       </div>
