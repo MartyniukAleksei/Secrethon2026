@@ -11,6 +11,7 @@ import { effectiveCategory, isSanctioned } from '../domain/labels'
 import { categoryKey, LEGEND, markerColor, markerIcon, SELECTED_COLOR } from './mapMarkers'
 import type { Employer } from '../domain/types'
 import { useToast } from '../features/toast/ToastContext'
+import { useFilters } from '../state/FiltersContext'
 import { Icon } from '../ui/Icon'
 import './MapSlot.css'
 
@@ -76,6 +77,7 @@ export function MapSlot({ employers, selectedId, children }: {
 }) {
   const { byId } = useData()
   const navigate = useNavigate()
+  const filters = useFilters()
   const [params] = useSearchParams()
   const initialLayers = params.get('layers')?.split(',') ?? []
   const say = useToast()
@@ -239,12 +241,12 @@ export function MapSlot({ employers, selectedId, children }: {
         map.setZoom(zoom)
       } else {
         const ids: number[] = event.target.data.userData
-        if (ids.length === 1) navigate(`/map?co=${ids[0]}`)
+        if (ids.length === 1) navigate(filters.href('/map', { co: String(ids[0]) }))
         else setPlaceList(ids)
       }
     })
     return () => clusterer.destroy()
-  }, [engine, points, showMarkers, byId, navigate, theme])
+  }, [engine, points, showMarkers, byId, navigate, theme, filters])
 
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(document.documentElement.className))
@@ -313,9 +315,9 @@ export function MapSlot({ employers, selectedId, children }: {
       coordinates: [p.lng, p.lat], icon: markerIcon(SELECTED_COLOR),
       size: [40, 50], anchor: [20, 50], zIndex: 10,
     }))
-    markers.forEach((marker) => marker.on('click', () => navigate(`/map?co=${selectedId}`)))
+    markers.forEach((marker) => marker.on('click', () => navigate(filters.href('/map', { co: String(selectedId) }))))
     return () => markers.forEach((marker) => marker.destroy())
-  }, [engine, selectedId, points, showMarkers, navigate])
+  }, [engine, selectedId, points, showMarkers, navigate, filters])
 
   useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === root.current)
@@ -333,7 +335,7 @@ export function MapSlot({ employers, selectedId, children }: {
   // Without 2GIS (no key, an error or no answer in 15 s) the same places go on OpenStreetMap.
   const fallback = !API_KEY || !!error
   const colorOf = useCallback((id: number) => markerColor(byId[id] ? effectiveCategory(byId[id]) : null), [byId])
-  const select = useCallback((id: number) => navigate(`/map?co=${id}`), [navigate])
+  const select = useCallback((id: number) => navigate(filters.href('/map', { co: String(id) })), [navigate, filters])
   const status = fallback ? '' : !engine ? 'Завантаження карти 2ГІС…' : ''
   const selectedMissing = selectedId !== undefined && !points.some((p) => p.employer_id === selectedId)
   return (
@@ -473,7 +475,7 @@ export function MapSlot({ employers, selectedId, children }: {
           <div className="map-link-head"><strong>В одній точці: {placeList.length}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити" onClick={() => setPlaceList(null)}><Icon name="x" /></button></div>
           <div className="map-place-list">
             {placeList.map((id) => byId[id] && (
-              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(`/map?co=${id}`) }}>
+              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(filters.href('/map', { co: String(id) })) }}>
                 <img className="map-legend-pin" src={markerIcon(markerColor(effectiveCategory(byId[id])))} alt="" />
                 <span>{byId[id].name}</span>
               </button>

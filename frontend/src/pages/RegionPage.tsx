@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router'
+import { usePageTitle } from '../app/pageContext'
 import { AskButton } from '../components/AskButton'
 import { MapSlot } from '../components/MapSlot'
 import { EmployerRow } from '../components/rows'
@@ -13,6 +14,7 @@ export function RegionPage() {
   const { id = '' } = useParams()
   const { regionById, employers } = useData()
   const region = regionById[Number(id)]
+  usePageTitle(region ? `${region.name}, Регіон` : null)
   if (!region) return <NotFoundPage />
 
   const list = employers.filter((e) => e.region_id === region.region_id)

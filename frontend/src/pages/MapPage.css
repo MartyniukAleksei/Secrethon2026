@@ -3,15 +3,19 @@
 .map-list .scroll { overflow-y: auto; min-height: 0; display: grid; gap: 4px; align-content: start; grid-auto-rows: max-content; }
 .map-list-empty { padding: 16px 10px; color: var(--label-2); font-size: 14px; }
 
-.map-pop { position: absolute; right: 12px; top: 60px; width: 350px; max-height: calc(100% - 132px); overflow-y: auto; z-index: 4; background: var(--surface-raised); border: 1px solid var(--stroke); border-radius: var(--r-card); box-shadow: var(--shadow-float); padding: 12px 14px 14px; }
+.map-pop { position: absolute; right: 12px; top: 60px; width: 350px; max-height: calc(100% - 132px); overflow-y: auto; z-index: 4; background: var(--surface-raised); border: 1px solid var(--stroke); border-radius: var(--r-card); box-shadow: var(--shadow-float); padding: 12px 14px 0; }
 .map-pop h4 { font-size: 17px; font-weight: 600; line-height: 22px; margin-top: 8px; }
 .map-pop h5 { font-size: 13px; font-weight: 600; color: var(--label-2); margin: 14px 0 6px; }
-.map-pop-actions { display: flex; gap: 8px; margin: 12px -14px -14px; padding: 10px 14px 14px; position: sticky; bottom: 0; background: var(--surface-raised); border-top: 1px solid var(--stroke); }
+.map-pop-actions { display: flex; gap: 8px; margin: 12px -14px 0; padding: 10px 14px 14px; position: sticky; bottom: 0; background: var(--surface-raised); border-top: 1px solid var(--stroke); }
 .map-pop-actions .btn-primary { flex: 1; }
+.map-pop-note { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--warning-soft); color: var(--warning); font-size: 12.5px; line-height: 18px; }
+.map-pop-reset { all: unset; cursor: pointer; text-decoration: underline; font-weight: 600; }
+.map-pop-reset:focus-visible { outline: 2px solid var(--ring); border-radius: 4px; }
 
 @media (max-width: 900px) {
   .map-page { grid-template-columns: minmax(0, 1fr); height: auto; }
   .map-list .scroll { max-height: 260px; }
-  .map-page .map-slot { min-height: 480px; }
-  .map-pop { left: 10px; right: 10px; width: auto; top: auto; bottom: 64px; max-height: 60%; }
+  .map-page .map-slot { min-height: 620px; }
+  /* A bottom sheet low enough to leave the layer, legend and focus panels above it. */
+  .map-pop { left: 10px; right: 10px; width: auto; top: auto; bottom: 64px; max-height: 36%; }
 }

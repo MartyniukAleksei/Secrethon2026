@@ -29,12 +29,13 @@ export function AgentPanel() {
   if (!isOpen) return null
 
   const company = page.companyId ? byId[page.companyId] : undefined
+  const names = (values: string[], of: (v: string) => string | undefined) => values.map((v) => of(v) ?? v).join(' / ')
   const scope = [
-    filters.focus !== 'all' ? `Фокус: ${FOCUS[filters.focus]}` : '',
-    filters.domain !== 'all' ? DOMAINS[filters.domain] : '',
-    filters.role !== 'all' ? ROLES[filters.role] : '',
-    filters.region !== 'all' ? regionById[filters.region]?.name : '',
-    filters.periodName,
+    filters.focus.length ? `Фокус: ${names(filters.focus, (v) => FOCUS[v as keyof typeof FOCUS])}` : '',
+    names(filters.domain, (v) => DOMAINS[v]),
+    names(filters.role, (v) => ROLES[v]),
+    names(filters.region, (v) => (v === 'none' ? 'без регіону' : regionById[Number(v)]?.name)),
+    filters.days ? `за ${filters.days} днів` : '',
   ]
     .filter(Boolean)
     .join(', ')

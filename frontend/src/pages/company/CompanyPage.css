@@ -41,7 +41,7 @@
 .ask-q:focus-visible { outline: 2px solid var(--ring); }
 
 .prose-block { padding: 6px 10px 10px; font-size: 15px; line-height: 23px; color: var(--label-1); max-width: 72ch; font-weight: 450; }
-.prof-overview, .prof-analytics, .prof-relations { display: grid; gap: 12px; min-width: 0; }
+.prof-overview, .prof-analytics, .prof-relations { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
 .activity-tags { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 10px 12px; margin: 0; }
 .activity-tags .badge { height: auto; min-height: 30px; padding: 6px 12px; white-space: normal; overflow-wrap: anywhere; line-height: 18px; font-size: 13px; font-weight: 500; }
 .analytics-note { padding: 10px; font-size: 12.5px; line-height: 19px; color: var(--label-2); }
@@ -83,7 +83,7 @@
 .facts .fact-detail .fact-source { margin-left: 0; }
 
 /* «Про підприємство»: GUR description split into fields (GurAbout.tsx). */
-.gur-about { padding: 4px 10px 10px; display: grid; gap: 14px; min-width: 0; }
+.gur-about { padding: 4px 10px 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .about-list { display: grid; gap: 12px; margin: 0; }
 .about-row { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; align-items: baseline; }
 .about-row dt { font-size: 13px; font-weight: 600; color: var(--label-2); }

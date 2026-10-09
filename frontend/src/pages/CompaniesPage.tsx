@@ -65,7 +65,12 @@ const RANGES: Range[] = [
   { key: 'vac', title: 'Вакансій ВПК', of: (e) => shownVacancies(e).value },
   { key: 'new', title: 'Нових за 30 днів', of: (e) => e.new_30d },
   { key: 'sal', title: 'Медіана зарплати', of: (e) => e.median_salary, unit: '₽' },
-  { key: 'sanc', title: 'Санкцій (юрисдикцій)', of: (e) => sanctionsOf(e).total },
+  // A human review wins, as in the «Санкції» filter and the badge.
+  { key: 'sanc', title: 'Санкцій (юрисдикцій)', of: (e) => {
+    const total = sanctionsOf(e).total
+    if (e.human_review?.sanctions === 'not_sanctioned') return 0
+    return e.human_review?.sanctions === 'sanctioned' ? Math.max(total, 1) : total
+  } },
 ]
 
 export function CompaniesPage() {

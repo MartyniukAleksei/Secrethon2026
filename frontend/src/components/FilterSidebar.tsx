@@ -139,6 +139,7 @@ export function RangeGroup({ title, from, to, onChange, unit, defaultOpen = true
         </label>
         {unit && <span className="fs-unit">{unit}</span>}
       </div>
+      {from != null && to != null && from > to && <p className="fs-warn" role="alert">«Від» більше за «до»: нічого не знайдеться.</p>}
     </Group>
   )
 }

@@ -7,6 +7,7 @@ import { AskButton } from '../components/AskButton'
 import { ReviewBadge, VacancyReviews } from '../components/VacancyReviews'
 import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
+import { usePageTitle } from '../app/pageContext'
 import { longDate, salaryRange } from '../domain/format'
 import { experienceName, FINAL_BASIS, sourceName } from '../domain/labels'
 import type { VacancyDetail } from '../domain/types'
@@ -39,6 +40,7 @@ export function VacancyPage() {
 
 function VacancyProfile({ vacancy: v }: { vacancy: VacancyDetail }) {
   const [reviews, setReviews] = useState(v.reviews ?? [])
+  usePageTitle(`${v.title}, Вакансія`)
   const { byId, asOf } = useData()
   const employer = v.employer_id != null ? byId[v.employer_id] : undefined
   const seen = new Set<string>()

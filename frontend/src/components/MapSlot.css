@@ -59,8 +59,9 @@
 .map-link-direction { display: block; margin: 4px 0; color: var(--label-2); }
 .map-link-pop .map-link-source { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; }
 @media (max-width: 600px) {
+  .map-tl { max-height: calc(100% - 320px); }
   .map-layers-body { max-height: 260px; }
-  .map-link-pop { top: auto; bottom: 64px; max-height: 55%; }
+  .map-link-pop { top: auto; bottom: 64px; max-height: 36%; }
   .map-info { font-size: 11px; bottom: 68px; }
 }
 /* OpenStreetMap fallback: keep Leaflet's panes under the slot's own controls and panels. */

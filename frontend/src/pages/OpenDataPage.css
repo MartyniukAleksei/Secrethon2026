@@ -1,4 +1,4 @@
-.opendata { max-width: 980px; display: grid; gap: 12px; }
+.opendata { max-width: 980px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .opendata section { padding: 18px 22px; }
 .opendata h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
 .opendata p, .opendata li { font-size: 15px; line-height: 23px; color: var(--label-1); font-weight: 450; }
@@ -8,6 +8,7 @@
 .opendata-title { font-size: 20px; font-weight: 600; margin-top: 12px; }
 
 .opendata-snapshot, .opendata-card-head { display: flex; gap: 18px; align-items: flex-start; justify-content: space-between; }
+.opendata-snapshot > *, .opendata-card-head > * { min-width: 0; overflow-wrap: anywhere; }
 .opendata-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
 .opendata-actions .btn { text-decoration: none; }
 .opendata-meta { margin-top: 4px; color: var(--label-2) !important; font-size: 14px !important; }

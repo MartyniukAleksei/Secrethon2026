@@ -34,8 +34,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     pending.current = controller
     const { filters: f, companyId: id } = ctx.current
     const payload: AgentRequest = { message: q, history: history.current.slice(-12), context: {
-      company_id: id, region_id: f.region === 'all' ? undefined : f.region,
-      days: f.period,
+      // The agent takes one region; several or «none» leave the question country-wide.
+      company_id: id, region_id: f.region.length === 1 && f.region[0] !== 'none' ? Number(f.region[0]) : undefined,
+      days: f.days,
     } }
     void sendAgentRequest(payload, controller.signal).then(response => {
       const turns: AgentRequest['history'] = [{ role: 'user', text: q }, {

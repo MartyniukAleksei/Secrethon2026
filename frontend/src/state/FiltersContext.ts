@@ -1,33 +1,36 @@
 import { createContext, useContext } from 'react'
-import type { FocusKey } from '../api/types'
 import type { Employer } from '../domain/types'
 
-export type Period = 7 | 30 | 90 | 365 | 0
-
-export const PERIODS: { value: Period; label: string; name: string }[] = [
-  { value: 7, label: '7 днів', name: 'за 7 днів' },
-  { value: 30, label: '30 днів', name: 'за 30 днів' },
-  { value: 90, label: '90 днів', name: 'за 90 днів' },
-  { value: 365, label: 'Рік', name: 'за рік' },
-  { value: 0, label: 'Весь час', name: 'за весь час' },
-]
+/**
+ * Filters shared by the map, the companies and the vacancies: kept in the URL under the same
+ * parameter names on every page, carried by the top navigation and read by the agent.
+ * Each is a list of values (`region=64,77`); empty means any.
+ */
+export const SHARED_FILTERS = ['region', 'focus', 'domain', 'role', 'days'] as const
+export type SharedFilter = (typeof SHARED_FILTERS)[number]
 
 export type Filters = {
-  /** Published within N days of the data snapshot; 0 = any time. Applies to vacancies. */
-  period: Period
-  region: number | 'all'
-  /** Customer focus of the legal entity: БпЛА, Ракети, КАБ or «Суміжне» (ВПК without a tag). */
-  focus: FocusKey | 'other' | 'all'
+  /** Region ids as strings; `none` = no region. */
+  region: string[]
+  /** Customer focus of the legal entity: drone, missile, kab or `other` (ВПК without a tag). */
+  focus: string[]
   /** Industry (`direction_domain`) and role (`direction_role`) of the legal entity. */
-  domain: string | 'all'
-  role: string | 'all'
+  domain: string[]
+  role: string[]
+  /** Published within N days of the data snapshot; 0 = any time. Applies to vacancies. */
+  days: number
 }
 
 export type FiltersState = Filters & {
   set: (patch: Partial<Filters>) => void
   /** Employer matches the region, focus, industry and role filters. */
   matches: (e: Employer) => boolean
-  periodName: string
+  /** Any of the region, focus, industry or role filters is on. */
+  active: boolean
+  /** The shared filters as a query string, for links to the other sections. */
+  search: string
+  /** A link that keeps the shared filters, e.g. `href('/map', { co: '5' })`. */
+  href: (path: string, extra?: Record<string, string>) => string
 }
 
 export const FiltersContext = createContext<FiltersState | null>(null)

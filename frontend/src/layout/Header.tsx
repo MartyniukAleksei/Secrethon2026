@@ -3,8 +3,11 @@ import type { Section } from '../app/pageContext'
 import { useAgent } from '../features/agent/AgentContext'
 import { useOpenPalette } from '../features/palette/PaletteContext'
 import { useTheme } from '../hooks/useTheme'
+import { useFilters } from '../state/FiltersContext'
 import { Icon } from '../ui/Icon'
 
+// Sections whose links carry the shared filters (region, focus, industry, role, period).
+const FILTERED = new Set<Section>(['companies', 'vacancies', 'map'])
 const NAV: { section: Section; to: string; label: string }[] = [
   { section: 'overview', to: '/', label: 'Огляд' },
   { section: 'companies', to: '/companies', label: 'Підприємства' },
@@ -18,6 +21,7 @@ export function Header({ section }: { section: Section }) {
   const openPalette = useOpenPalette()
   const agent = useAgent()
   const [dark, toggleTheme] = useTheme()
+  const filters = useFilters()
 
   return (
     <header className="header">
@@ -27,7 +31,7 @@ export function Header({ section }: { section: Section }) {
       </Link>
       <nav className="nav" aria-label="Розділи">
         {NAV.map((n) => (
-          <Link key={n.to} className="nav-link" to={n.to} aria-current={n.section === section ? 'page' : undefined}>
+          <Link key={n.to} className="nav-link" to={FILTERED.has(n.section) ? n.to + filters.search : n.to} aria-current={n.section === section ? 'page' : undefined}>
             {n.label}
           </Link>
         ))}

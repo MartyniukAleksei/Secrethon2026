@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, exportUrl, type VacancyQuery } from '../api/client'
 import type { ApiVacancyFacets } from '../api/types'
@@ -35,7 +35,8 @@ const DAYS = [
 ]
 
 type FacetKey = keyof ApiVacancyFacets
-// URL parameter → facet of the API; the parameter names are the API's own.
+// The region is `region` in the URL, the name the map and the companies use too.
+const param = (key: FacetKey) => (key === 'region_id' ? 'region' : key)
 const FACETS: { key: FacetKey; title: string; section: 'who' | 'where' | 'job'; searchable?: boolean }[] = [
   { key: 'focus', title: 'Фокус підприємства', section: 'who' },
   { key: 'domain', title: 'Галузь', section: 'who', searchable: true },
@@ -60,7 +61,7 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
   const days = params.get('days') ?? '0'
   const salaryMin = num('salary_min')
   const salaryMax = num('salary_max')
-  const lists = Object.fromEntries(FACETS.map((f) => [f.key, list(f.key)])) as Record<FacetKey, string[]>
+  const lists = Object.fromEntries(FACETS.map((f) => [f.key, list(param(f.key))])) as Record<FacetKey, string[]>
   const joined = (key: FacetKey) => lists[key].join(',') || undefined
 
   // Shared by both tabs: everything but the search, the profession and the sort.
@@ -122,20 +123,20 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
         options={opts}
         selected={selected}
         searchable={f.searchable}
-        onChange={(values) => setList(f.key, values.flatMap((v) => v.split('|')))}
+        onChange={(values) => setList(param(f.key), values.flatMap((v) => v.split('|')))}
       />
     )
   }
 
   const reset = () => update({
     scope: null, level: null, markers: null, with_salary: null, salary_min: null, salary_max: null, days: null, q: null, prof: null,
-    ...Object.fromEntries(FACETS.map((f) => [f.key, null])),
+    ...Object.fromEntries(FACETS.map((f) => [param(f.key), null])),
   })
   const chips: ActiveChip[] = [
     ...(scope !== 'vpk' ? [{ key: 'scope', label: SCOPES.find((s) => s.value === scope)?.label ?? scope, onRemove: () => update({ scope: null }) }] : []),
     ...(level !== 'vpk' ? [{ key: 'level', label: LEVELS.find((l) => l.value === level)?.label ?? level, onRemove: () => update({ level: null }) }] : []),
     ...FACETS.flatMap((f) => lists[f.key].map((raw) => ({
-      key: `${f.key}:${raw}`, label: raw === 'none' ? `${f.title}: не вказано` : label(f.key, raw), onRemove: () => setList(f.key, lists[f.key].filter((x) => x !== raw)),
+      key: `${f.key}:${raw}`, label: raw === 'none' ? `${f.title}: не вказано` : label(f.key, raw), onRemove: () => setList(param(f.key), lists[f.key].filter((x) => x !== raw)),
     }))),
     ...(markers ? [{ key: 'markers', label: 'Явні ознаки ВПК', onRemove: () => update({ markers: null }) }] : []),
     ...(withSalary ? [{ key: 'with_salary', label: 'Із зарплатою', onRemove: () => update({ with_salary: null }) }] : []),
@@ -221,6 +222,12 @@ function Listings({ base, params, update, chips }: { base: VacancyQuery; params:
   const selection = { ...base, q: q || undefined, title }
   const exportOptions = (['csv', 'json'] as const).map((f) => ({ label: f.toUpperCase(), href: exportUrl('vacancies', f, selection) }))
   const goPage = (p: number) => update({ page: p ? String(p) : null }, true)
+  // A page past the end (narrowed filters, an old link) goes to the last one instead of an empty table.
+  const pastEnd = data != null && state.status === 'ready' && page > 0 && page >= pages
+  useEffect(() => {
+    if (pastEnd) update({ page: pages > 1 ? String(pages - 1) : null }, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pastEnd, pages])
 
   return (
     <>

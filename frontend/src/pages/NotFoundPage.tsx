@@ -1,6 +1,8 @@
 import { Link } from 'react-router'
+import { usePageTitle } from '../app/pageContext'
 
 export function NotFoundPage() {
+  usePageTitle('Сторінку не знайдено')
   return (
     <div className="empty" style={{ marginTop: 40 }}>
       <h4>Сторінку не знайдено</h4>

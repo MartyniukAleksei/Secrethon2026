@@ -1,3 +1,4 @@
+import { createContext, useContext, useEffect } from 'react'
 import { matchPath, useLocation } from 'react-router'
 
 export type PageContext = { label: string; section: Section; companyId?: number }
@@ -20,5 +21,18 @@ export function usePageContext(): PageContext {
   if (matchPath('/regions/:id', pathname)) return { label: 'Регіон', section: 'map' }
   if (pathname === '/methodology') return { label: 'Про дані', section: 'methodology' }
   if (pathname === '/open-data') return { label: 'Відкриті дані', section: 'opendata' }
-  return { label: 'Огляд', section: '' }
+  return { label: 'Сторінку не знайдено', section: '' }
+}
+
+/** Lets a page name the browser tab after what it shows (a vacancy, a region, «not found»). */
+export const PageTitleContext = createContext<(title: string | null) => void>(() => {})
+
+/** Sets the tab title while the page is shown; `null` leaves the default. */
+export function usePageTitle(title: string | null | undefined) {
+  const set = useContext(PageTitleContext)
+  useEffect(() => {
+    if (title == null) return
+    set(title)
+    return () => set(null)
+  }, [title, set])
 }

@@ -1,4 +1,4 @@
-.method { max-width: 780px; display: grid; gap: 12px; }
+.method { max-width: 780px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .method section { padding: 18px 22px; }
 .method h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
 .method p, .method li { font-size: 15px; line-height: 23px; color: var(--label-1); font-weight: 450; }

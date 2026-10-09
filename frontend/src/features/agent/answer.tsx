@@ -81,7 +81,7 @@ export function answer(question: string, { data, filters, companyId }: Context):
       body: (
         <>
           Медіана зарплати у вакансіях ВПК: {money(data.stats.median_salary)}. Найвища серед роботодавців із 10+ вакансіями
-          {filters.region !== 'all' ? ' у вибраному регіоні' : ''}:
+          {filters.region.length ? ' у вибраному регіоні' : ''}:
           <ul>
             {top.map((e) => (
               <li key={e.id}>
@@ -141,7 +141,7 @@ export function answer(question: string, { data, filters, companyId }: Context):
   return {
     body: (
       <>
-        {filters.region !== 'all' || filters.focus !== 'all' || filters.domain !== 'all' || filters.role !== 'all' ? 'За вибраними фільтрами' : 'Загалом'} {fmt(scoped.length)}{' '}
+        {filters.active ? 'За вибраними фільтрами' : 'Загалом'} {fmt(scoped.length)}{' '}
         {plural(scoped.length, 'роботодавець', 'роботодавці', 'роботодавців')} з вакансіями ВПК. Найбільше наймають:
         <ul>
           {top.map((e) => (

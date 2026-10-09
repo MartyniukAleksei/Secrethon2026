@@ -8,6 +8,7 @@ import { useData } from '../data/DataContext'
 import { fmt, money, plural } from '../domain/format'
 import { shownVacancies } from '../domain/labels'
 import { useFilters } from '../state/FiltersContext'
+import type { Employer } from '../domain/types'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { Icon } from '../ui/Icon'
 import './MapPage.css'
@@ -16,7 +17,7 @@ import { matcher } from '../domain/search'
 const LIST_LIMIT = 300
 
 export function MapPage() {
-  const { employers } = useData()
+  const { employers, byId } = useData()
   const filters = useFilters()
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
@@ -24,7 +25,10 @@ export function MapPage() {
     const m = matcher(search)
     return employers.filter((e) => filters.matches(e) && m(e.name, e.gur_name, e.locality, e.region, e.inn))
   }, [employers, filters, search])
-  const sel = list.find((e) => e.id === Number(params.get('co')))
+  // The selected employer opens even if the map filters leave it out (a link from its profile).
+  const sel = byId[Number(params.get('co'))] as Employer | undefined
+  const outside = sel != null && !list.includes(sel)
+  const onMap = outside ? [sel, ...list] : list
 
   return (
     <>
@@ -33,7 +37,7 @@ export function MapPage() {
           <h1>Карта</h1>
           <p>Місця найму, постачання та холдинги. Увімкни потрібні шари на карті або обери роботодавця.</p>
         </div>
-        <FilterBar period={false} />
+        <FilterBar />
       </div>
       <div className="map-page">
         <aside className="panel map-list">
@@ -51,19 +55,25 @@ export function MapPage() {
           <div className="scroll">
             {!list.length && <p className="map-list-empty">За обраними фільтрами роботодавців не знайдено.</p>}
             {list.slice(0, LIST_LIMIT).map((e) => (
-              <EmployerRow key={e.id} employer={e} to={`/map?co=${e.id}`} current={e.id === sel?.id} />
+              <EmployerRow key={e.id} employer={e} to={filters.href('/map', { co: String(e.id) })} current={e.id === sel?.id} />
             ))}
           </div>
         </aside>
         <div className="panel" style={{ display: 'flex' }}>
-          <MapSlot employers={list} selectedId={sel?.id}>
+          <MapSlot employers={onMap} selectedId={sel?.id}>
             {sel && (
               <div className="map-pop" role="dialog" aria-label={sel.name}>
                 <div className="pop-top">
-                  <Link className="btn btn-secondary btn-icon btn-sm" to="/map" aria-label="Закрити"><Icon name="x" /></Link>
+                  <Link className="btn btn-secondary btn-icon btn-sm" to={filters.href('/map')} aria-label="Закрити"><Icon name="x" /></Link>
                 </div>
                 <h4>{sel.name}</h4>
                 <p className="place"><Icon name="pin" />{[sel.locality, sel.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>
+                {outside && (
+                  <p className="map-pop-note">
+                    Не відповідає фільтрам карти чи пошуку.{' '}
+                    <button type="button" className="map-pop-reset" onClick={() => { filters.set({ region: [], focus: [], domain: [], role: [] }); setSearch('') }}>Скинути фільтри</button>
+                  </p>
+                )}
                 <dl className="stats" style={{ marginTop: 12 }}>
                   <div><dt>{shownVacancies(sel).label}</dt><dd>{fmt(shownVacancies(sel).value)}</dd></div>
                   <div><dt>Медіана</dt><dd>{money(sel.median_salary)}</dd></div>

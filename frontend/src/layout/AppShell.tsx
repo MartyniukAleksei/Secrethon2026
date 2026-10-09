@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router'
-import { usePageContext } from '../app/pageContext'
+import { PageTitleContext, usePageContext } from '../app/pageContext'
 import { useData } from '../data/DataContext'
 import { useAgent } from '../features/agent/AgentContext'
 import { AgentPanel } from '../features/agent/AgentPanel'
@@ -32,9 +32,10 @@ export function AppShell() {
   }, [pathname])
 
   const company = page.companyId ? byId[page.companyId] : undefined
+  const [pageTitle, setPageTitle] = useState<string | null>(null)
   useEffect(() => {
-    document.title = `${company ? `${company.name}, ` : ''}${page.label} | StayHard`
-  }, [company, page.label])
+    document.title = `${pageTitle ?? `${company ? `${company.name}, ` : ''}${page.label}`} | StayHard`
+  }, [company, page.label, pageTitle])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,7 +61,7 @@ export function AppShell() {
         <div className="main" ref={main}>
           <Header section={page.section} />
           <div className="page">
-            <Outlet />
+            <PageTitleContext.Provider value={setPageTitle}><Outlet /></PageTitleContext.Provider>
           </div>
         </div>
         <AgentPanel />
