@@ -31,7 +31,7 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
     assert counts == {
         "companies": 2,
         "company_sanctions": 2,
-        "company_relations": 1,  # КБП → ВК: one end in the set
+        "company_relations": 2,  # КБП → ВК and the КБП filial → КБП: one end in the set
         "company_products": 1,
         "company_sources": 0,
         "employers": 4,  # cards: КБП, Алабуга, the КБП branch, the agency
@@ -54,11 +54,11 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
         # every ВПК legal entity; Алабуга's excluded vacancy 5 is in, the bakery is not
         ("coverage=vpk", {"companies": 2, "employers": 4, "vacancies": 8, "company_products": 1}),
         # the whole database: the foreign company and the supplier too, every active vacancy
-        ("coverage=all", {"companies": 4, "employers": 5, "vacancies": 9, "company_products": 2}),
+        ("coverage=all", {"companies": 5, "employers": 5, "vacancies": 9, "company_products": 2}),
         # with duplicates: the duplicate company row and the cross-site copy of vacancy 1
         (
             "coverage=all&dedup=false",
-            {"companies": 5, "employers": 5, "vacancies": 10, "company_products": 2},
+            {"companies": 6, "employers": 5, "vacancies": 10, "company_products": 2},
         ),
         ("dedup=false", {"companies": 3, "employers": 4, "vacancies": 8, "company_products": 1}),
     ],
