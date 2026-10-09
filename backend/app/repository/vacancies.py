@@ -38,6 +38,10 @@ def many(value: Any) -> tuple[Any, ...]:
 class VacancyFilter:
     level: LevelFilter = "vpk"
     employer_id: int | None = None
+    # Agent map scopes: server-resolved card ids; an empty sequence matches nothing.
+    employer_ids: Sequence[int] | None = None
+    # West, south, east, north; west > east denotes crossing the antimeridian.
+    bounds: tuple[float, float, float, float] | None = None
     # Each of the faceted fields takes one value or several (any of them matches).
     region_id: int | Sequence[int] | None = None
     category: Many = None
@@ -79,6 +83,20 @@ class VacancyFilter:
         if self.employer_id is not None:
             clauses.append("v.card_id = :employer_id")
             params["employer_id"] = self.employer_id
+        if self.employer_ids is not None:
+            clauses.append("v.card_id = ANY(:scope_ids)")
+            params["scope_ids"] = list(self.employer_ids)
+        if self.bounds is not None:
+            west, south, east, north = self.bounds
+            clauses.append("v.lat BETWEEN -85 AND 85 AND v.lng BETWEEN -180 AND 180")
+            clauses.append("v.lat BETWEEN :south AND :north")
+            longitude = (
+                "v.lng BETWEEN :west AND :east"
+                if west <= east
+                else "(v.lng >= :west OR v.lng <= :east)"
+            )
+            clauses.append(longitude)
+            params.update(west=west, south=south, east=east, north=north)
         if focus := many(self.focus):
             tagged = [f for f in focus if f != "other"]
             options = []

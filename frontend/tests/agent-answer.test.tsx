@@ -32,6 +32,26 @@ test('source anchors are unique across answers in the same conversation', () => 
   assert.equal(new Set(ids).size, ids.length)
 })
 
+test('origin sections retain Markdown, companion tables and final numbered evidence', () => {
+  const html = render({ ...base,
+    sections: [
+      { kind: 'database', text: '**4 вакансії** [s1].', source_ids: ['s1'] },
+      { kind: 'public_web', text: 'Матеріал [s8].', source_ids: ['s8'] },
+      { kind: 'analysis', text: '## Обмеження\n\nВисновок із даних.', source_ids: [] },
+    ],
+    sources: [{ ...sources[0], origin: 'database' }, { ...sources[1], origin: 'public_web', excerpt: 'Підтверджувальний фрагмент' }],
+    artifacts: [{ ...artifact, companion_id: 'a2' }, { ...artifact, id: 'a2', kind: 'table', companion_id: 'a1' }],
+  })
+  assert.match(html, /ag-origin-database/)
+  assert.match(html, /ag-origin-public_web/)
+  assert.match(html, /ag-origin-analysis/)
+  assert.match(html, /<strong>4 вакансії<\/strong>/)
+  assert.match(html, /<h3>Обмеження<\/h3>/)
+  assert.equal((html.match(/<table/g) ?? []).length, 1)
+  assert.ok(html.indexOf('Джерела та матеріали') > html.indexOf('ag-origin-analysis'))
+  assert.match(html, /Підтверджувальний фрагмент/)
+})
+
 test('overview sources and their citations are omitted while remaining citations are renumbered', () => {
   const html = render({ ...base, sources: [{ id: 's0', title: 'Огляд платформи', url: '/' }, ...sources], text: 'Підсумок [s0]. Дані підприємства [s0, s1, s8].' })
   assert.doesNotMatch(html, /Огляд платформи|href="\/"|\[s0\]/)

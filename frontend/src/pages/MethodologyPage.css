@@ -1,4 +1,4 @@
-.method { max-width: 780px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.method { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .method section { padding: 18px 22px; }
 .method h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
 .method p, .method li { font-size: 15px; line-height: 23px; color: var(--label-1); font-weight: 450; }
@@ -29,7 +29,7 @@
 .method-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .method-copy code { word-break: break-all; }
 .method-skeleton { height: 280px; }
-.method-toc { display: flex; flex-wrap: wrap; gap: 6px; max-width: 780px; margin-bottom: 12px; }
+.method-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .method-toc a { padding: 4px 10px; border-radius: var(--r-control); background: var(--fill-1); color: var(--label-1); font-size: 13.5px; text-decoration: none; }
 .method-toc a:hover { background: var(--fill-2); }
 .method section { scroll-margin-top: 80px; }

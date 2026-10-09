@@ -50,7 +50,7 @@ async def main():
             assert result["sources"]
             rows = await employers.list_employers(session)
             if rows:
-                run = Run(session, Context())
+                run = Run(session, Context(), web_access="allowed")
                 profile = await run.tool("company_profile", {"employer_id": rows[0]["id"]})
                 assert profile["profile"]["id"] == rows[0]["id"]
                 assert run.artifacts[profile["artifact_ids"][0]]["kind"] == "relations"

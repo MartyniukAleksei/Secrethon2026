@@ -1,10 +1,10 @@
-.opendata { max-width: 980px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.opendata { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .opendata section { padding: 18px 22px; }
 .opendata h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
 .opendata p, .opendata li { font-size: 15px; line-height: 23px; color: var(--label-1); font-weight: 450; }
 .opendata ul { margin: 6px 0 10px; padding-left: 20px; }
 .opendata code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; padding: 1px 5px; border-radius: 6px; background: var(--fill-1); }
-.opendata-skeleton { height: 420px; max-width: 980px; }
+.opendata-skeleton { height: 420px; }
 .opendata-title { font-size: 20px; font-weight: 600; margin-top: 12px; }
 
 .opendata-snapshot, .opendata-card-head { display: flex; gap: 18px; align-items: flex-start; justify-content: space-between; }

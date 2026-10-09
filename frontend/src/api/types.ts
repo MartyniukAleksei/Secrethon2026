@@ -38,7 +38,7 @@ export type ApiCompanySite = Omit<ApiMapSite, 'employer_id' | 'lat' | 'lng'> & {
 export type ApiMapRelation = {
   company_id: number
   related_id: number
-  kind: 'supplier' | 'parent'
+  kind: ApiRelation['kind']
   company_name: string
   related_name: string
   source: string

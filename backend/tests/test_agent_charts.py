@@ -61,7 +61,8 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                 }
                 # Finish can select the whole dashboard and retain chart evidence even
                 # when the model only cites the platform source in its text.
-                monkeypatch.setattr(agent, "Run", lambda session, context: run)
+                summary_text = "## Найм\n\n6 вакансій [s1]."
+                monkeypatch.setattr(agent, "Run", lambda session, context, **kwargs: run)
                 monkeypatch.setattr(
                     agent,
                     "post_json",
@@ -76,8 +77,15 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                                                 "functionCall": {
                                                     "name": "finish",
                                                     "args": {
-                                                        "text": "## Найм\n\n6 вакансій [s1].",
+                                                        "text": summary_text,
                                                         "artifact_ids": list(run.artifacts),
+                                                        "sections": [
+                                                            {
+                                                                "kind": "database",
+                                                                "text": summary_text,
+                                                                "source_ids": ["s1"],
+                                                            }
+                                                        ],
                                                     },
                                                 },
                                             }

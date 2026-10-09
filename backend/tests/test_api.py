@@ -308,6 +308,17 @@ def test_map_network_preserves_relationships_and_sources(client: TestClient) -> 
     data = response.json()
     assert data["relations"] == [
         {
+            "company_id": 571,
+            "related_id": 570,
+            "kind": "branch",
+            "company_name": 'Філія АТ "КБП"',
+            "related_name": 'АТ "КБП"',
+            "source": "dedup",
+            "label": None,
+            "evidence_url": None,
+            "profile_url": None,
+        },
+        {
             "company_id": 570,
             "related_id": 522,
             "kind": "parent",

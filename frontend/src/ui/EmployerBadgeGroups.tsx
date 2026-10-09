@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { longDate, pct, plural } from '../domain/format'
-import { autoDirectionName, autoReliabilityName, autoVpkName, effectiveVpk, FOCUS, focusTitle, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, reliabilityName, sanctionsOf, sourceName, VPK_CATEGORY, VPK_RELATED, vpkCategoryName } from '../domain/labels'
+import { autoDirectionName, autoReliabilityName, autoVpkName, effectiveVpk, FOCUS, focusTitle, HUMAN_SANCTIONS, HUMAN_SOURCES, HUMAN_VPK, RELIABILITY, RELIABILITY_SCALE, reliabilityName, sanctionsOf, sourceName, VPK_CATEGORY, VPK_RELATED, vpkCategoryName } from '../domain/labels'
 import type { Employer, EmployerDetail } from '../domain/types'
 import { CategoryBadge } from './badges'
 import { Icon } from './Icon'
@@ -51,7 +51,7 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
           </dd>
         </div>
         <div>
-          <dt>Надійність джерела</dt>
+          <dt className="has-hint" title={RELIABILITY_SCALE}>Надійність джерела</dt>
           <dd>
             {hr?.reliability
               ? human(autoReliabilityName(e), <span className="badge info">{hr.reliability} · {RELIABILITY[hr.reliability]}</span>)

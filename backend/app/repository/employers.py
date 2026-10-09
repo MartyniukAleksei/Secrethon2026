@@ -182,7 +182,7 @@ def _vpk_focus(classification: Row | None, focus: list[Row] | None) -> list[Row]
 
 
 async def map_network(session: AsyncSession) -> Row:
-    """Profile relationships and product tags; coordinates stay vacancy-derived."""
+    """Recorded profile relationships and product tags; the map resolves coordinates separately."""
     relations = await session.execute(
         text("""
             SELECT e.company_id, e.related_id, e.kind,
@@ -194,9 +194,10 @@ async def map_network(session: AsyncSession) -> Row:
             FROM company_edge e
             JOIN company c ON c.company_id = e.company_id
             JOIN company r ON r.company_id = e.related_id
-            WHERE e.kind IN ('supplier', 'parent')
+            WHERE e.kind = ANY(:kinds)
             ORDER BY e.kind, e.company_id, e.related_id
-        """)
+        """),
+        {"kinds": list(RELATION_KINDS)},
     )
     tags = await session.execute(
         text("""
