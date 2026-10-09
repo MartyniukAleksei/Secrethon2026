@@ -167,7 +167,7 @@ export type ApiEmployerReview = ApiEmployerReviewInput & {
 }
 
 export type ApiRelation = {
-  kind: 'parent' | 'bank' | 'related' | 'successor' | 'supplier'
+  kind: 'parent' | 'bank' | 'related' | 'successor' | 'supplier' | 'branch'
   direction: 'out' | 'in'
   company_id: number
   name: string

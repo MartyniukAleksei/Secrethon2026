@@ -222,6 +222,8 @@ export function relationName(r: Pick<ApiRelation, 'kind' | 'direction'>): string
       return out ? 'Банк' : 'Клієнт банку'
     case 'successor':
       return out ? 'Правонаступник' : 'Попередник'
+    case 'branch':
+      return out ? 'Головне підприємство' : 'Філія'
     default:
       return "Пов'язана компанія"
   }

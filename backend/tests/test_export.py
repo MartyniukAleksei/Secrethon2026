@@ -27,9 +27,9 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
     assert catalog["as_of"].startswith("2026-10-05T12:00:00")
     counts = {d["name"]: d["row_count"] for d in catalog["datasets"]}
     assert counts == {
-        "companies": 5,
+        "companies": 6,
         "company_sanctions": 3,
-        "company_relations": 2,
+        "company_relations": 3,
         "company_products": 2,
         "company_sources": 0,
         "employers": 4,  # cards: КБП, Алабуга, the КБП branch, the agency

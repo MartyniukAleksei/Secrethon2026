@@ -71,6 +71,15 @@ def test_employer_detail_with_gur_card(client: TestClient) -> None:
     assert {s["jurisdiction"] for s in gur["sanctions"]} == {"US", "UA"}
     assert gur["relations"] == [
         {
+            "kind": "branch",
+            "direction": "in",
+            "company_id": 571,
+            "name": 'Філія АТ "КБП"',
+            "inn": None,
+            "sanctions_count": 0,
+            "employer_id": None,
+        },
+        {
             "kind": "parent",
             "direction": "out",
             "company_id": 522,
@@ -78,7 +87,7 @@ def test_employer_detail_with_gur_card(client: TestClient) -> None:
             "inn": "7704721192",
             "sanctions_count": 1,
             "employer_id": None,
-        }
+        },
     ]
 
 

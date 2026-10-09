@@ -187,7 +187,9 @@ class SanctionOut(BaseModel):
 
 
 class RelationOut(BaseModel):
-    kind: Literal["parent", "bank", "related", "successor", "supplier"]
+    # 'branch' (a filial -> its head office) comes from the pipeline's dedup.
+    # Keep in sync with RELATION_KINDS in app/repository/employers.py.
+    kind: Literal["parent", "bank", "related", "successor", "supplier", "branch"]
     direction: Literal["out", "in"]
     company_id: int
     name: str

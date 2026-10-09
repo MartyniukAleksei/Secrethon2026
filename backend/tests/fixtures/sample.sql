@@ -64,6 +64,9 @@ INSERT INTO company_section (company_id, section, url_uk) VALUES (570, 'rostec',
 INSERT INTO company_sanction (company_id, jurisdiction, is_sanctioned, listed_on) VALUES
   (570, 'US', true, '2022-06-02'), (570, 'UA', true, NULL), (522, 'US', true, NULL);
 INSERT INTO company_edge (company_id, related_id, kind) VALUES (570, 522, 'parent');
+-- dedup links a filial to its head office; the head's card lists it as a branch.
+INSERT INTO company (company_id, name_full_uk, country_id) VALUES (571, 'Філія АТ "КБП"', 1);
+INSERT INTO company_edge (company_id, related_id, kind, source) VALUES (571, 570, 'branch', 'dedup');
 
 -- The map keeps sourced relationships even when an endpoint has no vacancy coordinates.
 INSERT INTO company (company_id, name_full_uk, country_id, address_uk)

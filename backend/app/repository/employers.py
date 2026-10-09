@@ -21,6 +21,9 @@ from app.reviews import employer_reviews_ready, list_employer_reviews
 
 Row = dict[str, Any]
 
+# company_edge kinds the card shows (RelationOut.kind); other kinds are skipped, not an error.
+RELATION_KINDS = ("parent", "bank", "related", "successor", "supplier", "branch")
+
 
 async def map_points(session: AsyncSession) -> list[Row]:
     """Hiring locations from active shown vacancies (ВПК and agencies); never infer company addresses."""
@@ -561,6 +564,7 @@ async def _gur_company(session: AsyncSession, company_id: int | None) -> Row | N
 
     # Edges are stored as listed on a company's GUR profile: (company_id, related_id, kind) means
     # "on company_id's profile, related_id appears as <kind>". Direction "out" = seen from this company.
+    # Kinds the API does not know yet are skipped: a new pipeline kind must not take the card down.
     edges = await session.execute(
         text("""
             WITH edges AS (
@@ -573,10 +577,11 @@ async def _gur_company(session: AsyncSession, company_id: int | None) -> Row | N
                    (SELECT ep.employer_profile_id FROM employer_profile ep
                     WHERE ep.inn = c.inn ORDER BY ep.employer_profile_id LIMIT 1) AS employer_id
             FROM edges e JOIN company c ON c.company_id = e.other_id
+            WHERE e.kind = ANY(:kinds)
             ORDER BY e.kind, name
             LIMIT 200
         """),
-        params,
+        {**params, "kinds": list(RELATION_KINDS)},
     )
     gur["relations"] = [dict(r) for r in edges.mappings()]
     return gur

@@ -12,7 +12,7 @@ const NODE_WIDTH = 260
 const NODE_HEIGHT = 94
 const PAGE_SIZE = 12
 const FILTERS = [
-  ['all', 'Усі'], ['parent', 'Холдинг'], ['supplier', 'Постачання'],
+  ['all', 'Усі'], ['parent', 'Холдинг'], ['branch', 'Філії'], ['supplier', 'Постачання'],
   ['bank', 'Банки'], ['successor', 'Правонаступники'], ['related', 'Інші'],
 ] as const
 

@@ -137,7 +137,7 @@ COMPANY_RELATIONS = Dataset(
         ("company_name", "text", "Назва компанії"),
         ("related_id", "int", "Пов'язана компанія → companies.company_id"),
         ("related_name", "text", "Назва пов'язаної компанії"),
-        ("kind", "text", "Тип зв'язку: parent, bank, related, successor, supplier"),
+        ("kind", "text", "Тип зв'язку: parent, bank, related, successor, supplier, branch"),
         ("label", "text", "Уточнення зв'язку"),
         ("source", "text", "Джерело зв'язку"),
         ("evidence_url", "text", "Посилання на підтвердження"),

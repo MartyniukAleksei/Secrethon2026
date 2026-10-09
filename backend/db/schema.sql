@@ -154,7 +154,7 @@ CREATE TABLE public.company_edge (
     label text,
     evidence_url text,
     CONSTRAINT company_edge_check CHECK ((company_id <> related_id)),
-    CONSTRAINT company_edge_kind_check CHECK ((kind = ANY (ARRAY['parent'::text, 'bank'::text, 'related'::text, 'successor'::text, 'supplier'::text])))
+    CONSTRAINT company_edge_kind_check CHECK ((kind = ANY (ARRAY['parent'::text, 'bank'::text, 'related'::text, 'successor'::text, 'supplier'::text, 'branch'::text])))
 );
 
 
