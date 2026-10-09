@@ -60,10 +60,12 @@ class VacancyFilter:
     salary_min: int | None = None
     salary_max: int | None = None
     with_salary: bool = False
+    # Only vacancies shown on the site; the export's wider coverages turn it off.
+    shown_only: bool = True
 
     def parts(self) -> tuple[list[str], dict[str, str], dict[str, Any]]:
         """Plain clauses, the clause of each faceted field, and the query parameters."""
-        clauses: list[str] = [f"v.{SHOWN}"]
+        clauses: list[str] = [f"v.{SHOWN}" if self.shown_only else "true"]
         facets: dict[str, str] = {}
         params: dict[str, Any] = {}
         if self.scope != "all":

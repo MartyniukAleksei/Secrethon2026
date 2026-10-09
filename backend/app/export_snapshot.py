@@ -21,7 +21,16 @@ import pyarrow.parquet as pq
 
 from app.export_formats import csv_encoder, json_value
 from app.repository import export
-from app.repository.export import DATASETS, Column, ColumnType, Dataset, Row
+from app.repository.export import (
+    COVERAGES,
+    DATASETS,
+    SITE,
+    Column,
+    ColumnType,
+    Dataset,
+    Row,
+    Variant,
+)
 
 ARROW_TYPES: dict[ColumnType, pa.DataType] = {
     "int": pa.int64(),
@@ -101,14 +110,17 @@ def sql_table(dataset: Dataset, rows: list[Row]) -> Iterable[str]:
         yield f"INSERT INTO {dataset.name} ({names}) VALUES\n{values};\n"
 
 
-def schema_json(as_of: datetime | None) -> dict[str, Any]:
+def schema_json(as_of: datetime | None, variant: Variant) -> dict[str, Any]:
     return {
         "as_of": json_value(as_of),
+        "coverage": variant.coverage,
+        "dedup": variant.dedup,
         "datasets": [
             {
                 "name": d.name,
                 "title": d.title,
                 "description": d.description,
+                "row": d.row,
                 "key": list(d.key),
                 "columns": [
                     {"name": c.name, "type": c.type, "description": c.description}
@@ -120,39 +132,63 @@ def schema_json(as_of: datetime | None) -> dict[str, Any]:
     }
 
 
-def readme(as_of: datetime | None, counts: dict[str, int]) -> str:
+def readme(as_of: datetime | None, counts: dict[str, int], variant: Variant) -> str:
+    coverage = COVERAGES[variant.coverage]
     lines = [
         "# Знімок даних StayHard",
         "",
         f"Дата зрізу: {json_value(as_of)}",
+        "",
+        f"Охоплення: **{coverage['title']}** (`coverage={variant.coverage}`). "
+        + coverage["description"],
+        "",
+        (
+            "Без дублів: кожна вакансія і компанія — один раз."
+            if variant.dedup
+            else "З дублями (`dedup=false`): повтори вакансій позначено `vacancies.duplicate_of`, "
+            "дублі компаній — `companies.canonical_id`."
+        ),
         "",
         "Кожен датасет є у форматах CSV (UTF-8 з BOM, масиви через «; »), Parquet (zstd) "
         "і в `snapshot.sql` (PostgreSQL: CREATE TABLE + INSERT, коментарі до колонок).",
         "`schema.json` — словник полів, `manifest.json` — кількість рядків і SHA-256 файлів.",
         "",
         "Зв'язки між датасетами:",
-        "- `companies.company_id` ← `company_sanctions`, `company_relations` (обидва кінці), "
-        "`company_products`, `company_sources`, `employers.matched_company_id`;",
-        "- `employers.employer_id` ← `vacancies.employer_id`.",
+        "- `companies.company_id` ← `company_sanctions`, `company_relations` (обидва кінці; "
+        "`both_in_dataset` — чи є в наборі обидва), `company_products`, `company_sources`, "
+        "`employers.matched_company_id`, `employer_profiles.company_id`;",
+        "- `employers.employer_id` ← `vacancies.employer_id`, `employer_profiles.card_id`;",
+        "- `employer_profiles.employer_profile_id` ← `vacancies.employer_profile_id`.",
         "",
     ]
     for d in DATASETS.values():
-        lines += [f"## {d.name} — {d.title} ({counts[d.name]} рядків)", "", d.description, ""]
+        lines += [
+            f"## {d.name} — {d.title} ({counts[d.name]} рядків; один рядок — {d.row})",
+            "",
+            d.description,
+            "",
+        ]
         lines += [f"- `{c.name}` ({c.type}): {c.description}" for c in d.columns]
         lines.append("")
     return "\n".join(lines)
 
 
-async def fetch_all() -> tuple[datetime | None, dict[str, list[Row]]]:
+async def fetch_all(variant: Variant = SITE) -> tuple[datetime | None, dict[str, list[Row]]]:
     async with export.snapshot_connection() as conn:
         as_of = await export.as_of(conn)
         data = {
-            name: [row async for row in export.stream_in(conn, d)] for name, d in DATASETS.items()
+            name: [row async for row in export.stream_in(conn, d, variant=variant)]
+            for name, d in DATASETS.items()
         }
     return as_of, data
 
 
-def write_snapshot(directory: Path, as_of: datetime | None, data: dict[str, list[Row]]) -> None:
+def write_snapshot(
+    directory: Path,
+    as_of: datetime | None,
+    data: dict[str, list[Row]],
+    variant: Variant = SITE,
+) -> None:
     """Writes snapshot.sql and snapshot.zip (CSV, Parquet, SQL, schema, manifest, README)."""
     counts = {name: len(rows) for name, rows in data.items()}
     files: dict[str, bytes] = {}
@@ -161,17 +197,22 @@ def write_snapshot(directory: Path, as_of: datetime | None, data: dict[str, list
         files[f"{name}.csv"] = (header + "".join(encode(r) for r in rows)).encode()
         files[f"{name}.parquet"] = to_parquet(DATASETS[name], rows)
     sql = [
-        f"-- Знімок даних StayHard, дата зрізу {json_value(as_of)}\n",
+        f"-- Знімок даних StayHard, дата зрізу {json_value(as_of)}, "
+        f"coverage={variant.coverage}, dedup={str(variant.dedup).lower()}\n",
         "BEGIN;\n",
         *(part for name, rows in data.items() for part in sql_table(DATASETS[name], rows)),
         "COMMIT;\n",
     ]
     files["snapshot.sql"] = "".join(sql).encode()
     (directory / "snapshot.sql").write_bytes(files["snapshot.sql"])
-    files["schema.json"] = json.dumps(schema_json(as_of), ensure_ascii=False, indent=2).encode()
-    files["README.md"] = readme(as_of, counts).encode()
+    files["schema.json"] = json.dumps(
+        schema_json(as_of, variant), ensure_ascii=False, indent=2
+    ).encode()
+    files["README.md"] = readme(as_of, counts, variant).encode()
     manifest = {
         "as_of": json_value(as_of),
+        "coverage": variant.coverage,
+        "dedup": variant.dedup,
         "generated_at": datetime.now(UTC).isoformat(),
         "datasets": counts,
         "files": {
@@ -188,34 +229,38 @@ def write_snapshot(directory: Path, as_of: datetime | None, data: dict[str, list
 
 
 class SnapshotStore:
+    """One built snapshot per variant (coverage × dedup), rebuilt when the cutoff changes."""
+
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
-        self._as_of: datetime | None = None
-        self._dir: Path | None = None
-        self._stale = False
+        self._built: dict[Variant, tuple[datetime | None, Path]] = {}
+        self._stale: set[Variant] = set()
 
     def invalidate(self) -> None:
         """Rebuild on the next request (human reviews change data within one cutoff)."""
-        self._stale = True
+        self._stale = set(self._built)
 
-    async def get(self) -> tuple[datetime | None, Path]:
-        """Directory with snapshot.zip and snapshot.sql for the current data cutoff."""
+    async def get(self, variant: Variant = SITE) -> tuple[datetime | None, Path]:
+        """Directory with snapshot.zip and snapshot.sql of a variant for the current cutoff."""
         current = await export.snapshot_date()
         async with self._lock:
-            if self._dir is None or self._as_of != current or self._stale:
-                self._stale = False
-                as_of, data = await fetch_all()
-                directory = Path(tempfile.mkdtemp(prefix="export-snapshot-"))
-                await asyncio.to_thread(write_snapshot, directory, as_of, data)
-                if self._dir is not None:
-                    shutil.rmtree(self._dir, ignore_errors=True)
-                self._as_of, self._dir = as_of, directory
-            return self._as_of, self._dir
+            built = self._built.get(variant)
+            if built is None or built[0] != current or variant in self._stale:
+                self._stale.discard(variant)
+                as_of, data = await fetch_all(variant)
+                directory = Path(tempfile.mkdtemp(prefix=f"export-snapshot-{variant.slug}-"))
+                await asyncio.to_thread(write_snapshot, directory, as_of, data, variant)
+                if built is not None:
+                    shutil.rmtree(built[1], ignore_errors=True)
+                built = (as_of, directory)
+                self._built[variant] = built
+            return built
 
     def clear(self) -> None:
-        if self._dir is not None:
-            shutil.rmtree(self._dir, ignore_errors=True)
-        self._as_of, self._dir = None, None
+        for _, directory in self._built.values():
+            shutil.rmtree(directory, ignore_errors=True)
+        self._built.clear()
+        self._stale.clear()
 
 
 snapshots = SnapshotStore()
