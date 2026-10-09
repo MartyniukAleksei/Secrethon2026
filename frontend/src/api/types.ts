@@ -414,3 +414,53 @@ export type ApiExportCatalog = {
   snapshot: { zip: string; sql: string }
   datasets: ApiExportDataset[]
 }
+
+/** Numbers for the «Про дані» page (GET /api/methodology). */
+export type ApiJudgeStratum = { kind: 'company' | 'vacancy'; stratum: string; n: number; agree: number; agree_vpk: number }
+export type ApiJudgeDisagreement = {
+  kind: 'company' | 'vacancy'
+  item_id: number
+  stratum: string
+  our_label: string
+  judge_label: string
+  confidence: number | null
+  reason: string | null
+  name: string | null
+  card_id: number | null
+}
+export type ApiMethodology = {
+  matching: { kind: 'auto' | 'verified' | 'candidate_sure' | 'candidate_weak'; profiles: number }[]
+  match_methods: { method: string; links: number }[]
+  dedup: {
+    vacancies: number
+    reposts: number
+    cross_source: number
+    profiles: number
+    cards: number
+    branch_profiles: number
+    companies: number
+    company_duplicates: number
+    branch_edges: number
+  }
+  companies: { category: string; level: 'decided' | 'review'; decided_by: 'jev' | 'rule'; n: number }[]
+  vacancies: { category: string; level: string; n: number }[]
+  focus: { focus: string; basis: string; n: number }[]
+  checks: {
+    facts_verified: number
+    facts_rejected: number
+    contacts_verified: number
+    contacts_rejected: number
+    profiles: number
+    sanctions_found: number
+  }
+  judge: {
+    run_id: number
+    version: string
+    model: string | null
+    started_at: string
+    strata: ApiJudgeStratum[]
+    disagreements: ApiJudgeDisagreement[]
+  } | null
+  human: { employer_reviews: number; employer_cards: number; vacancy_human: number; vacancy_llm: number }
+  mcp: { enabled: boolean; url: string; key: string | null; tools: { name: string; description: string }[] }
+}

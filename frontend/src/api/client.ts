@@ -1,4 +1,4 @@
-import type { ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiMethodology, ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -83,6 +83,7 @@ export const api = {
   saveReview: (id: number, review: ApiVacancyReviewInput) => post<ApiVacancyReview>(`/vacancies/${id}/reviews`, review),
   saveEmployerReview: (id: number, review: ApiEmployerReviewInput) => post<ApiEmployerReview>(`/employers/${id}/reviews`, review),
   discoverySummary: (signal?: AbortSignal) => get<ApiDiscoveryCount[]>('/discovery/summary', signal),
+  methodology: (signal?: AbortSignal) => get<ApiMethodology>('/methodology', signal),
   discovery: (params: { company_id?: number; provider?: string; status?: string; q?: string; limit?: number; offset?: number }, signal?: AbortSignal) =>
     get<ApiDiscoveryPage>(`/discovery${query(params)}`, signal),
   professions: (params: Omit<VacancyQuery, 'employer_id' | 'title' | 'q' | 'sort' | 'offset'>, signal?: AbortSignal) =>

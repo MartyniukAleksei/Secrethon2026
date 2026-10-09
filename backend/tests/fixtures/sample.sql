@@ -225,3 +225,11 @@ INSERT INTO discovery_log (run_id, company_id, provider, query, url, title, snip
   (2, 570, 'exa', 'КБП Тула продукция', 'https://example.com/news', 'Новость', 'без фактов', '2026-10-07T10:01:00Z', 'no_fact'),
   (2, 570, 'opensanctions', NULL, 'https://www.opensanctions.org/entities/kbp', NULL, NULL, '2026-10-07T11:00:00Z', 'fact'),
   (2, 600, 'exa', 'Алабуга БпЛА', NULL, NULL, NULL, '2026-10-07T12:00:00Z', 'query');
+
+-- LLM as a judge: it agrees on КБП and vacancy 1, and disagrees on Алабуга.
+INSERT INTO classifier_run (run_id, classifier, version, params, started_at)
+VALUES (20, 'llm_judge', 'judge-test', '{"model": "test-judge"}', '2026-10-09T12:00:00Z');
+INSERT INTO judge_review (run_id, item_kind, item_id, stratum, our_label, judge_label, agree, agree_vpk, confidence, reason) VALUES
+  (20, 'company', 570, 'vpk/decided', 'vpk', 'vpk', true, true, 0.95, 'Разработчик вооружения.'),
+  (20, 'company', 600, 'vpk/review', 'vpk', 'out', false, false, 0.7, 'Нет фактов о военной продукции.'),
+  (20, 'vacancy', 1, 'vpk/company', 'vpk', 'vpk', true, true, 0.9, 'Завод КБП.');

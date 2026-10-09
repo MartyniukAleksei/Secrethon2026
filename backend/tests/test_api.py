@@ -634,3 +634,23 @@ def test_discovery_log(client: TestClient) -> None:
     facts = client.get("/api/discovery", params={"q": "kbp", "status": "fact"}).json()
     assert facts["total"] == 2
     assert client.get("/api/discovery", params={"status": "nope"}).status_code == 422
+
+
+def test_methodology(client: TestClient) -> None:
+    data = client.get("/api/methodology").json()
+    assert data["dedup"]["cross_source"] == 1
+    assert data["dedup"]["cards"] == 5 and data["dedup"]["profiles"] == 6
+    categories = {(r["category"], r["level"]) for r in data["companies"]}
+    assert ("vpk", "decided") in categories and ("foreign_intermediary", "decided") in categories
+    assert data["checks"]["facts_verified"] >= 1 and data["checks"]["contacts_rejected"] == 1
+    judge = data["judge"]
+    assert judge["model"] == "test-judge"
+    company = next(
+        s for s in judge["strata"] if s["kind"] == "company" and s["stratum"] == "vpk/review"
+    )
+    assert (company["n"], company["agree_vpk"]) == (1, 0)
+    assert [(d["item_id"], d["card_id"]) for d in judge["disagreements"]] == [(600, 2)]
+    assert data["human"]["employer_reviews"] >= 0
+    assert [t["name"] for t in data["mcp"]["tools"]][0] == "search_employers"
+    assert data["mcp"]["url"].endswith("/mcp/")
+    assert data["mcp"]["key"] is None  # the test site has no password: the key stays hidden

@@ -1986,3 +1986,18 @@ CREATE TABLE discovery_log (
 
 CREATE INDEX discovery_log_company_idx ON discovery_log (company_id);
 CREATE INDEX discovery_log_run_idx ON discovery_log (run_id);
+
+-- 0013 (pipeline): LLM as a judge.
+CREATE TABLE judge_review (
+    run_id       int    NOT NULL REFERENCES classifier_run ON DELETE CASCADE,
+    item_kind    text   NOT NULL CHECK (item_kind IN ('company', 'vacancy')),
+    item_id      bigint NOT NULL,
+    stratum      text   NOT NULL,
+    our_label    text   NOT NULL,
+    judge_label  text   NOT NULL,
+    agree        boolean NOT NULL,
+    agree_vpk    boolean NOT NULL,
+    confidence   real,
+    reason       text,
+    PRIMARY KEY (run_id, item_kind, item_id)
+);
