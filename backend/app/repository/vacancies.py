@@ -47,7 +47,7 @@ class VacancyFilter:
     scope: Scope = "vpk"
     # Only vacancies with explicit ВПК markers in the text (state secret, GOZ, military acceptance…).
     markers: bool = False
-    # The card's legal entity: its focus tag, industry (direction_domain) and role.
+    # Focus is the legal entity's; domain and role describe the individual vacancy duties.
     focus: Focus | Sequence[Focus] | None = None
     domain: Many = None
     role: Many = None
@@ -97,10 +97,7 @@ class VacancyFilter:
             facets["focus"] = "(" + " OR ".join(options) + ")"
         for column in ("domain", "role"):
             if values := many(getattr(self, column)):
-                facets[column] = (
-                    f"v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
-                    f" WHERE c.direction_{column} = ANY(:{column}))"
-                )
+                facets[column] = f"v.direction_{column} = ANY(:{column})"
                 params[column] = list(values)
         if regions := many(self.region_id):
             facets["region_id"] = "v.region_id = ANY(:region_id)"
@@ -189,7 +186,7 @@ async def facets(session: AsyncSession, f: VacancyFilter) -> dict[str, list[Row]
             b AS (
                 SELECT v.vacancy_id, v.company_id, v.region_id, v.source, v.category,
                        v.experience, v.schedule, v.employment,
-                       c.direction_domain, c.direction_role, c.vpk_category{flags}
+                       v.direction_domain, v.direction_role, c.vpk_category{flags}
                 FROM v LEFT JOIN ({CLASSIFICATION_SELECT}) c ON c.company_id = v.company_id
                 WHERE {" AND ".join(clauses)}
             )
@@ -211,7 +208,9 @@ LIST_COLUMNS = """
     v.vacancy_id AS id, v.source, v.url, v.card_id AS employer_id, v.employer_name, v.title,
     v.locality, v.region_id, r.name AS region, v.salary_from, v.salary_to, v.salary_currency, v.salary_period,
     v.monthly_salary, v.experience, v.schedule, v.employment, v.published_at, v.level, v.category,
-    v.final_category, v.final_basis, v.has_markers
+    v.final_category, v.final_basis, v.has_markers,
+    v.direction_domain, v.direction_role, v.domain_confidence, v.role_confidence,
+    v.direction_review, v.direction_model
 """
 
 

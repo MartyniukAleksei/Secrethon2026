@@ -33,6 +33,9 @@ def test_sources_reject_active_or_external_local_links():
         assert agent.safe_url(url) is None
     assert agent.safe_url("https://example.com/news") == "https://example.com/news"
     assert agent.safe_url("/companies/42") == "/companies/42"
+    assert agent.safe_url("/vacancies") == "/vacancies"
+    assert agent.safe_url("/vacancies/42") == "/vacancies/42"
+    assert agent.safe_url("/vacancies/../evil") is None
 
 
 def response(name, args):
@@ -81,6 +84,7 @@ def test_tool_loop_uses_db_rows_for_both_table_and_chart(monkeypatch):
         assert {a["kind"] for a in result["artifacts"]} == {"table", "bar"}
         assert result["artifacts"][0]["rows"] == result["artifacts"][1]["rows"]
         assert result["artifacts"][0]["rows"][0]["value"] == 7
+        assert result["sources"][0]["url"] == "/vacancies"
         contents = provider.call_args_list[1].args[1]["contents"]
         assert contents[1]["parts"][0]["thoughtSignature"] == "preserve-me"
 
@@ -91,7 +95,7 @@ def test_fabricated_citation_is_rejected_and_model_can_correct(monkeypatch):
     async def scenario():
         provider = AsyncMock(
             side_effect=[
-                response("finish", {"text": "Вигадане джерело [s999]"}),
+                response("finish", {"text": "Вигадані джерела [s1, s999]"}),
                 response("finish", {"text": "Для відповіді потрібне уточнення."}),
             ]
         )

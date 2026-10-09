@@ -47,6 +47,7 @@ async def _reset_database() -> None:
             "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
         )
         await conn.execute((ROOT / "db" / "schema.sql").read_text(encoding="utf-8"))
+        await conn.execute((ROOT / "db" / "vacancy_directions.sql").read_text(encoding="utf-8"))
         await conn.execute("SET search_path = public")
         await conn.execute((ROOT / "tests" / "fixtures" / "sample.sql").read_text(encoding="utf-8"))
     finally:

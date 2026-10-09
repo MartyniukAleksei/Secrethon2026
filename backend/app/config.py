@@ -1,22 +1,33 @@
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     # hide_input_in_errors: never print DATABASE_URL (it contains the password) in errors.
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).resolve().parents[1] / ".env",
+        # Shared local credentials live at the repo root; backend values take precedence.
+        env_file=(
+            Path(__file__).resolve().parents[2] / ".env",
+            Path(__file__).resolve().parents[1] / ".env",
+        ),
         extra="ignore",
         hide_input_in_errors=True,
     )
 
-    # Railway injects DATABASE_URL; locally it comes from backend/.env (see .env.example).
+    # Railway injects DATABASE_URL; locally backend/.env overrides the repo-root .env.
     database_url: str = "postgresql://postgres:postgres@localhost:5432/secrethon"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
     tavily_api_key: str = ""
+    jev_api_key: str = ""
+    jev_model: str = "jev-latest"
+    gpt_base_url: str = ""
+    gpt_api_key: str = Field(
+        default="", validation_alias=AliasChoices("GPT_API_KEY", "TEAM_API_KEY", "TEAM_KEY_GPT")
+    )
+    gpt_model: str = "gpt-6-luna"
     agent_enabled: bool = True
     mcp_enabled: bool = True
     mcp_api_key: str = ""

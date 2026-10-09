@@ -18,7 +18,7 @@ from app.api.deps import Session
 from app.api.schemas import EmployerDetailOut, EmployerOut, StatsOut, VacancyOut
 from app.config import settings
 from app.repository import agent as queries
-from app.repository import employers, stats, vacancies
+from app.repository import agent_charts, employers, stats, vacancies
 from app.repository.sql import AS_OF
 from app.repository.vacancies import VacancyFilter
 
@@ -58,6 +58,7 @@ class ToolArgs(BaseModel):
     metric: Literal["vacancies", "median_salary"] = "vacancies"
     limit: int = Field(default=10, ge=1, le=30)
     only_sanctioned: bool = False
+    view: agent_charts.View = "auto"
 
     @field_validator("employer_ids")
     @classmethod
@@ -70,7 +71,7 @@ class ToolArgs(BaseModel):
 class Finish(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=12000)
-    artifact_ids: list[str] = Field(default_factory=list, max_length=5)
+    artifact_ids: list[str] = Field(default_factory=list, max_length=20)
     source_ids: list[str] = Field(default_factory=list, max_length=30)
 
 
@@ -83,7 +84,7 @@ def safe_url(url: str | None) -> str | None:
         return None
     if parsed.scheme in {"http", "https"} and parsed.hostname and not parsed.username:
         return url
-    if url == "/" or re.fullmatch(r"/(companies|vacancies)/\d+", url):
+    if url in {"/", "/vacancies"} or re.fullmatch(r"/(companies|vacancies)/\d+", url):
         return url
     return None
 
@@ -126,7 +127,13 @@ TOOLS = [
         "days=0 means all time. May return a top N subset, NOT a total. "
         "group_by=summary gives totals for the filtered selection. "
         "only_sanctioned=true finds companies with sanction records. "
-        "Also creates a table and a bar/line chart from exact database values.",
+        "view=auto creates a table and bar/line chart for group_by and metric. "
+        "Other views reproduce the design-system analytics: kpi, line, donut (industry shares), "
+        "stacked (month × industry), bar (industry salary medians), heatmap (region × industry), "
+        "scatter (company vacancies × salary; bubble=recent publications), histogram (salary bins "
+        "with quartiles), professions (table with 6-month sparklines), signals (explicit rules). "
+        "Each view is built from database values and includes an exact-value table. "
+        "To show the entire dashboard call once for each of the ten views, then select their IDs.",
         {
             **COMMON,
             "query": STRING,
@@ -134,6 +141,7 @@ TOOLS = [
             "group_by": {**STRING, "enum": list(queries.GROUPS)},
             "metric": {**STRING, "enum": ["vacancies", "median_salary"]},
             "only_sanctioned": {"type": "BOOLEAN"},
+            "view": {**STRING, "enum": ["auto", *agent_charts.TITLES]},
         },
         [],
     ),
@@ -160,7 +168,8 @@ TOOLS = [
     ),
     declaration(
         "finish",
-        "Finish with Ukrainian plain text, citing sources as [s1], [s2]. "
+        "Finish with structured Ukrainian Markdown: short paragraphs, headings, bold key facts "
+        "and lists. Cite sources as [s1], [s2]; the UI places the source list at the end. "
         "Select existing artifact/source IDs only. Never fabricate IDs, values or URLs.",
         {
             "text": STRING,
@@ -186,6 +195,26 @@ SYSTEM = """Ти аналітичний асистент платформи Се
 Завжди завершуй через finish. Для графіка вибери artifact_id створеного інструментом
 графіка, для порівнянь також таблицю. Не використовуй HTML чи Markdown-таблиці.
 Показуй період та дату зрізу. Стисло пояснюй обмеження, які стосуються відповіді.
+Оформлюй відповідь читабельно: короткий висновок, потім доречні заголовки ##,
+короткі абзаци, **ключові факти** та списки. Не перетворюй коротку відповідь на довгий звіт.
+Для профілю доречні «Про підприємство», «Діяльність», «Санкції та найм», «Обмеження».
+Обмеження пиши окремим коротким блоком, не змішуй із головним висновком.
+Цитати [s1] або [s1, s2] став після факту. Не дублюй список джерел у тексті:
+інтерфейс покаже його після відповіді й аналітики. Не вигадуй URL у Markdown.
+Не вставляй у text позначки [a1] або переліки назв графіків: їхні заголовки й самі
+представлення інтерфейс додасть автоматично за artifact_ids після тексту.
+Назви галузей пиши українською за domain_labels, не технічні коди direction_domain.
+Обирай лише артефакти, потрібні для запиту користувача. Для стислого профілю не додавай
+графіки, схеми чи добірку вебзгадок, якщо їх не просили. search_mentions використовуй
+для запитів про актуальні новини й згадки, а не для кожного профілю підприємства.
+Коли просять конкретне аналітичне представлення, передай відповідний view інструменту
+analytics. Для всього дашборду отримай kpi, line, donut, stacked, bar, heatmap, scatter,
+histogram, signals і professions. Вибери всі створені artifact_id (таблиці додаються автоматично).
+Для аналізу поточної компанії використовуй company_id з контексту як employer_ids;
+для країни чи рейтингу не звужуйся до поточної компанії, якщо цього не просили.
+У БД немає історичних знімків: не називай recent_30d чи мініграфік ростом.
+Статистичні сигнали — правила на поточному зрізі; не вигадуй час виявлення,
+нові програми закладів або приріст зарплат без окремих підтверджених даних.
 """
 
 
@@ -235,7 +264,6 @@ class Run:
         if name == "overview":
             result = StatsOut.model_validate(await stats.overview(self.session)).model_dump()
             self.as_of = result["as_of"]
-            result["source_id"] = self.source("Огляд платформи", "/")
             return result
         if name == "search_employers":
             rows = await employers.list_employers(self.session)
@@ -285,6 +313,40 @@ class Run:
             f = self.filters(args)
             # Name matching belongs to employer_profile, not vacancy title.
             f = VacancyFilter(region_id=f.region_id, category=f.category, days=f.days)
+            if args.view != "auto":
+                result = await agent_charts.visualization(
+                    self.session,
+                    f,
+                    args.view,
+                    args.query,
+                    args.employer_ids,
+                    args.limit,
+                    args.only_sanctioned,
+                )
+                self.as_of = result["as_of"]
+                source_id = self.source("Аналітика вакансій платформи", "/vacancies")
+                for row in result["rows"]:
+                    if args.view in {"scatter", "signals"} and row["id"]:
+                        row["source_id"] = self.source(row["label"], f"/companies/{row['id']}")
+                scope = {
+                    "days": f.days,
+                    "region_id": f.region_id,
+                    "category": f.category,
+                    "as_of": result["as_of"],
+                    "active_only": True,
+                    "only_sanctioned": args.only_sanctioned,
+                    "employer_ids": args.employer_ids,
+                    "query": args.query,
+                }
+                artifact = {**result, "scope": scope, "source_id": source_id}
+                chart_id = self.artifact(artifact)
+                ids = [chart_id]
+                if result["kind"] != "table":
+                    table_id = self.artifact({**artifact, "kind": "table"})
+                    self.artifacts[chart_id]["companion_id"] = table_id
+                    self.artifacts[table_id]["companion_id"] = chart_id
+                    ids.append(table_id)
+                return {**result, "scope": scope, "source_id": source_id, "artifact_ids": ids}
             result = await queries.analytics(
                 self.session,
                 f,
@@ -296,7 +358,7 @@ class Run:
                 args.only_sanctioned,
             )
             self.as_of = result["as_of"]
-            result["source_id"] = self.source("Аналітика вакансій платформи", "/")
+            result["source_id"] = self.source("Аналітика вакансій платформи", "/vacancies")
             rows = result["rows"]
             for row in rows:
                 if args.group_by == "company" and row["id"]:
@@ -419,7 +481,7 @@ async def answer(request: ChatIn, session) -> dict:
     prompt = SYSTEM + "\nPage context: " + request.context.model_dump_json()
     prompt += "\nCurrent UTC date: " + datetime.now(UTC).date().isoformat()
     tools_used = []
-    for step in range(8):
+    for step in range(12):
         response = await post_json(
             "https://generativelanguage.googleapis.com/v1beta/models/"
             + settings.gemini_model
@@ -452,7 +514,11 @@ async def answer(request: ChatIn, session) -> dict:
                 except ValidationError:
                     result = {"error": "Invalid finish arguments"}
                 else:
-                    cited = re.findall(r"\[(s\d+)\]", final.text)
+                    cited = [
+                        ident
+                        for group in re.findall(r"\[(s\d+(?:\s*,\s*s\d+)*)\]", final.text)
+                        for ident in re.findall(r"s\d+", group)
+                    ]
                     if any(i not in run.artifacts for i in final.artifact_ids) or any(
                         i not in run.sources for i in final.source_ids + cited
                     ):
@@ -472,7 +538,17 @@ async def answer(request: ChatIn, session) -> dict:
                         companion = run.artifacts[ident].get("companion_id")
                         if companion and companion not in artifact_ids:
                             artifact_ids.append(companion)
-                    source_ids = list(dict.fromkeys(final.source_ids + cited))
+                    evidence = []
+                    for ident in artifact_ids:
+                        artifact = run.artifacts[ident]
+                        evidence.append(artifact.get("source_id"))
+                        evidence.extend(row.get("source_id") for row in artifact.get("rows", []))
+                        evidence.extend(row.get("source_id") for row in artifact.get("items", []))
+                    source_ids = list(
+                        dict.fromkeys(
+                            final.source_ids + cited + [i for i in evidence if i in run.sources]
+                        )
+                    )
                     # Keep evidence even when the model forgets to select source IDs.
                     sources = [run.sources[i] for i in source_ids] or list(run.sources.values())
                     return jsonable_encoder(

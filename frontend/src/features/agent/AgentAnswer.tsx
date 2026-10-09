@@ -1,20 +1,27 @@
 import { Link } from 'react-router'
-import type { ReactNode } from 'react'
-import { LineChart } from '../../charts/LineChart'
+import { useId, type ReactNode } from 'react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { AgentChart, AnalyticsTable } from './AgentCharts'
 import type { AgentArtifact, AgentResponse, AgentSource } from './types'
 
-const number = (value: number | null) => value == null ? 'Немає даних' : value.toLocaleString('uk-UA', { maximumFractionDigits: 0 })
 const date = (value: string) => new Date(value).toLocaleDateString('uk-UA')
 const kinds: Record<string, string> = { parent: 'Холдинг', supplier: 'Постачання', bank: 'Банк', related: 'Зв’язок', successor: 'Правонаступник', branch: 'Філія' }
+const isInternal = (url: string) => /^\/(?:companies\/\d+|vacancies(?:\/\d+)?)?$/.test(url)
+function site(url: string) {
+  if (isInternal(url)) return 'База платформи'
+  try { const parsed = new URL(url); return /^https?:$/.test(parsed.protocol) ? parsed.hostname.replace(/^www\./, '') : null } catch { return null }
+}
 
 function SourceLink({ source, children }: { source: AgentSource; children?: ReactNode }) {
-  if (source.url.startsWith('/')) return <Link to={source.url}>{children ?? source.title}</Link>
+  if (isInternal(source.url)) return <Link to={source.url}>{children ?? source.title}</Link>
+  if (!site(source.url)) return <span>{children ?? source.title}</span>
   return <a href={source.url} target="_blank" rel="noopener noreferrer">{children ?? source.title}</a>
 }
 
-function Artifact({ artifact }: { artifact: AgentArtifact }) {
+function Artifact({ artifact, table = false }: { artifact: AgentArtifact; table?: boolean }) {
   if (artifact.kind === 'relations') return <section className="ag-artifact">
-    <b>{artifact.title}</b>
+    <h3>{artifact.title}</h3>
     <div className="ag-relations"><div className="ag-relation-center">{artifact.company}</div>
       {artifact.items.map((item, index) => <div className="ag-relation" key={index}>
         <span aria-hidden="true">{item.direction === 'out' ? '→' : '←'}</span>
@@ -24,45 +31,68 @@ function Artifact({ artifact }: { artifact: AgentArtifact }) {
     {!artifact.items.length && <p>У базі немає записів про зв’язки.</p>}
   </section>
   if (artifact.kind === 'mentions') return <section className="ag-artifact">
-    <b>{artifact.title}</b>
+    <h3>{artifact.title}</h3>
     <small>Пошук за {artifact.days} днів. Збіг підприємства потребує перевірки; охоплення соцмереж може бути неповним.</small>
     {artifact.items.map(item => <article className="ag-mention" key={item.url}>
-      <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>
-      <small>{item.published_at ? date(item.published_at) : 'Дата публікації невідома'} · {new URL(item.url).hostname}</small>
-      <p>{item.text}</p>
+      <SourceLink source={{ id: item.source_id, title: item.title, url: item.url }} />
+      <small>{item.published_at ? date(item.published_at) : 'Дата публікації невідома'} · {site(item.url)}</small>
+      <p>{item.text.length > 280 ? `${item.text.slice(0, 280).replace(/\s+\S*$/, '')}…` : item.text}</p>
+      {item.text.length > 280 && <details><summary>Повний витяг із джерела</summary><p>{item.text}</p></details>}
     </article>)}
     {!artifact.items.length && <p>Публічних згадок за цей період не знайдено.</p>}
   </section>
-  const { rows, scope } = artifact
-  const max = Math.max(1, ...rows.map(row => row.value ?? 0))
-  const lineRows = rows.filter(row => row.id != null && row.value != null)
+  if (table) return <details className="ag-values"><summary>Точні значення · {artifact.title}</summary><AnalyticsTable artifact={artifact} /></details>
   return <section className="ag-artifact">
-    <b>{artifact.title}</b>
-    <small>{scope.days ? `За ${scope.days} днів до дати зрізу` : 'За весь доступний період'} · {artifact.unit}{scope.as_of && ` · зріз ${date(scope.as_of)}`}</small>
-    {artifact.kind === 'table' ? <div className="ag-table-scroll"><table className="ag-table">
-      <thead><tr><th>Назва</th><th>{artifact.unit}</th>{artifact.unit === 'RUB/місяць' && <th>Вибірка зарплат</th>}</tr></thead>
-      <tbody>{rows.map((row, i) => <tr key={i}><td>{row.source_id && typeof row.id === 'number' ? <Link to={`/companies/${row.id}`}>{row.label}</Link> : row.label}</td><td>{number(row.value)}</td>{artifact.unit === 'RUB/місяць' && <td>{row.salary_samples}</td>}</tr>)}</tbody>
-    </table></div> : artifact.kind === 'line' ? <>
-      {!!lineRows.length && <LineChart months={lineRows.map(row => new Date(`${row.id}T00:00:00`))} series={[{ values: lineRows.map(row => row.value!), color: 'var(--accent-foreground)' }]} label={artifact.title} />}
-      <small>Активні вакансії за місяцем публікації; місяці без даних не відображені.</small>
-    </> : <div className="ag-bars">{rows.map((row, i) => <div key={i} className="ag-bar-row">
-      <span>{row.label}</span><strong>{number(row.value)}</strong><div className="ag-bar-track"><div style={{ width: `${100 * (row.value ?? 0) / max}%` }} /></div>
-    </div>)}</div>}
-    {!rows.length && <p>За вибраними умовами даних немає.</p>}
+    <h3>{artifact.title}</h3>
+    <small>{artifact.scope.days ? `За ${artifact.scope.days} днів до дати зрізу` : 'За весь доступний період'}{artifact.scope.as_of && ` · зріз ${date(artifact.scope.as_of)}`}</small>
+    <AgentChart artifact={artifact} />
+    <small className="ag-chart-note">{artifact.note ?? `Одиниця: ${artifact.unit}. Активні вакансії без дублів.`}</small>
   </section>
 }
 
 export function AgentAnswer({ response }: { response: AgentResponse }) {
-  const sources = new Map(response.sources.map(source => [source.id, source]))
+  const prefix = `agent-source-${useId().replace(/[^\w-]/g, '')}`
+  const visibleSources = response.sources
+    .filter(source => !(source.url === '/' && source.title === 'Огляд платформи'))
+    .map(source => source.url === '/' && source.title === 'Аналітика вакансій платформи' ? { ...source, url: '/vacancies' } : source)
+  const sources = new Map(visibleSources.map((source, index) => [source.id, { source, index: index + 1, anchor: `${prefix}-${source.id}` }]))
+  const citations = new Map([...sources.values()].map(entry => [`#${entry.anchor}`, entry]))
+  const artifacts = new Map(response.artifacts.map(artifact => [artifact.id, artifact]))
+  // Older model answers may put an artifact placeholder under a heading. The
+  // real artifact already has its own heading below, so omit that empty block.
+  const prose = response.text
+    .replace(/(?:^|\n)#{1,6}[^\n]+\n+\[(a\d+)\][ \t]*(?=\n|$)/g, (original, id: string) => artifacts.has(id) ? '' : original)
+    .replace(/\[(a\d+)\]/g, (original, id: string) => artifacts.get(id)?.title ?? original)
+  const text = prose.replace(/\[(s\d+(?:\s*,\s*s\d+)*)\]/g, (original, group: string) => {
+    const ids = group.split(/\s*,\s*/)
+    if (!ids.every(id => response.sources.some(source => source.id === id))) return original
+    return ids.flatMap(id => {
+      const entry = sources.get(id)
+      return entry ? [`[\\[${entry.index}\\]](#${entry.anchor})`] : []
+    }).join(' ')
+  })
   return <>
-    <div className="ag-answer-text">{response.text.split(/(\[s\d+\])/g).map((part, index) => {
-      const source = sources.get(part.slice(1, -1))
-      return source ? <SourceLink key={index} source={source}>{part}</SourceLink> : <span key={index}>{part}</span>
-    })}</div>
-    {response.artifacts.map(artifact => <Artifact key={artifact.id} artifact={artifact} />)}
-    {!!response.sources.length && <div className="ag-evidence">
-      <b>Джерела</b>{response.sources.map(source => <div key={source.id}><SourceLink source={source}>[{source.id}] {source.title}</SourceLink></div>)}
-    </div>}
+    <div className="ag-answer-text"><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{
+      h1: ({ children }) => <h3>{children}</h3>, h2: ({ children }) => <h3>{children}</h3>, h3: ({ children }) => <h3>{children}</h3>,
+      img: () => null,
+      table: ({ children }) => <div className="ag-table-scroll"><table className="ag-table">{children}</table></div>,
+      a: ({ href, children }) => {
+        const citation = citations.get(href ?? '')
+        if (citation) return <a className="ag-citation" href={href} title={citation.source.title} aria-label={`Джерело ${citation.index}: ${citation.source.title}`}>{children}</a>
+        const source = visibleSources.find(source => source.url === href || (href === '/' && source.title === 'Аналітика вакансій платформи'))
+        return source ? <SourceLink source={source}>{children}</SourceLink> : <span>{children}</span>
+      },
+    }}>{text}</Markdown></div>
+    {response.artifacts.filter(artifact => !(artifact.kind === 'table' && artifact.companion_id && artifacts.has(artifact.companion_id))).map(artifact => {
+      const companion = 'companion_id' in artifact && artifact.companion_id ? artifacts.get(artifact.companion_id) : undefined
+      return <div key={artifact.id}><Artifact artifact={artifact} />{companion?.kind === 'table' && <Artifact artifact={companion} table />}</div>
+    })}
+    {!!visibleSources.length && <section className="ag-evidence" aria-label="Джерела відповіді">
+      <h3>Джерела та матеріали</h3><ol>{visibleSources.map(source => {
+        const entry = sources.get(source.id)!
+        return <li key={source.id} id={entry.anchor} tabIndex={-1}><div><SourceLink source={source} /><span className="ag-source-site">{site(source.url) ?? 'Джерело'}</span>{source.published_at && <time dateTime={source.published_at}>{date(source.published_at)}</time>}</div></li>
+      })}</ol>
+    </section>}
     {response.as_of && <small className="ag-snapshot">Дані бази станом на {date(response.as_of)}</small>}
   </>
 }

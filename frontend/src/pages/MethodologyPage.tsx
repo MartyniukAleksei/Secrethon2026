@@ -9,12 +9,14 @@ import { useApi } from '../data/useApi'
 import { fmt, longDate } from '../domain/format'
 import { DISCOVERY_STATUS, FOCUS, PROVIDERS, sourceName, VPK_CATEGORY } from '../domain/labels'
 import { Dedup } from './OverviewPage'
+import { VacancyClassificationMethod } from './VacancyClassificationMethod'
 import './MethodologyPage.css'
 
 const SECTIONS = [
   ['sources', 'Джерела, зіставлення, дублі'],
   ['flow', 'Як класифікуємо'],
   ['classes', 'Класи'],
+  ['vacancy-directions', 'Галузі вакансій: JEV і GPT'],
   ['verification', 'Перевірка'],
   ['mcp', 'MCP'],
   ['search', 'Як ми шукали'],
@@ -93,7 +95,7 @@ export function MethodologyPage() {
       <div className="page-head">
         <div>
           <h1>Про дані</h1>
-          <p>Звідки беруться дані, як ми визначаємо дотичність до ВПК, які є класи, як перевіряємо рішення і як підключитися до даних через MCP.</p>
+          <p>Звідки беруться дані, як ми визначаємо дотичність до ВПК та галузі вакансій, які є класи, як перевіряємо рішення і як підключитися до даних через MCP.</p>
         </div>
       </div>
       <nav className="method-toc" aria-label="Розділи">
@@ -107,6 +109,7 @@ export function MethodologyPage() {
         <Sources stats={stats} data={data} />
         <Flow stats={stats} />
         {data ? <Classes data={data} /> : <div className="skeleton method-skeleton" />}
+        <VacancyClassificationMethod />
         {data ? <Verification data={data} /> : <div className="skeleton method-skeleton" />}
         {data ? <Mcp mcp={data.mcp} /> : <div className="skeleton method-skeleton" />}
         <section className="panel" id="search">
@@ -201,9 +204,10 @@ function Flow({ stats }: { stats: ApiStats }) {
     <section className="panel" id="flow">
       <h3>Як класифікуємо</h3>
       <p>
-        Класифікуємо <b>підприємство</b>, а не вакансію. Якщо юрособу віднесено до ВПК, показуємо всі її вакансії — і токаря, і бухгалтера, і водія. Текст
-        вакансії вирішує лише там, де про підприємство нічого не відомо: кадрові агентства, приховані роботодавці, роботодавці без знайденої юрособи.
+        Дотичність до ВПК визначаємо насамперед за <b>підприємством</b>. Якщо юрособу віднесено до ВПК, показуємо всі її вакансії — і токаря, і бухгалтера, і водія. Текст
+        вакансії визначає дотичність там, де про підприємство нічого не відомо: кадрові агентства, приховані роботодавці, роботодавці без знайденої юрособи.
       </p>
+      <p className="method-note">Окремо визначаємо галузь і вид діяльності за обов’язками кожної вакансії. Ця розмітка не змінює рішення про її належність до ВПК — <a href="#vacancy-directions">методика й метрики нижче</a>.</p>
       <ClassificationFlow />
       <ol className="method-steps">
         <li>
@@ -355,7 +359,7 @@ function Verification({ data }: { data: ApiMethodology }) {
           Контакти: телефон — останні 10 цифр є на сторінці джерела, ІПН — контрольна сума й ІПН на сторінці, керівник — прізвище на сторінці, сайт — відкривається.
           Перевірено {fmt(c.contacts_verified)}, відкинуто {fmt(c.contacts_rejected)}.
         </li>
-        <li>Рішення JEV з імовірністю нижче 0,9 не стає «рішенням», а йде «на перевірку»; повні розподіли ймовірностей збережено.</li>
+        <li>Рішення JEV про дотичність підприємства до ВПК з імовірністю нижче 0,9 не стає «рішенням», а йде «на перевірку»; повні розподіли ймовірностей збережено. Для галузей вакансій застосовано окремий поріг 0,75 — <a href="#vacancy-directions">див. повний прогін</a>.</li>
       </ul>
 
       <h4>LLM as a judge</h4>

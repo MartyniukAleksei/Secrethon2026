@@ -71,6 +71,20 @@ def test_sdk_negotiation_lists_tools_resource_and_prompt(monkeypatch):
                 "search_mentions",
             }
             assert all(tool.annotations.readOnlyHint for tool in tools)
+            analytics = next(tool for tool in tools if tool.name == "analytics")
+            assert set(analytics.inputSchema["properties"]["view"]["enum"]) == {
+                "auto",
+                "kpi",
+                "line",
+                "donut",
+                "stacked",
+                "bar",
+                "heatmap",
+                "scatter",
+                "histogram",
+                "professions",
+                "signals",
+            }
             assert all(tool.name != "finish" for tool in tools)
             resources = await session.list_resources()
             assert str(resources.resources[0].uri) == "secrethon://methodology"

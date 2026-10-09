@@ -4,6 +4,7 @@ import { api, exportUrl, type VacancyQuery } from '../api/client'
 import type { ApiVacancyFacets } from '../api/types'
 import { AskButton } from '../components/AskButton'
 import { ExportButtons } from '../components/ExportButtons'
+import { VacancyDirection } from '../components/VacancyDirection'
 import { ActiveChips, CheckGroup, FilterHeader, FilterSection, RadioGroup, RangeGroup, ToggleRow, type ActiveChip, type FacetOption } from '../components/FilterSidebar'
 import { useUrlFilters } from '../hooks/useUrlFilters'
 import { useData } from '../data/DataContext'
@@ -259,15 +260,16 @@ function Listings({ base, params, update, chips }: { base: VacancyQuery; params:
         <div className="table-wrap" style={{ opacity: state.status === 'loading' ? 0.6 : 1 }}>
           <table className="data">
             <thead>
-              <tr><th>Посада</th><th>Роботодавець</th><th>Місто</th><th className="num">Зарплата</th><th>Досвід</th><th>Дотичність</th><th className="num">Опубліковано</th></tr>
+              <tr><th>Посада</th><th>Галузь</th><th>Роботодавець</th><th>Місто</th><th className="num">Зарплата</th><th>Досвід</th><th>Дотичність</th><th className="num">Опубліковано</th></tr>
             </thead>
             <tbody>
               {data && data.items.length === 0 && (
-                <tr><td colSpan={7}><p className="empty-row">Нічого не знайдено. Зміни пошук, період або регіон.</p></td></tr>
+                <tr><td colSpan={8}><p className="empty-row">Нічого не знайдено. Зміни пошук, період або регіон.</p></td></tr>
               )}
               {data?.items.map((v) => (
                 <tr key={v.id} className="clickable" onClick={() => navigate(`/vacancies/${v.id}`)}>
                   <td className="wrap"><Link className="vacancy-title-link" to={`/vacancies/${v.id}`} onClick={(event) => event.stopPropagation()}><b>{v.title}</b></Link></td>
+                  <td className="wrap"><VacancyDirection vacancy={v} compact /></td>
                   <td className="wrap">{v.employer_name}</td>
                   <td>{v.locality ?? '—'}</td>
                   <td className="num">{salaryRange(v) ?? '—'}</td>

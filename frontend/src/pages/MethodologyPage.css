@@ -32,7 +32,11 @@
 .method-toc { display: flex; flex-wrap: wrap; gap: 6px; max-width: 780px; margin-bottom: 12px; }
 .method-toc a { padding: 4px 10px; border-radius: var(--r-control); background: var(--fill-1); color: var(--label-1); font-size: 13.5px; text-decoration: none; }
 .method-toc a:hover { background: var(--fill-2); }
-.method section { scroll-margin-top: 16px; }
+.method section { scroll-margin-top: 80px; }
+.method-vacancy-judge th { white-space: normal; }
+.method-vacancy-judge .method-desc { min-width: 120px; }
+.method-score-share { display: block; color: var(--label-2); font-size: 12px; margin-top: 3px; }
+.method-checksum { overflow-wrap: anywhere; }
 
 @media (max-width: 720px) {
   .method-kpis, .method-mcp { grid-template-columns: minmax(0, 1fr); }

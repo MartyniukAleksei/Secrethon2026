@@ -1,0 +1,5 @@
+.vacancy-direction { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+.vacancy-direction .badge { height: auto; min-height: 26px; padding: 5px 10px; line-height: 17px; white-space: normal; overflow-wrap: anywhere; }
+.vacancy-domain.classified { background: var(--accent); color: var(--accent-foreground); }
+.vacancy-domain svg { width: 14px; height: 14px; flex: none; }
+.vac-row > .vacancy-direction { grid-column: 1 / -1; margin-top: 4px; }

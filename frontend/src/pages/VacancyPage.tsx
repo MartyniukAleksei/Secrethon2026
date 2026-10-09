@@ -5,6 +5,7 @@ import { seedOf } from '../charts/geometry'
 import { Topo } from '../charts/Topo'
 import { AskButton } from '../components/AskButton'
 import { ReviewBadge, VacancyReviews } from '../components/VacancyReviews'
+import { VacancyDirection } from '../components/VacancyDirection'
 import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
 import { usePageTitle } from '../app/pageContext'
@@ -77,6 +78,7 @@ function VacancyProfile({ vacancy: v }: { vacancy: VacancyDetail }) {
           </div>
         </div>
         <div className="badges prof-badges">
+          <VacancyDirection vacancy={v} />
           <ReviewBadge source="human" review={reviews.find((r) => r.source === 'human')} />
           <ReviewBadge source="llm" review={reviews.find((r) => r.source === 'llm')} />
           {v.shown

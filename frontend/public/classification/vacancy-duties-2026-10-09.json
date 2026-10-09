@@ -1,0 +1,317 @@
+{
+  "snapshot_date": "2026-10-09",
+  "published_at": "2026-10-09T21:01:17.892369+00:00",
+  "scope": "vpk_active_unique",
+  "selected": 35650,
+  "success": 35650,
+  "errors": 0,
+  "review": 14768,
+  "distinct_inputs": 30349,
+  "cached_inputs": 7594,
+  "employers": 1575,
+  "threshold": 0.75,
+  "models": [
+    "jev-1.13.0"
+  ],
+  "prompt_version": "vacancy-duties-v1",
+  "run_id": "645ac589-6ce4-4493-9ed5-7e75686c29f8",
+  "source_sha256": "1edba8164fd153b2d9ae2e01cac0414e297d2a5d9c35a468aa1b1f5c17e522d5",
+  "coverage": {
+    "expected_ids": 35650,
+    "result_ids": 35650,
+    "missing_ids": [],
+    "unexpected_ids": []
+  },
+  "prior_classification_counts_unchanged": true,
+  "domains": {
+    "electronics_comms": 3961,
+    "finance": 1739,
+    "missiles_space": 459,
+    "none": 1708,
+    "trade_logistics": 2712,
+    "civil_other": 12861,
+    "machining_materials": 9090,
+    "rnd_institute": 199,
+    "ammo_chemicals": 159,
+    "shipbuilding": 706,
+    "aviation": 616,
+    "armored_vehicles": 129,
+    "air_defense_radar": 160,
+    "optics": 273,
+    "engines": 301,
+    "uav": 533,
+    "small_arms": 44
+  },
+  "roles": {
+    "rnd": 4827,
+    "finance": 1753,
+    "manufacturer": 10117,
+    "repair": 5238,
+    "intermediary": 1957,
+    "services": 9628,
+    "management": 1775,
+    "component_supplier": 230,
+    "equipment_supplier": 55,
+    "none": 70
+  },
+  "pilot": {
+    "selected": 160,
+    "employers": 4,
+    "per_company": 40,
+    "errors": 0
+  },
+  "judge": {
+    "model": "gpt-6-luna",
+    "finished_at": "2026-10-09T20:17:54.700242+00:00",
+    "total": 3843,
+    "evaluated": 3843,
+    "errors": 0,
+    "unique_texts_evaluated": 675,
+    "vacancy": {
+      "domain": {
+        "supported": 3525,
+        "insufficient": 204,
+        "incorrect": 110,
+        "ambiguous": 4
+      },
+      "domain_blind_agreement": 3645,
+      "role": {
+        "supported": 3390,
+        "incorrect": 334,
+        "ambiguous": 118,
+        "insufficient": 1
+      },
+      "role_blind_agreement": 3387,
+      "both_supported": 3118,
+      "any_incorrect": 422
+    },
+    "unique_text": {
+      "domain": {
+        "supported": 617,
+        "insufficient": 26,
+        "incorrect": 30,
+        "ambiguous": 2
+      },
+      "domain_blind_agreement": 621,
+      "role": {
+        "supported": 575,
+        "incorrect": 86,
+        "ambiguous": 13,
+        "insufficient": 1
+      },
+      "role_blind_agreement": 574,
+      "both_supported": 531,
+      "any_incorrect": 110
+    },
+    "jev_domains": {
+      "civil_other": 2495,
+      "uav": 228,
+      "electronics_comms": 312,
+      "engines": 49,
+      "optics": 56,
+      "none": 106,
+      "air_defense_radar": 70,
+      "machining_materials": 211,
+      "aviation": 20,
+      "trade_logistics": 143,
+      "finance": 143,
+      "rnd_institute": 10
+    },
+    "gpt_blind_domains": {
+      "civil_other": 2466,
+      "uav": 215,
+      "electronics_comms": 318,
+      "engines": 46,
+      "optics": 46,
+      "none": 219,
+      "air_defense_radar": 70,
+      "machining_materials": 153,
+      "aviation": 4,
+      "trade_logistics": 154,
+      "finance": 146,
+      "rnd_institute": 6
+    },
+    "high_confidence_errors": 57,
+    "missed_by_jev_review_flag": 115,
+    "error_transitions": {
+      "domain": [
+        {
+          "from": "civil_other",
+          "to": "electronics_comms",
+          "vacancies": 23,
+          "unique_texts": 6
+        },
+        {
+          "from": "civil_other",
+          "to": "trade_logistics",
+          "vacancies": 16,
+          "unique_texts": 3
+        },
+        {
+          "from": "uav",
+          "to": "civil_other",
+          "vacancies": 13,
+          "unique_texts": 4
+        },
+        {
+          "from": "machining_materials",
+          "to": "civil_other",
+          "vacancies": 10,
+          "unique_texts": 3
+        },
+        {
+          "from": "electronics_comms",
+          "to": "civil_other",
+          "vacancies": 8,
+          "unique_texts": 2
+        },
+        {
+          "from": "optics",
+          "to": "civil_other",
+          "vacancies": 6,
+          "unique_texts": 1
+        },
+        {
+          "from": "aviation",
+          "to": "electronics_comms",
+          "vacancies": 6,
+          "unique_texts": 1
+        },
+        {
+          "from": "civil_other",
+          "to": "none",
+          "vacancies": 6,
+          "unique_texts": 1
+        },
+        {
+          "from": "machining_materials",
+          "to": "electronics_comms",
+          "vacancies": 5,
+          "unique_texts": 1
+        },
+        {
+          "from": "trade_logistics",
+          "to": "civil_other",
+          "vacancies": 4,
+          "unique_texts": 2
+        },
+        {
+          "from": "rnd_institute",
+          "to": "civil_other",
+          "vacancies": 4,
+          "unique_texts": 1
+        },
+        {
+          "from": "machining_materials",
+          "to": "engines",
+          "vacancies": 4,
+          "unique_texts": 2
+        },
+        {
+          "from": "machining_materials",
+          "to": "none",
+          "vacancies": 4,
+          "unique_texts": 2
+        },
+        {
+          "from": "finance",
+          "to": "civil_other",
+          "vacancies": 1,
+          "unique_texts": 1
+        }
+      ],
+      "role": [
+        {
+          "from": "rnd",
+          "to": "services",
+          "vacancies": 123,
+          "unique_texts": 28
+        },
+        {
+          "from": "manufacturer",
+          "to": "rnd",
+          "vacancies": 69,
+          "unique_texts": 21
+        },
+        {
+          "from": "repair",
+          "to": "services",
+          "vacancies": 54,
+          "unique_texts": 13
+        },
+        {
+          "from": "manufacturer",
+          "to": "services",
+          "vacancies": 24,
+          "unique_texts": 8
+        },
+        {
+          "from": "services",
+          "to": "intermediary",
+          "vacancies": 16,
+          "unique_texts": 4
+        },
+        {
+          "from": "services",
+          "to": "rnd",
+          "vacancies": 11,
+          "unique_texts": 1
+        },
+        {
+          "from": "management",
+          "to": "services",
+          "vacancies": 10,
+          "unique_texts": 4
+        },
+        {
+          "from": "manufacturer",
+          "to": "repair",
+          "vacancies": 6,
+          "unique_texts": 1
+        },
+        {
+          "from": "finance",
+          "to": "services",
+          "vacancies": 6,
+          "unique_texts": 1
+        },
+        {
+          "from": "services",
+          "to": "repair",
+          "vacancies": 4,
+          "unique_texts": 1
+        },
+        {
+          "from": "intermediary",
+          "to": "services",
+          "vacancies": 3,
+          "unique_texts": 1
+        },
+        {
+          "from": "intermediary",
+          "to": "component_supplier",
+          "vacancies": 3,
+          "unique_texts": 1
+        },
+        {
+          "from": "manufacturer",
+          "to": "management",
+          "vacancies": 3,
+          "unique_texts": 1
+        },
+        {
+          "from": "services",
+          "to": "management",
+          "vacancies": 2,
+          "unique_texts": 1
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "classification": "reports/jev-vpk/manifest.json",
+    "publication": "reports/jev-vpk/import_receipt.json",
+    "judge": "reports/jev-alabuga-gpt-review/summary.json"
+  },
+  "unlinked_vacancies": 20
+}

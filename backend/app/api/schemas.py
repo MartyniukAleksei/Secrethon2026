@@ -337,6 +337,12 @@ class EmployerDetailOut(EmployerOut):
 
 
 class VacancyOut(BaseModel):
+    direction_domain: str | None = None
+    direction_role: str | None = None
+    domain_confidence: float | None = None
+    role_confidence: float | None = None
+    direction_review: bool | None = None
+    direction_model: str | None = None
     id: int
     source: str
     url: str

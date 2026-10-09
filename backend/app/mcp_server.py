@@ -24,6 +24,7 @@ from app.agent_provider import ProviderError
 from app.api.agent import Context, Run
 from app.config import settings
 from app.db import SessionLocal, engine
+from app.repository.agent_charts import View
 
 PositiveId = Annotated[int, Field(gt=0)]
 Days = Annotated[int, Field(ge=0, le=3650)]
@@ -136,11 +137,14 @@ def register_tools(server: FastMCP) -> None:
         query: Annotated[str, Field(max_length=200)] = "",
         limit: Limit = 10,
         only_sanctioned: bool = False,
+        view: View = "auto",
     ) -> dict[str, Any]:
         """Compare/rank active vacancies or RUB monthly salary medians. days=0: all time.
 
         summary gives filtered totals; other groups are top-N subsets, not totals.
         Returns exact table/chart specifications, filters, sample sizes and sources.
+        view selects kpi, line, donut, stacked, bar, heatmap, scatter, histogram,
+        professions (table with sparklines) or signals. auto keeps group_by/metric.
         """
         return await execute_tool(
             "analytics",
@@ -154,6 +158,7 @@ def register_tools(server: FastMCP) -> None:
                 "query": query,
                 "limit": limit,
                 "only_sanctioned": only_sanctioned,
+                "view": view,
             },
         )
 

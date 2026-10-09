@@ -350,6 +350,13 @@ export type ApiVacancyFacets = Record<
 >
 
 export type ApiVacancy = {
+  /** Vacancy text classification; without direction_model the direction is inherited from the employer. */
+  direction_domain?: string | null
+  direction_role?: string | null
+  domain_confidence?: number | null
+  role_confidence?: number | null
+  direction_review?: boolean | null
+  direction_model?: string | null
   id: number
   source: string
   url: string

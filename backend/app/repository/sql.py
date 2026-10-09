@@ -1,10 +1,12 @@
 """SQL building blocks over the pipeline schema (see db/schema.sql).
 
 Definitions used across queries:
-- The enterprise is classified, not the vacancy: every vacancy carries one final label, the
+- Eligibility is based on the enterprise: every vacancy carries one final VPK label, the
   classifier run `vacancy_final` (the pipeline keeps a single run). Its category is `vpk`,
   `agency` (a recruitment agency hiring for the ВПК, counted apart) or `excluded`; its level is
   `confirmed`, `likely` (shown, on review) or `no` (not shown).
+- Industry and activity role describe the vacancy duties in the latest published JEV run.
+  Unclassified vacancies keep the employer fallback; JEV's explicit `none` stays unknown.
 - Duplicates are dropped: vacancies are read from `vacancy_unique`.
 - One card per enterprise: profiles of one legal entity on different job sites form a group
   (`employer_group`, branches apart); the card id is the group's main profile (`group_id`).
@@ -27,6 +29,13 @@ VPK = f"final_category = 'vpk' AND {SHOWN}"
 AGENCY = f"final_category = 'agency' AND {SHOWN}"
 
 AS_OF = "(SELECT max(last_seen_at) FROM vacancy)"
+
+CLASSIFICATION_SELECT = """
+    SELECT DISTINCT ON (cc.company_id) cc.*
+    FROM company_classification cc JOIN classifier_run r USING (run_id)
+    WHERE r.classifier = 'company_classification'
+    ORDER BY cc.company_id, r.started_at DESC
+"""
 
 
 def vacancy_cte(with_duplicates: bool = False) -> str:
@@ -73,6 +82,10 @@ v AS (
         vac.experience, vac.schedule, vac.employment, vac.published_at,
         fin.final_category, fin.final_level, fin.final_basis, fin.final_score,
         fin.final_level AS level, d.category, m.vacancy_id IS NOT NULL AS has_markers,
+        coalesce(jd.domain, company_direction.direction_domain, 'none') AS direction_domain,
+        coalesce(jd.role, company_direction.direction_role, 'none') AS direction_role,
+        jd.domain_confidence, jd.role_confidence, jd.review AS direction_review,
+        jd.model AS direction_model,
         dup.canonical_id AS duplicate_of, dup.method AS duplicate_method,
         dup.score AS duplicate_score,
         CASE
@@ -89,6 +102,9 @@ v AS (
     LEFT JOIN direction d ON d.vacancy_id = fin.vacancy_id
     LEFT JOIN markers m ON m.vacancy_id = fin.vacancy_id
     LEFT JOIN employer_group g ON g.employer_profile_id = vac.employer_profile_id
+    LEFT JOIN vacancy_direction_latest jd ON jd.vacancy_id = vac.vacancy_id
+    LEFT JOIN ({CLASSIFICATION_SELECT}) company_direction
+        ON company_direction.company_id = g.company_id
     LEFT JOIN city_region cr ON cr.locality = vac.locality
     WHERE vac.is_active
 )
@@ -112,12 +128,6 @@ gur AS (
 """
 
 # The final classification of every legal entity (latest run).
-CLASSIFICATION_SELECT = """
-    SELECT DISTINCT ON (cc.company_id) cc.*
-    FROM company_classification cc JOIN classifier_run r USING (run_id)
-    WHERE r.classifier = 'company_classification'
-    ORDER BY cc.company_id, r.started_at DESC
-"""
 CLASSIFICATION = f"cls AS ({CLASSIFICATION_SELECT})"
 
 # Customer focus tags of ВПК companies (latest `company_focus` run); none means "adjacent".

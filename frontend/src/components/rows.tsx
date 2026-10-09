@@ -4,6 +4,7 @@ import { useData } from '../data/DataContext'
 import { ago, fmt, salaryRange } from '../domain/format'
 import type { Employer, Vacancy } from '../domain/types'
 import { CompanyLogo } from '../ui/CompanyMark'
+import { VacancyDirection } from './VacancyDirection'
 
 /** Compact employer row used in side lists. `value` overrides the right column. */
 export function EmployerRow({ employer: e, to, current, value }: { employer: Employer; to?: string; current?: boolean; value?: ReactNode }) {
@@ -35,6 +36,7 @@ export function VacancyRow({ vacancy: v, showEmployer = true }: { vacancy: Vacan
       <span className="pay">{salaryRange(v) ?? 'ЗП не вказано'}</span>
       <span className="sm2">{[showEmployer ? v.employer_name : null, v.locality].filter(Boolean).join(', ')}</span>
       <span className="sm2 end">{ago(v.published_at, asOf)}</span>
+      <VacancyDirection vacancy={v} compact />
     </Link>
   )
 }

@@ -22,6 +22,7 @@ export function IconSprite() {
         <symbol id="i-drone" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.4 5.2 8.1 9.1-1.2.9-6.2-3.4-.5 4.4 2.4 2.2-.6 1.1L12 20.7 8.6 22l-.6-1.1 2.4-2.2-.5-4.4-6.2 3.4-1.2-.9 8.1-9.1z" /></symbol>
         <symbol id="i-tank" viewBox="0 0 24 24" fill="currentColor"><path d="M8 8h6.5l1 2H22v1.4h-6.5V12H18l1.5 2.5H4.5L6 12h1.5zM3.5 15.5h17a2.5 2.5 0 0 1 0 5h-17a2.5 2.5 0 0 1 0-5zm1.5 1.6a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8zm4 0a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8zm4 0a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8zm4 0a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8z" /></symbol>
         <symbol id="i-expand" viewBox="0 0 24 24" {...line} strokeWidth={1.9}><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5" /></symbol>
+        <symbol id="i-collapse" viewBox="0 0 24 24" {...line} strokeWidth={1.9}><path d="M20 10h-6V4M4 14h6v6M14 10l6.5-6.5M10 14l-6.5 6.5" /></symbol>
         <symbol id="i-globe" viewBox="0 0 24 24" {...line}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z" /></symbol>
         <symbol id="i-spark" viewBox="0 0 24 24" {...line} strokeWidth={1.8}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" /></symbol>
         <symbol id="i-send" viewBox="0 0 24 24" {...line} strokeWidth={2}><path d="M12 19V5M6 11l6-6 6 6" /></symbol>

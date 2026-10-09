@@ -10,8 +10,14 @@ import './AgentPanel.css'
 
 const SUGGESTIONS = ['Хто найбільше наймає?', 'Де найвищі зарплати?', 'У яких регіонах найбільше вакансій?', 'Хто з роботодавців під санкціями?']
 
-export function AgentPanel() {
-  const { isOpen, messages, typing, close, ask } = useAgent()
+type Props = {
+  fullscreen: boolean
+  onToggleFullscreen: () => void
+  onClose: () => void
+}
+
+export function AgentPanel({ fullscreen, onToggleFullscreen, onClose }: Props) {
+  const { isOpen, messages, typing, ask } = useAgent()
   const { byId, regionById } = useData()
   const filters = useFilters()
   const page = usePageContext()
@@ -25,6 +31,12 @@ export function AgentPanel() {
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight })
   }, [messages, typing])
+  useEffect(() => {
+    const textarea = input.current
+    if (!textarea || !isOpen) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(140, textarea.scrollHeight + 2)}px`
+  }, [text, fullscreen, isOpen])
 
   if (!isOpen) return null
 
@@ -54,22 +66,42 @@ export function AgentPanel() {
   }
 
   return (
-    <aside className="agent" aria-label="AI-агент">
+    <aside id="agent-panel" className={`agent${fullscreen ? ' ag-fullscreen' : ''}`} aria-label="AI-агент"
+      onClickCapture={event => {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+        const link = event.target instanceof Element ? event.target.closest('a[href]') : null
+        const href = link?.getAttribute('href')
+        if (!href?.startsWith('/') || href.startsWith('//')) return
+        // Show the destination rather than leaving it behind the agent overlay.
+        if (window.innerWidth <= 900) onClose()
+        else if (fullscreen) onToggleFullscreen()
+      }}>
       <div className="ag-head">
-        <div className="t">
-          <b>
-            <Icon name="spark" />
-            Агент
-          </b>
-          <span>Відповідає з наших даних і показує джерела</span>
+        <b>
+          <Icon name="spark" />
+          Агент
+        </b>
+        <span className="ag-subtitle">Відповідає з наших даних і показує джерела</span>
+        <div className="ag-head-actions">
+          <button
+            className="btn btn-secondary btn-sm ag-fullscreen-btn"
+            type="button"
+            aria-label={fullscreen ? 'Згорнути агента' : 'Відкрити агента на весь екран'}
+            aria-controls="agent-panel"
+            title={fullscreen ? 'Згорнути агента (Esc)' : 'Відкрити агента на весь екран'}
+            onClick={onToggleFullscreen}
+          >
+            <Icon name={fullscreen ? 'collapse' : 'expand'} />
+            {fullscreen ? 'Згорнути' : 'На весь екран'}
+          </button>
+          <button className="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Закрити агента" onClick={onClose}>
+            <Icon name="x" />
+          </button>
         </div>
-        <button className="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Закрити агента" onClick={close}>
-          <Icon name="x" />
-        </button>
       </div>
       <div className="ag-ctx">
         Бачу: <span className="badge">{company ? company.name : page.label}</span>
-        <span className="badge">{scope}</span>
+        {scope && <span className="badge">{scope}</span>}
       </div>
       <div className="ag-msgs" ref={list} aria-live="polite">
         <div className="msg bot">
@@ -130,11 +162,7 @@ export function AgentPanel() {
           rows={1}
           value={text}
           placeholder="Питання про підприємство чи регіон"
-          onChange={(e) => {
-            setText(e.target.value)
-            e.target.style.height = 'auto'
-            e.target.style.height = `${Math.min(140, e.target.scrollHeight)}px`
-          }}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
         />
         <button className="btn btn-primary btn-icon" type="submit" aria-label="Надіслати" disabled={typing || !text.trim()}>

@@ -14,3 +14,6 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Local JEV exports and review reports (vacancy data, never credentials).
+reports/jev-*/
