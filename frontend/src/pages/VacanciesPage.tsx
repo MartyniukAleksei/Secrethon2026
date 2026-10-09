@@ -98,7 +98,7 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
   const qInput = params.get('q') ?? ''
   const q = useDebounced(qInput)
   const title = params.get('prof') ?? undefined
-  const sort = (params.get('sort') as VacancyQuery['sort']) || 'published'
+  const sort = (params.get('sort') as VacancyQuery['sort']) || 'confirmed'
   const page = Number(params.get('page') ?? 0) || 0
 
   const query: VacancyQuery = { ...base, q: q || undefined, title, sort, limit: PAGE, offset: page * PAGE }
@@ -120,7 +120,8 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
         </label>
         <div className="select">
           <label className="sr" htmlFor="vacSort">Сортування</label>
-          <select className="input" id="vacSort" value={sort} onChange={(e) => update({ sort: e.target.value === 'published' ? null : e.target.value })}>
+          <select className="input" id="vacSort" value={sort} onChange={(e) => update({ sort: e.target.value === 'confirmed' ? null : e.target.value })}>
+            <option value="confirmed">Спершу підтверджені</option>
             <option value="published">Спершу нові</option>
             <option value="salary">Спершу вища зарплата</option>
           </select>

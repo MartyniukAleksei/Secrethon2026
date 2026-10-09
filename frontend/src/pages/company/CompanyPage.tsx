@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from 'react-router'
 import { api } from '../../api/client'
 import { seedOf } from '../../charts/geometry'
 import { Topo } from '../../charts/Topo'
+import { DiscoveryLog } from '../../components/DiscoveryLog'
 import { EmployerHumanReview } from '../../components/EmployerHumanReview'
 import { MapSlot } from '../../components/MapSlot'
 import { EmployerRow } from '../../components/rows'
@@ -41,6 +42,18 @@ const TABS: { id: string; label: string; render: (p: TabProps) => ReactNode }[] 
     ),
   },
   { id: 'sources', label: 'Джерела', render: (p) => <SourcesTab {...p} /> },
+  {
+    id: 'search',
+    label: 'Пошук',
+    render: ({ employer }) => (
+      <div className="panel">
+        <div className="panel-head"><h3>Як ми шукали</h3></div>
+        {employer.company_id != null
+          ? <DiscoveryLog companyId={employer.company_id} />
+          : <p className="empty-row">Юрособу не знайдено, тож пошуку за відкритими джерелами не було.</p>}
+      </div>
+    ),
+  },
 ]
 
 export function CompanyPage() {
@@ -100,7 +113,7 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
         <div className="prof-band"><Topo seed={seedOf(String(e.id))} /></div>
         <div className="prof-id">
           <div className="logo-tile">
-            <CompanyLogo src={gur?.logo_url} size={72} />
+            <CompanyLogo src={gur?.logo_url} size={72} name={e.name} />
           </div>
           <div className="grow">
             <h1>{e.name}</h1>
@@ -193,7 +206,7 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
               <ContactFact label="Телефон" items={contacts('phone')} />
               <ContactFact label="Email" items={contacts('email')} href={(v) => `mailto:${v}`} />
               <div className="facts-address">
-                <dt>Контактна особа</dt>
+                <dt>Керівник юрособи</dt>
                 {headName ? (
                   <dd>{headName}<span className="fact-detail">Керівник{headRole ? ` · ${headRole.toLowerCase()}` : ''} · за реєстром</span></dd>
                 ) : contactHead ? (

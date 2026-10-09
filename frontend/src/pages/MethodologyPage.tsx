@@ -1,11 +1,16 @@
 import { useData } from '../data/DataContext'
 import { Dedup } from './OverviewPage'
 import { fmt, longDate } from '../domain/format'
-import { sourceName } from '../domain/labels'
+import { DISCOVERY_STATUS, focusKeys, PROVIDERS, sourceName } from '../domain/labels'
+import { api } from '../api/client'
+import { DiscoveryLog } from '../components/DiscoveryLog'
+import { useApi } from '../data/useApi'
 import './MethodologyPage.css'
 
 export function MethodologyPage() {
-  const { stats } = useData()
+  const { stats, employers } = useData()
+  const focus = { drone: 0, missile: 0, kab: 0, other: 0 }
+  employers.forEach((e) => focusKeys(e).forEach((k) => (focus[k] += 1)))
   return (
     <>
       <div className="page-head">
@@ -28,10 +33,10 @@ export function MethodologyPage() {
               під санкціями) і {fmt(stats.company_relations)} зв'язками між ними.
             </li>
           </ul>
-          <p>Дані станом на {stats.as_of ? longDate(stats.as_of) : '—'}.</p>
+          <p>Дані станом на {stats.as_of ? longDate(stats.as_of) : '—'}</p>
         </section>
         <section className="panel">
-          <h3>Як визначаємо дотичність до ВПК</h3>
+          <h3 id="funnel">Як визначаємо дотичність до ВПК</h3>
           <p>
             Класифікуємо <b>підприємство</b>, а не вакансію. Якщо юрособу віднесено до ВПК, показуємо всі її вакансії — і токаря, і бухгалтера,
             і водія. Текст вакансії вирішує лише там, де про підприємство нічого не відомо: кадрові агентства, приховані роботодавці,
@@ -46,7 +51,7 @@ export function MethodologyPage() {
           <p>
             Повтори однієї вакансії (перепублікації, те саме оголошення на кількох сайтах) рахуємо один раз.{' '}
             {stats.final_run_at
-              ? <>Підсумкову мітку вакансій оновлено {longDate(stats.final_run_at)}.</>
+              ? <>Підсумкову мітку вакансій оновлено {longDate(stats.final_run_at)}</>
               : <>Підсумкова мітка вакансій ще готується; поки діє попередня класифікація за текстом.</>}
           </p>
           <p>
@@ -65,18 +70,76 @@ export function MethodologyPage() {
           <ul>
             <li>Медіана зарплати: лише вакансії з місячною зарплатою в рублях; якщо вказано діапазон, береться його середина.</li>
             <li>Регіон: у trudvsem його вказано; для hh.ru визначаємо за містом, як найчастіший регіон цього міста серед вакансій trudvsem.</li>
-            <li>Санкції й зв'язки: роботодавця з сайту вакансій зіставляємо з карткою ГУР за ІПН. Так зіставлено {fmt(stats.matched_employers)} роботодавців.</li>
+            <li>
+              Санкції: рахуємо всі юрисдикції юрособи — з бази ГУР і знайдені додатково у відкритих джерелах (OpenSanctions тощо), кожну
+              один раз.
+            </li>
+            <li>Зв'язки: картку підприємства зіставляємо з карткою ГУР за ІПН юрособи. Профілів роботодавців з ІПН у джерелі: {fmt(stats.matched_employers)}.</li>
           </ul>
+        </section>
+        <section className="panel">
+          <h3>Що варто знати про дані</h3>
+          <ul>
+            <li>
+              <b>«Работа России» (trudvsem)</b> збирали запитами за ВПК і за ІПН підприємств ВПК, тож майже всі її вакансії — ВПК. Це відбір
+              на вході, а не помилка класифікатора.
+            </li>
+            <li>
+              <b>Стрибок вакансій у вересні</b> і показник «нових за 30 днів» — це момент початку збору, а не сплеск найму: hh.ru показує
+              лише відкриті вакансії. Динаміку міряємо тільки між нашими знімками.
+            </li>
+            <li>
+              <b>Склейка:</b> одна картка — одна юрособа, філії окремо. <Dedup stats={stats} />.
+            </li>
+            <li>
+              <b>Фокус-категорії</b> для підприємств ВПК: БпЛА (дрони, баражувальні боєприпаси та їхні компоненти) — {fmt(focus.drone)},
+              Ракети (балістичні й крилаті ракети, ОТРК; без зенітних) — {fmt(focus.missile)}, КАБ (кориговані й плануючі бомби, УМПК,
+              УМПБ) — {fmt(focus.kab)}, решта — «Суміжне» ({fmt(focus.other)}) карток. Підстава кожного тегу показана при наведенні: кооперація
+              з виробництва озброєння чи моделі БпЛА в базі ГУР, напрям діяльності, згадки у вакансіях або оцінка моделі.
+            </li>
+            <li>
+              <b>Контакти</b> лише корпоративні (телефон, пошта, сайт) і керівник юрособи за реєстром. Рекрутерів і працівників не
+              профілюємо.
+            </li>
+          </ul>
+        </section>
+        <section className="panel" id="search">
+          <h3>Як ми шукали</h3>
+          <p>Що шукали у відкритих джерелах про кожне підприємство і що з цього стало перевіреним фактом чи контактом.</p>
+          <DiscoverySummary />
+          <DiscoveryLog />
         </section>
         <section className="panel">
           <h3>Обмеження</h3>
           <p>
-            Частина підприємств ВПК не публікує вакансій відкрито, тож реальний найм більший, ніж ми бачимо. hh.ru не публікує ІПН роботодавців,
-            тому їх поки не зіставлено з базою ГУР. Контактів представників підприємств у зібраних даних немає. Класифікатор помиляється:
-            «ймовірно» означає саме ймовірність, а не доведений факт.
+            Частина підприємств ВПК не публікує вакансій відкрито, тож реальний найм більший, ніж ми бачимо. hh.ru не публікує ІПН роботодавців:
+            їхні профілі зіставлено з юрособами за назвою, і такий зв’язок позначено «ймовірний» або «під питанням». Класифікатор помиляється:
+            «на перевірці» означає саме ймовірність, а не доведений факт.
           </p>
         </section>
       </div>
     </>
+  )
+}
+
+/** Search log rows by provider and result. */
+function DiscoverySummary() {
+  const state = useApi('discovery-summary', (signal) => api.discoverySummary(signal))
+  if (state.status !== 'ready') return <div className="skeleton" style={{ height: 120 }} />
+  return (
+    <div className="table-wrap">
+      <table className="data">
+        <thead><tr><th>Джерело</th><th>Результат</th><th className="num">Записів</th></tr></thead>
+        <tbody>
+          {state.data.map((r) => (
+            <tr key={`${r.provider}:${r.status}`}>
+              <td>{PROVIDERS[r.provider] ?? r.provider}</td>
+              <td>{DISCOVERY_STATUS[r.status]}</td>
+              <td className="num">{fmt(r.rows)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

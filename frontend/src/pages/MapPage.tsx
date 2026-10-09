@@ -11,6 +11,7 @@ import { useFilters } from '../state/FiltersContext'
 import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { Icon } from '../ui/Icon'
 import './MapPage.css'
+import { matcher } from '../domain/search'
 
 const LIST_LIMIT = 300
 
@@ -20,9 +21,8 @@ export function MapPage() {
   const [params] = useSearchParams()
   const [search, setSearch] = useState('')
   const list = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase('uk-UA')
-    return employers.filter((e) => filters.matches(e) && (!q ||
-      [e.name, e.locality, e.region, e.inn].some((value) => value?.toLocaleLowerCase('uk-UA').includes(q))))
+    const m = matcher(search)
+    return employers.filter((e) => filters.matches(e) && m(e.name, e.gur_name, e.locality, e.region, e.inn))
   }, [employers, filters, search])
   const sel = list.find((e) => e.id === Number(params.get('co')))
 

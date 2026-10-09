@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { load } from '@2gis/mapgl'
 import { Clusterer } from '@2gis/mapgl-clusterer'
@@ -7,7 +7,8 @@ import { api } from '../api/client'
 import type { ApiMapNetwork, ApiMapPoint, ApiMapRelation } from '../api/types'
 import { useApi } from '../data/useApi'
 import { useData } from '../data/DataContext'
-import { categoryOf, effectiveCategory, isSanctioned } from '../domain/labels'
+import { effectiveCategory, isSanctioned } from '../domain/labels'
+import { markerColor, markerIcon, SELECTED_COLOR } from './mapMarkers'
 import type { Employer } from '../domain/types'
 import { useToast } from '../features/toast/ToastContext'
 import { Icon } from '../ui/Icon'
@@ -31,12 +32,8 @@ function loadSdk() {
   }
   return sdkPromise
 }
-function markerColor(category: Employer['category']) {
-  const color = categoryOf(category).color
-  const token = /^var\((--[\w-]+)\)$/.exec(color)
-  return token ? getComputedStyle(document.documentElement).getPropertyValue(token[1]).trim() || '#73786a' : color
-}
-const markerIcon = (color: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path fill="${color}" stroke="white" stroke-width="2" d="M16 1a15 15 0 0 0-15 15c0 11 15 23 15 23s15-12 15-23A15 15 0 0 0 16 1Z"/><circle cx="16" cy="16" r="5" fill="white"/></svg>`)}`
+// OpenStreetMap stands in when 2GIS cannot be reached (loaded only then).
+const LeafletMap = lazy(() => import('./LeafletMap'))
 
 function fit(map: MapGL, points: ApiMapPoint[]) {
   if (!points.length) {
@@ -131,7 +128,7 @@ export function MapSlot({ employers, selectedId, children }: {
     setEngine(null)
     const timer = setTimeout(() => {
       if (!cancelled) setError('2ГІС не відповідає. Перевірте з’єднання та спробуйте ще раз.')
-    }, 20000)
+    }, 15000)
     loadSdk().then((sdk) => {
       if (cancelled || !container.current) return
       map = new sdk.Map(container.current, {
@@ -241,7 +238,7 @@ export function MapSlot({ employers, selectedId, children }: {
     if (!engine || !map || !showMarkers) return
     const selected = points.filter((p) => p.employer_id === selectedId)
     const markers = selected.map((p) => new engine.Marker(map, {
-      coordinates: [p.lng, p.lat], icon: markerIcon('#d97706'),
+      coordinates: [p.lng, p.lat], icon: markerIcon(SELECTED_COLOR),
       size: [40, 50], anchor: [20, 50], zIndex: 10,
     }))
     markers.forEach((marker) => marker.on('click', () => navigate(`/map?co=${selectedId}`)))
@@ -261,12 +258,20 @@ export function MapSlot({ employers, selectedId, children }: {
     } catch { say('Повноекранний режим недоступний у цьому браузері.') }
   }
 
-  const status = !API_KEY ? 'Карта 2ГІС ще не налаштована.'
-    : error || (!engine ? 'Завантаження карти 2ГІС…' : '')
+  // Without 2GIS (no key, an error or no answer in 15 s) the same places go on OpenStreetMap.
+  const fallback = !API_KEY || !!error
+  const colorOf = useCallback((id: number) => markerColor(byId[id] ? effectiveCategory(byId[id]) : null), [byId])
+  const select = useCallback((id: number) => navigate(`/map?co=${id}`), [navigate])
+  const status = fallback ? '' : !engine ? 'Завантаження карти 2ГІС…' : ''
   const selectedMissing = selectedId !== undefined && !points.some((p) => p.employer_id === selectedId)
   return (
     <div className="map-slot" ref={root}>
       <div className="map-canvas" ref={container} aria-label="Карта місць найму на базі 2ГІС" />
+      {fallback && (
+        <Suspense fallback={null}>
+          <LeafletMap points={showMarkers ? points : EMPTY} selectedId={selectedId} colorOf={colorOf} onSelect={select} />
+        </Suspense>
+      )}
       <div className="map-tl">
         <div className="segmented sm">
           {(['2d', '3d'] as const).map((m) => (
@@ -309,10 +314,12 @@ export function MapSlot({ employers, selectedId, children }: {
       </div>
       {status && <div className="map-ph" role="status"><div>
         <Icon name="map" /><h4>{status}</h4>
-        {!API_KEY ? <p>Карта стане доступною після налаштування сервісу. Список роботодавців і профілі вже доступні.</p>
-          : error ? <button className="btn btn-secondary btn-sm" type="button" onClick={() => setAttempt((n) => n + 1)}>Спробувати ще раз</button> : null}
       </div></div>}
-      {engine && <div className="map-info" role="status">
+      {(engine || fallback) && <div className="map-info" role="status">
+        {fallback && <p>
+          Резервна карта OpenStreetMap: 2ГІС недоступний, зв’язки й щільність показуються лише на 2ГІС.{' '}
+          {API_KEY && <button type="button" onClick={() => setAttempt((n) => n + 1)}>Спробувати 2ГІС</button>}
+        </p>}
         {pointsState.status === 'loading' ? 'Завантаження місць найму…'
           : pointsState.status === 'error' ? <><span>Не вдалося завантажити місця найму.</span> <button type="button" onClick={() => setAttempt((n) => n + 1)}>Повторити</button></>
           : <>{located} з {employers.length} роботодавців на карті · {points.length} місць найму

@@ -12,6 +12,7 @@ import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { CompanyTile } from '../ui/CompanyMark'
 import { Icon } from '../ui/Icon'
 import './CompaniesPage.css'
+import { matcher } from '../domain/search'
 
 type Sort = 'vacancies' | 'confirmed' | 'salary' | 'new' | 'sanctions'
 const SORTS: Record<Sort, { label: string; key: (e: Employer) => number }> = {
@@ -68,10 +69,11 @@ export function CompaniesPage() {
     setShown(PAGE)
   }
 
-  const q = query.trim().toLowerCase()
+  // Ukrainian or Latin spelling finds the Russian names too.
+  const m = matcher(query)
   const list = employers
     .filter(filters.matches)
-    .filter((e) => !q || `${e.name} ${e.locality ?? ''} ${e.inn ?? ''}`.toLowerCase().includes(q))
+    .filter((e) => m(e.name, e.gur_name, e.locality, e.inn))
     .filter((e) => FLAGS.every(([f, , test]) => !flags.has(f) || test(e)))
     .sort((a, b) => SORTS[sort].key(b) - SORTS[sort].key(a))
 
@@ -153,7 +155,7 @@ export function CompaniesPage() {
             ) : (
               list.slice(0, shown).map((e) => (
                 <Link key={e.id} className="co-card" to={`/companies/${e.id}`}>
-                  <CompanyTile size={56} logo={e.logo_url} />
+                  <CompanyTile size={56} logo={e.logo_url} name={e.name} />
                   <div>
                     <h3>{e.name}</h3>
                     <p className="place"><Icon name="pin" />{[e.locality, e.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>

@@ -32,6 +32,39 @@ export type ApiMapNetwork = {
   company_tags: { company_id: number; uav: boolean; weapons: boolean }[]
 }
 
+export type ApiFunnel = {
+  collected: number
+  unique_vacancies: number
+  excluded: number
+  no_signal: number
+  agency: number
+  likely: number
+  confirmed: number
+  cards: number
+  legal_entities: number
+  decided: number
+  on_gur: number
+}
+
+export type DiscoveryStatus = 'fact' | 'no_fact' | 'contact' | 'query'
+export type ApiDiscoveryCount = { provider: string; status: DiscoveryStatus; rows: number; first_at: string | null; last_at: string | null }
+export type ApiDiscoveryEntry = {
+  log_id: number
+  company_id: number | null
+  company_name: string | null
+  /** The company's card on the site, when it has one. */
+  card_id: number | null
+  provider: string
+  query: string | null
+  url: string | null
+  title: string | null
+  snippet: string | null
+  published: string | null
+  found_at: string | null
+  status: DiscoveryStatus
+}
+export type ApiDiscoveryPage = { total: number; items: ApiDiscoveryEntry[] }
+
 export type ApiStats = {
   as_of: string | null
   /** Start of the final vacancy labelling run (`vacancy_final`); null while the fallback is used. */
@@ -64,6 +97,8 @@ export type ApiStats = {
   agency_vacancies: number
   by_source: { source: string; vacancies: number; vpk_vacancies: number }[]
   by_level: { level: Level; vacancies: number }[]
+  /** Found → deduplicated → screened out → shown → cards → legal entities → decided → on GUR. */
+  funnel: ApiFunnel
   by_basis: { category: FinalCategory; basis: string; vacancies: number }[]
   by_category: { category: Category; vacancies: number }[]
   regions_list: { region_id: number; name: string; vpk_vacancies: number; employers: number }[]

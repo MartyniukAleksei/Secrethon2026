@@ -1,0 +1,14 @@
+.discovery { display: grid; gap: 12px; }
+.discovery-filters { align-items: center; }
+.discovery-total { margin-left: auto; font-size: 13px; color: var(--label-2); }
+.discovery-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.discovery-list li { display: grid; gap: 4px; padding: 10px 2px; border-top: 1px solid var(--stroke); min-width: 0; }
+.discovery-list li:first-child { border-top: 0; }
+.discovery-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13.5px; font-weight: 600; }
+.discovery-date { margin-left: auto; font-size: 12px; font-weight: 450; color: var(--label-2); }
+.discovery-query { font-size: 13px; color: var(--label-2); }
+.discovery-url { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--info); overflow-wrap: anywhere; }
+.discovery-url svg { width: 12px; height: 12px; flex: none; }
+.discovery-list summary { cursor: pointer; font-size: 12.5px; color: var(--label-2); }
+.discovery-list details p { margin-top: 4px; font-size: 13.5px; line-height: 20px; max-width: 80ch; }
+.discovery-note { font-size: 12.5px; color: var(--label-2); }

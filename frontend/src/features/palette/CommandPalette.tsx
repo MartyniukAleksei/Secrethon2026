@@ -5,6 +5,7 @@ import { Icon } from '../../ui/Icon'
 import type { IconName } from '../../ui/icons'
 import { useAgent } from '../agent/AgentContext'
 import './CommandPalette.css'
+import { matcher } from '../../domain/search'
 
 type Item = { label: string; sub?: string; icon: IconName; run: () => void }
 
@@ -31,11 +32,11 @@ export function CommandPalette({ initialQuery = '', onClose }: { initialQuery?: 
   useEffect(() => input.current?.focus(), [])
 
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const m = (s: string) => !q || s.toLowerCase().includes(q)
+    const q = query.trim()
+    const m = matcher(q)
     const go = (to: string) => () => navigate(to)
     const list: [string, Item[]][] = [
-      ['Підприємства', employers.filter((e) => m(`${e.name} ${e.locality ?? ''} ${e.inn ?? ''}`)).slice(0, 7).map((e) => ({ label: e.name, sub: e.locality ?? undefined, icon: 'factory' as const, run: go(`/companies/${e.id}`) }))],
+      ['Підприємства', employers.filter((e) => m(e.name, e.gur_name, e.locality, e.inn)).slice(0, 7).map((e) => ({ label: e.name, sub: e.locality ?? undefined, icon: 'factory' as const, run: go(`/companies/${e.id}`) }))],
       ['Регіони', regions.filter((r) => m(r.name)).slice(0, 4).map((r) => ({ label: r.name, sub: 'регіон', icon: 'pin' as const, run: go(`/regions/${r.region_id}`) }))],
       ['Розділи', PAGES.filter(([label]) => m(label)).map(([label, to, icon]) => ({ label, icon, run: go(to) }))],
     ]

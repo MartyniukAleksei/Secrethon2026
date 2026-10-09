@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repository.sql import AGENCY, AS_OF, CTE, FINAL_RUN, ON_GUR, SHOWN, VPK
+from app.repository.sql import AGENCY, AS_OF, CLASSIFICATION, CTE, FINAL_RUN, ON_GUR, SHOWN, VPK
 
 Row = dict[str, Any]
 
@@ -69,6 +69,36 @@ async def overview(session: AsyncSession) -> Row:
             FROM latest
         """)
     )
+    # Found → deduplicated → screened out → on review / confirmed → cards → legal entities
+    # → ВПК decided → on the GUR portal: one funnel from one final run.
+    funnel = await one(f"""
+        SELECT (SELECT count(*) FROM vacancy WHERE is_active) AS collected,
+               count(*) AS unique_vacancies,
+               count(*) FILTER (WHERE vc.category = 'excluded') AS excluded,
+               count(*) FILTER (WHERE vc.category <> 'excluded' AND vc.level = 'no') AS no_signal,
+               count(*) FILTER (WHERE vc.category = 'agency' AND vc.level <> 'no') AS agency,
+               count(*) FILTER (WHERE vc.category = 'vpk' AND vc.level = 'likely') AS likely,
+               count(*) FILTER (WHERE vc.category = 'vpk' AND vc.level = 'confirmed') AS confirmed
+        FROM vacancy_unique u
+        JOIN vacancy_classification vc USING (vacancy_id)
+        JOIN classifier_run r USING (run_id)
+        WHERE r.classifier = '{FINAL_RUN}' AND u.is_active
+    """)
+    funnel.update(
+        await one(f"""
+            WITH {CTE}, {CLASSIFICATION}
+            SELECT count(DISTINCT v.company_id) FILTER (WHERE cls.vpk_level = 'decided') AS decided,
+                   count(DISTINCT v.company_id)
+                       FILTER (WHERE cls.vpk_level = 'decided' AND c.{ON_GUR}) AS on_gur
+            FROM v
+            JOIN cls ON cls.company_id = v.company_id AND cls.vpk_category = 'vpk'
+            JOIN company c ON c.company_id = v.company_id
+            WHERE {VPK}
+        """)
+    )
+    funnel["cards"] = totals["vpk_employers"]
+    funnel["legal_entities"] = totals["vpk_legal_entities"]
+    totals["funnel"] = funnel
     totals["by_source"] = await many(f"""
         WITH {CTE}
         SELECT source, count(*) AS vacancies, count(*) FILTER (WHERE {VPK}) AS vpk_vacancies

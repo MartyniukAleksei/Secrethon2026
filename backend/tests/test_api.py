@@ -297,7 +297,12 @@ def test_map_network_preserves_relationships_and_sources(client: TestClient) -> 
 def test_vacancies_paging_and_filters(client: TestClient) -> None:
     page = client.get("/api/vacancies", params={"limit": 2}).json()
     assert page["total"] == 6
-    assert [v["id"] for v in page["items"]] == [10, 4]  # newest first
+    assert [v["id"] for v in page["items"]] == [10, 11]  # confirmed first, then the newest
+    newest = client.get("/api/vacancies", params={"limit": 2, "sort": "published"}).json()
+    assert [v["id"] for v in newest["items"]] == [10, 4]
+    # Ukrainian and Latin spellings find Russian names.
+    for q in ("Інженер", "inzhener", "КБП"):
+        assert client.get("/api/vacancies", params={"q": q}).json()["total"] > 0, q
     # hh vacancy without a region inherits it from trudvsem vacancies in the same city
     tula = client.get("/api/vacancies", params={"region_id": 64}).json()
     assert {v["id"] for v in tula["items"]} == {1, 2, 3, 10}
@@ -581,3 +586,19 @@ def test_focus_and_direction_filters(client: TestClient) -> None:
     assert ids(domain="uav") == {4}
     assert ids(role="manufacturer") == {1, 2, 3, 4, 10, 11}
     assert client.get("/api/vacancies", params={"focus": "nope"}).status_code == 422
+
+
+def test_discovery_log(client: TestClient) -> None:
+    summary = client.get("/api/discovery/summary").json()
+    assert {(r["provider"], r["status"]): r["rows"] for r in summary} == {
+        ("exa", "fact"): 1,
+        ("exa", "no_fact"): 1,
+        ("exa", "query"): 1,
+        ("opensanctions", "fact"): 1,
+    }
+    kbp = client.get("/api/discovery", params={"company_id": 570}).json()
+    assert kbp["total"] == 3 and kbp["items"][0]["provider"] == "opensanctions"
+    assert kbp["items"][0]["card_id"] == 1  # the head-office card, not the branch
+    facts = client.get("/api/discovery", params={"q": "kbp", "status": "fact"}).json()
+    assert facts["total"] == 2
+    assert client.get("/api/discovery", params={"status": "nope"}).status_code == 422

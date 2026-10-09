@@ -1,4 +1,4 @@
-import type { ApiEmployer, ApiFocus, ApiRelation, ApiVacancy, FocusKey, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
+import type { ApiEmployer, ApiFocus, DiscoveryStatus, ApiRelation, ApiVacancy, FocusKey, HumanSanctions, HumanSource, HumanVpk, Reliability, VpkCategory } from '../api/types'
 import { pct } from './format'
 import type { Category, Level } from './types'
 
@@ -216,3 +216,13 @@ export function autoVpkName(e: ApiEmployer): string {
 }
 export const autoDirectionName = (e: ApiEmployer) => e.classification?.direction_label ?? categoryOf(e.category).name
 export const autoReliabilityName = (e: ApiEmployer) => e.classification?.reliability?.trim() ?? 'не оцінено'
+
+/** Search log (`discovery_log`): what came of each search result. */
+export const DISCOVERY_STATUS: Record<DiscoveryStatus, string> = {
+  fact: 'Перевірений факт',
+  no_fact: 'Знайдено, нічого не взято',
+  contact: 'Перевірений контакт',
+  query: 'Запит (результати не збереглися)',
+}
+export const PROVIDERS: Record<string, string> = { exa: 'Exa (вебпошук)', opensanctions: 'OpenSanctions', agy: 'Agent' }
+export const DISCOVERY_NOTE = 'Результати пошуку без підтвердженого факту зберігаються з 09.10.2026.'

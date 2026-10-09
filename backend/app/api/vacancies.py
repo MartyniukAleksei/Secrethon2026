@@ -62,7 +62,7 @@ Filter = Annotated[VacancyFilter, Depends(filter_params())]
 async def list_vacancies(
     session: Session,
     f: Filter,
-    sort: Sort = "published",
+    sort: Sort = "confirmed",
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> VacancyPage:

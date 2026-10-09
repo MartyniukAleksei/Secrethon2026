@@ -64,3 +64,8 @@
 .overview-run { margin: 0 0 8px; font-size: 13px; color: var(--label-2); }
 .overview-run.warn { color: var(--warning); font-weight: 600; }
 .overview-dedup { margin: 4px 0 0; font-size: 13px; color: var(--label-2); }
+.overview-funnel { margin-top: 28px; }
+.overview-funnel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; }
+.overview-funnel .bars { margin: 0; padding: 16px; }
+.overview-funnel .bar-row { grid-template-columns: minmax(0, 240px) minmax(0, 1fr) auto; }
+.overview-funnel .bar-row a { color: inherit; }

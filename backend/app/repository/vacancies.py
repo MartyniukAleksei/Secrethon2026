@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repository.sql import AS_OF, CLASSIFICATION_SELECT, CTE, FINAL_RUN, FOCUS_SELECT, SHOWN
+from app.search import sql_fold, variants
 
 Row = dict[str, Any]
 # Only shown vacancies are ever listed; `level` narrows them to decided (`confirmed`) or on
@@ -14,7 +15,8 @@ LevelFilter = Literal["vpk", "confirmed", "likely", "all"]
 Scope = Literal["vpk", "agency", "all"]
 # Customer focus of the card's legal entity; `other` is a ВПК company with no focus tag.
 Focus = Literal["drone", "missile", "kab", "other"]
-Sort = Literal["published", "salary"]
+# `confirmed` (default): decided vacancies first, then the newest.
+Sort = Literal["confirmed", "published", "salary"]
 
 
 @dataclass(frozen=True)
@@ -76,8 +78,16 @@ class VacancyFilter:
             clauses.append("v.title = :title")
             params["title"] = self.title
         if self.q:
-            clauses.append("(v.title ILIKE :q OR v.employer_name ILIKE :q OR v.locality ILIKE :q)")
-            params["q"] = f"%{self.q}%"
+            # Ukrainian or Latin spelling finds the Russian names too (app/search.py).
+            clauses.append(
+                "("
+                + " OR ".join(
+                    f"{sql_fold(c)} ILIKE ANY(:q)"
+                    for c in ("v.title", "v.employer_name", "v.locality")
+                )
+                + ")"
+            )
+            params["q"] = [f"%{x}%" for x in variants(self.q)]
         if self.days:
             clauses.append(f"v.published_at > {AS_OF} - make_interval(days => :days)")
             params["days"] = self.days
@@ -96,11 +106,11 @@ async def list_vacancies(
     session: AsyncSession, f: VacancyFilter, sort: Sort, limit: int, offset: int
 ) -> tuple[int, list[Row]]:
     where, params = f.where()
-    order = (
-        "v.monthly_salary DESC NULLS LAST, v.vacancy_id"
-        if sort == "salary"
-        else "v.published_at DESC NULLS LAST, v.vacancy_id DESC"
-    )
+    order = {
+        "salary": "v.monthly_salary DESC NULLS LAST, v.vacancy_id",
+        "published": "v.published_at DESC NULLS LAST, v.vacancy_id DESC",
+        "confirmed": "v.final_level = 'confirmed' DESC, v.published_at DESC NULLS LAST, v.vacancy_id DESC",
+    }[sort]
     total = (
         await session.execute(text(f"WITH {CTE} SELECT count(*) FROM v WHERE {where}"), params)
     ).scalar_one()

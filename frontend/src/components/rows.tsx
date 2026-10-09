@@ -9,7 +9,7 @@ import { CompanyLogo } from '../ui/CompanyMark'
 export function EmployerRow({ employer: e, to, current, value }: { employer: Employer; to?: string; current?: boolean; value?: ReactNode }) {
   return (
     <Link className="co-row" to={to ?? `/companies/${e.id}`} aria-current={current ? 'true' : undefined}>
-      <CompanyLogo src={e.logo_url} />
+      <CompanyLogo src={e.logo_url} name={e.name} />
       <span>
         <b>{e.name}</b>
         <span className="sm2">{[e.locality, e.region].filter(Boolean).join(', ') || 'Місто не вказано'}</span>

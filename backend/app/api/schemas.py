@@ -413,6 +413,22 @@ class RegionOut(BaseModel):
     employers: int
 
 
+class FunnelOut(BaseModel):
+    """Vacancies found → deduplicated → screened out → shown → cards → legal entities."""
+
+    collected: int
+    unique_vacancies: int
+    excluded: int
+    no_signal: int
+    agency: int
+    likely: int
+    confirmed: int
+    cards: int
+    legal_entities: int
+    decided: int
+    on_gur: int
+
+
 class StatsOut(BaseModel):
     as_of: datetime | None
     # Start of the final vacancy labelling run; None when it is missing (preliminary data).
@@ -445,6 +461,7 @@ class StatsOut(BaseModel):
     agency_vacancies: int
     by_source: list[SourceCount]
     by_level: list[LevelCount]
+    funnel: FunnelOut
     by_basis: list[BasisCount]
     by_category: list[CategoryCount]
     regions_list: list[RegionOut]

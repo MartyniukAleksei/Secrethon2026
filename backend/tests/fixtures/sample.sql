@@ -215,3 +215,10 @@ INSERT INTO company_focus (run_id, company_id, focus, basis, score, evidence) VA
 INSERT INTO employer_match_conflict (employer_profile_id, company_id, other_profile_id, other_company_id, kind, name_key, evidence)
 VALUES (2, 600, 3, 522, 'different_inn', 'алабуга',
         '{"inn": "1650000000", "other_inn": "7704721192", "profile": ["hh", "Алабуга. Менеджмент"], "other": ["hh", "Пекарня"], "regions": ["16"]}');
+
+-- What was searched about КБП in open sources.
+INSERT INTO discovery_log (run_id, company_id, provider, query, url, title, snippet, found_at, status) VALUES
+  (2, 570, 'exa', 'КБП Тула продукция', 'https://kbptula.ru/products', 'Продукция', 'ПТРК «Корнет»', '2026-10-07T10:00:00Z', 'fact'),
+  (2, 570, 'exa', 'КБП Тула продукция', 'https://example.com/news', 'Новость', 'без фактов', '2026-10-07T10:01:00Z', 'no_fact'),
+  (2, 570, 'opensanctions', NULL, 'https://www.opensanctions.org/entities/kbp', NULL, NULL, '2026-10-07T11:00:00Z', 'fact'),
+  (2, 600, 'exa', 'Алабуга БпЛА', NULL, NULL, NULL, '2026-10-07T12:00:00Z', 'query');
