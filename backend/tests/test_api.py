@@ -588,6 +588,29 @@ def test_focus_and_direction_filters(client: TestClient) -> None:
     assert client.get("/api/vacancies", params={"focus": "nope"}).status_code == 422
 
 
+def test_multi_value_filters_and_facets(client: TestClient) -> None:
+    def ids(**params: object) -> set[int]:
+        return {v["id"] for v in client.get("/api/vacancies", params=params).json()["items"]}
+
+    everything = ids()
+    assert ids(focus="missile,other") == ids(focus="missile") | ids(focus="other")
+    assert ids(source="hh,trudvsem") == everything
+    assert ids(experience="none") | ids(experience="1–3 года,не требуется") == everything
+    assert ids(with_salary=True) == ids(salary_min=0)
+    assert all(v not in ids(salary_min=95000) for v in ids(salary_max=94999))
+    assert client.get("/api/vacancies", params={"region_id": "x"}).status_code == 422
+
+    facets = client.get("/api/vacancies/facets").json()
+    assert set(facets) >= {"region_id", "source", "experience", "focus", "domain", "role"}
+    sources = {x["value"]: x["vacancies"] for x in facets["source"]}
+    assert sum(sources.values()) == len(everything)
+    # A field's own filter leaves its counts alone; the other filters narrow them.
+    narrowed = client.get("/api/vacancies/facets", params={"source": "hh"}).json()
+    assert {x["value"]: x["vacancies"] for x in narrowed["source"]} == sources
+    hh_regions = sum(x["vacancies"] for x in narrowed["region_id"])
+    assert hh_regions == len(ids(source="hh"))
+
+
 def test_discovery_log(client: TestClient) -> None:
     summary = client.get("/api/discovery/summary").json()
     assert {(r["provider"], r["status"]): r["rows"] for r in summary} == {

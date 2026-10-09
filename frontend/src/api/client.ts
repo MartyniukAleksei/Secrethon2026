@@ -1,4 +1,4 @@
-import type { ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, FocusKey, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -32,13 +32,25 @@ export type VacancyQuery = {
   level?: 'vpk' | 'confirmed' | 'likely' | 'all'
   /** Only vacancies with explicit ВПК markers in the text. */
   markers?: boolean
-  /** The card's legal entity: focus tag (`other` = ВПК without one), industry and role. */
-  focus?: FocusKey | 'other'
+  /**
+   * List filters take one value or several, comma-separated (`region_id: '64,77'`): any matches.
+   * The card's legal entity: focus tag (`other` = ВПК without one), industry and role.
+   */
+  focus?: string
   domain?: string
   role?: string
   employer_id?: number
-  region_id?: number
+  region_id?: number | string
+  /** Direction, job site and the vacancy's own fields; `none` = not given. */
   category?: string
+  source?: string
+  experience?: string
+  schedule?: string
+  employment?: string
+  /** Monthly salary in RUB. */
+  salary_min?: number
+  salary_max?: number
+  with_salary?: boolean
   title?: string
   q?: string
   days?: number
@@ -65,6 +77,8 @@ export const api = {
   employers: (signal?: AbortSignal) => get<ApiEmployer[]>('/employers', signal),
   employer: (id: number, signal?: AbortSignal) => get<ApiEmployerDetail>(`/employers/${id}`, signal),
   vacancies: (params: VacancyQuery, signal?: AbortSignal) => get<ApiVacancyPage>(`/vacancies${query(params)}`, signal),
+  vacancyFacets: (params: Omit<VacancyQuery, 'sort' | 'limit' | 'offset'>, signal?: AbortSignal) =>
+    get<ApiVacancyFacets>(`/vacancies/facets${query(params)}`, signal),
   vacancy: (id: number, signal?: AbortSignal) => get<ApiVacancyDetail>(`/vacancies/${id}`, signal),
   saveReview: (id: number, review: ApiVacancyReviewInput) => post<ApiVacancyReview>(`/vacancies/${id}/reviews`, review),
   saveEmployerReview: (id: number, review: ApiEmployerReviewInput) => post<ApiEmployerReview>(`/employers/${id}/reviews`, review),

@@ -1,0 +1,55 @@
+/* Filter sidebar of the catalog pages: sections of collapsible checkbox groups with counts. */
+.fs-sidebar { display: grid; gap: 10px; align-content: start; position: sticky; top: 86px; max-height: calc(100dvh - 100px); overflow-y: auto; scrollbar-width: thin; padding-bottom: 4px; }
+.fs-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+.fs-header h2 { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.fs-reset { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--primary); cursor: pointer; }
+.fs-section { padding: 14px 16px 8px; }
+.fs-section-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.fs-section-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--accent); color: var(--accent-foreground); flex: none; }
+.fs-section-icon svg { width: 17px; height: 17px; }
+.fs-active { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--primary); color: var(--primary-foreground); font-size: 11.5px; font-weight: 600; }
+
+.fs-group { border-top: 1px solid var(--stroke); }
+.fs-section-title + .fs-group { border-top: 0; }
+.fs-group-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--label-1); }
+.fs-group-head:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
+.fs-chev { width: 16px; height: 16px; margin-left: auto; color: var(--label-2); rotate: 90deg; transition: rotate var(--dur-fast) var(--ease-out); }
+.fs-group-head[aria-expanded="true"] .fs-chev { rotate: -90deg; }
+.fs-group-body { display: grid; gap: 2px; padding-bottom: 10px; }
+
+.fs-search { margin-bottom: 6px; }
+.fs-search .input { height: 38px; font-size: 14px; border-radius: 12px; }
+.fs-option { display: flex; align-items: center; gap: 10px; padding: 6px 2px; font-size: 14px; line-height: 19px; cursor: pointer; border-radius: 8px; }
+.fs-option:hover { background: var(--fill-1); }
+.fs-option input {
+  appearance: none; flex: none; width: 20px; height: 20px; margin: 0; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid var(--label-3); background: var(--surface-raised); transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+.fs-option input[type="radio"] { border-radius: 50%; }
+.fs-option input:checked {
+  background: var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8'/%3E%3C/svg%3E") center / 13px no-repeat;
+  border-color: var(--primary);
+}
+.fs-option input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.fs-option-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.fs-count { font-size: 12.5px; color: var(--label-2); font-variant-numeric: tabular-nums; }
+.fs-toggle { padding-top: 8px; padding-bottom: 8px; }
+.fs-more { all: unset; cursor: pointer; justify-self: start; margin-top: 4px; padding: 4px 2px; font-size: 13.5px; font-weight: 600; color: var(--primary); }
+.fs-more:focus-visible { outline: 2px solid var(--ring); border-radius: 4px; }
+.fs-empty { font-size: 13px; color: var(--label-2); padding: 4px 2px; }
+
+.fs-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; color: var(--label-2); font-size: 13px; }
+.fs-range .input { height: 38px; padding: 0 12px; font-size: 14px; border-radius: 12px; }
+.fs-unit { font-size: 13px; }
+
+.fs-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fs-chips .chip { height: 30px; font-size: 13px; }
+.fs-chips .fs-reset { margin-left: 4px; }
+
+.btn.fs-mobile-toggle { display: none; }
+
+@media (max-width: 900px) {
+  .fs-sidebar { position: static; max-height: none; overflow: visible; }
+  .fs-sidebar:not(.open) { display: none; }
+  .btn.fs-mobile-toggle { display: inline-flex; justify-self: start; }
+}

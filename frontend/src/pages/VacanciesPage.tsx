@@ -1,60 +1,151 @@
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { api, exportUrl, type VacancyQuery } from '../api/client'
+import type { ApiVacancyFacets } from '../api/types'
 import { AskButton } from '../components/AskButton'
 import { ExportButtons } from '../components/ExportButtons'
-import { FilterBar } from '../components/FilterBar'
+import { ActiveChips, CheckGroup, FilterHeader, FilterSection, RadioGroup, RangeGroup, ToggleRow, type ActiveChip, type FacetOption } from '../components/FilterSidebar'
+import { useUrlFilters } from '../hooks/useUrlFilters'
 import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
 import { ago, fmt, money, plural, salaryRange } from '../domain/format'
-import { experienceName } from '../domain/labels'
+import { categoryOf, DOMAINS, employmentName, experienceName, FOCUS, ROLES, scheduleName, sourceName } from '../domain/labels'
 import { useDebounced } from '../hooks/useDebounced'
-import { useFilters } from '../state/FiltersContext'
 import { CategoryBadge, VacancyBadges } from '../ui/badges'
 import { Icon } from '../ui/Icon'
 import './VacanciesPage.css'
 
 const PAGE = 50
-const SCOPES: [NonNullable<VacancyQuery['scope']>, string][] = [
-  ['vpk', 'Підприємства ВПК'],
-  ['agency', 'Через кадрові агентства'],
+const SCOPES: { value: NonNullable<VacancyQuery['scope']>; label: string }[] = [
+  { value: 'vpk', label: 'Підприємства ВПК' },
+  { value: 'agency', label: 'Через кадрові агентства' },
+  { value: 'all', label: 'Усі' },
 ]
-const LEVELS: [NonNullable<VacancyQuery['level']>, string][] = [
-  ['vpk', 'Усі'],
-  ['confirmed', 'Рішення прийнято'],
-  ['likely', 'На перевірці'],
+const LEVELS: { value: NonNullable<VacancyQuery['level']>; label: string }[] = [
+  { value: 'vpk', label: 'Усі' },
+  { value: 'confirmed', label: 'Рішення прийнято' },
+  { value: 'likely', label: 'На перевірці' },
+]
+const DAYS = [
+  { value: '0', label: 'За весь час' },
+  { value: '7', label: 'За 7 днів' },
+  { value: '30', label: 'За 30 днів' },
+  { value: '90', label: 'За 90 днів' },
+  { value: '365', label: 'За рік' },
 ]
 
-/** Read/write URL search params; changing any filter resets the page. */
-function useParams() {
-  const [params, setParams] = useSearchParams()
-  const update = (patch: Record<string, string | null>, keepPage = false) => {
-    const next = new URLSearchParams(params)
-    Object.entries(patch).forEach(([k, v]) => (v == null || v === '' ? next.delete(k) : next.set(k, v)))
-    if (!keepPage) next.delete('page')
-    setParams(next, { replace: true })
-  }
-  return [params, update] as const
-}
+type FacetKey = keyof ApiVacancyFacets
+// URL parameter → facet of the API; the parameter names are the API's own.
+const FACETS: { key: FacetKey; title: string; section: 'who' | 'where' | 'job'; searchable?: boolean }[] = [
+  { key: 'focus', title: 'Фокус підприємства', section: 'who' },
+  { key: 'domain', title: 'Галузь', section: 'who', searchable: true },
+  { key: 'role', title: 'Роль підприємства', section: 'who' },
+  { key: 'region_id', title: 'Регіон', section: 'where', searchable: true },
+  { key: 'category', title: 'Напрям', section: 'job' },
+  { key: 'experience', title: 'Досвід', section: 'job' },
+  { key: 'schedule', title: 'Графік', section: 'job' },
+  { key: 'employment', title: 'Зайнятість', section: 'job' },
+  { key: 'source', title: 'Сайт вакансій', section: 'job' },
+]
 
 export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
   const navigate = useNavigate()
-  const filters = useFilters()
-  const [params, update] = useParams()
+  const { regionById } = useData()
+  const { params, update, list, setList, num } = useUrlFilters()
+  const [mobileOpen, setMobileOpen] = useState(false)
   const scope = (params.get('scope') as VacancyQuery['scope']) || 'vpk'
   const level = (params.get('level') as VacancyQuery['level']) || 'vpk'
   const markers = params.get('markers') === 'true'
+  const withSalary = params.get('with_salary') === 'true'
+  const days = params.get('days') ?? '0'
+  const salaryMin = num('salary_min')
+  const salaryMax = num('salary_max')
+  const lists = Object.fromEntries(FACETS.map((f) => [f.key, list(f.key)])) as Record<FacetKey, string[]>
+  const joined = (key: FacetKey) => lists[key].join(',') || undefined
 
-  // Shared by both tabs: the top filters plus the final label (scope, level, explicit markers).
+  // Shared by both tabs: everything but the search, the profession and the sort.
   const base: VacancyQuery = {
     scope,
     level,
     markers: markers || undefined,
-    region_id: filters.region === 'all' ? undefined : filters.region,
-    focus: filters.focus === 'all' ? undefined : filters.focus,
-    domain: filters.domain === 'all' ? undefined : filters.domain,
-    role: filters.role === 'all' ? undefined : filters.role,
-    days: filters.period || undefined,
+    with_salary: withSalary || undefined,
+    salary_min: salaryMin,
+    salary_max: salaryMax,
+    days: Number(days) || undefined,
+    ...Object.fromEntries(FACETS.map((f) => [f.key, joined(f.key)])),
   }
+  const q = useDebounced(params.get('q') ?? '')
+  const title = params.get('prof') ?? undefined
+  const selection: VacancyQuery = { ...base, q: q || undefined, title }
+  const facetsState = useApi(`facets:${JSON.stringify(selection)}`, (signal) => api.vacancyFacets(selection, signal))
+  const facets = facetsState.status === 'ready' ? facetsState.data : facetsState.status === 'loading' ? facetsState.stale : undefined
+
+  const label = (key: FacetKey, value: string): string => {
+    if (value === 'none') return key === 'region_id' ? 'Регіон не вказано' : key === 'category' ? categoryOf(null).name : 'Не вказано'
+    if (key === 'region_id') return regionById[Number(value)]?.name ?? value
+    if (key === 'focus') return FOCUS[value as keyof typeof FOCUS] ?? value
+    if (key === 'domain') return DOMAINS[value] ?? value
+    if (key === 'role') return ROLES[value] ?? value
+    if (key === 'category') return categoryOf(value).name
+    if (key === 'experience') return experienceName(value) ?? value
+    if (key === 'schedule') return scheduleName(value)
+    if (key === 'employment') return employmentName(value)
+    if (key === 'source') return sourceName(value)
+    return value
+  }
+  // Raw values with one label (hh and trudvsem spell experience differently) form one option.
+  const options = (key: FacetKey): FacetOption[] => {
+    const groups = new Map<string, { raws: string[]; count: number }>()
+    for (const { value, vacancies } of facets?.[key] ?? []) {
+      const raw = value ?? 'none'
+      const name = label(key, raw)
+      const g = groups.get(name) ?? { raws: [], count: 0 }
+      g.raws.push(raw)
+      g.count += vacancies
+      groups.set(name, g)
+    }
+    for (const raw of lists[key]) {
+      const name = label(key, raw)
+      if (!groups.has(name)) groups.set(name, { raws: [raw], count: 0 })
+      else if (!groups.get(name)!.raws.includes(raw)) groups.get(name)!.raws.push(raw)
+    }
+    return [...groups].map(([name, g]) => ({ value: g.raws.join('|'), label: name, count: facets ? g.count : undefined }))
+      .sort((a, b) => (a.value === 'none' ? 1 : 0) - (b.value === 'none' ? 1 : 0) || (b.count ?? 0) - (a.count ?? 0))
+  }
+  const facetGroup = (f: (typeof FACETS)[number]) => {
+    const opts = options(f.key)
+    const selected = opts.filter((o) => o.value.split('|').some((raw) => lists[f.key].includes(raw))).map((o) => o.value)
+    return (
+      <CheckGroup
+        key={f.key}
+        title={f.title}
+        options={opts}
+        selected={selected}
+        searchable={f.searchable}
+        onChange={(values) => setList(f.key, values.flatMap((v) => v.split('|')))}
+      />
+    )
+  }
+
+  const reset = () => update({
+    scope: null, level: null, markers: null, with_salary: null, salary_min: null, salary_max: null, days: null, q: null, prof: null,
+    ...Object.fromEntries(FACETS.map((f) => [f.key, null])),
+  })
+  const chips: ActiveChip[] = [
+    ...(scope !== 'vpk' ? [{ key: 'scope', label: SCOPES.find((s) => s.value === scope)?.label ?? scope, onRemove: () => update({ scope: null }) }] : []),
+    ...(level !== 'vpk' ? [{ key: 'level', label: LEVELS.find((l) => l.value === level)?.label ?? level, onRemove: () => update({ level: null }) }] : []),
+    ...FACETS.flatMap((f) => lists[f.key].map((raw) => ({
+      key: `${f.key}:${raw}`, label: raw === 'none' ? `${f.title}: не вказано` : label(f.key, raw), onRemove: () => setList(f.key, lists[f.key].filter((x) => x !== raw)),
+    }))),
+    ...(markers ? [{ key: 'markers', label: 'Явні ознаки ВПК', onRemove: () => update({ markers: null }) }] : []),
+    ...(withSalary ? [{ key: 'with_salary', label: 'Із зарплатою', onRemove: () => update({ with_salary: null }) }] : []),
+    ...(salaryMin != null || salaryMax != null ? [{
+      key: 'salary', label: `Зарплата ${salaryMin != null ? `від ${fmt(salaryMin)}` : ''} ${salaryMax != null ? `до ${fmt(salaryMax)}` : ''} ₽`.replace(/\s+/g, ' '),
+      onRemove: () => update({ salary_min: null, salary_max: null }),
+    }] : []),
+    ...(days !== '0' ? [{ key: 'days', label: DAYS.find((d) => d.value === days)?.label ?? days, onRemove: () => update({ days: null }) }] : []),
+    ...(title ? [{ key: 'prof', label: title, onRemove: () => update({ prof: null }) }] : []),
+  ]
 
   return (
     <>
@@ -64,35 +155,56 @@ export function VacanciesPage({ tab }: { tab: 'listings' | 'professions' }) {
           <p>Усі оголошення підприємств ВПК — не лише профільні посади. Вакансії кадрових агентств, що наймають у ВПК, — окремо. Кожне веде на оригінал.</p>
         </div>
         <div className="segmented">
-          <button type="button" aria-pressed={tab === 'listings'} onClick={() => navigate('/vacancies')}>Оголошення</button>
-          <button type="button" aria-pressed={tab === 'professions'} onClick={() => navigate('/vacancies/professions')}>Професії</button>
+          <button type="button" aria-pressed={tab === 'listings'} onClick={() => navigate({ pathname: '/vacancies', search: params.toString() })}>Оголошення</button>
+          <button type="button" aria-pressed={tab === 'professions'} onClick={() => navigate({ pathname: '/vacancies/professions', search: params.toString() })}>Професії</button>
         </div>
       </div>
-      <div className="vac-filters">
-        <FilterBar />
-        <div className="segmented sm" aria-label="Хто наймає">
-          {SCOPES.map(([k, label]) => (
-            <button key={k} type="button" aria-pressed={scope === k} onClick={() => update({ scope: k === 'vpk' ? null : k })}>{label}</button>
-          ))}
+      <div className="cat">
+        <button className="btn btn-secondary fs-mobile-toggle" type="button" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}>
+          <Icon name="list" />Фільтри{chips.length ? ` (${chips.length})` : ''}
+        </button>
+        <aside className={`fs-sidebar${mobileOpen ? ' open' : ''}`} aria-label="Фільтри" style={{ opacity: facetsState.status === 'loading' ? 0.75 : 1 }}>
+          <FilterHeader active={chips.length} onReset={reset} />
+          <FilterSection title="Хто наймає" icon="factory">
+            <RadioGroup title="Роботодавець" options={SCOPES} value={scope ?? 'vpk'} onChange={(v) => update({ scope: v === 'vpk' ? null : v })} />
+            <RadioGroup title="Стан рішення" options={LEVELS} value={level ?? 'vpk'} onChange={(v) => update({ level: v === 'vpk' ? null : v })} />
+            {FACETS.filter((f) => f.section === 'who').map(facetGroup)}
+          </FilterSection>
+          <FilterSection title="Де" icon="pin">{FACETS.filter((f) => f.section === 'where').map(facetGroup)}</FilterSection>
+          <FilterSection title="Вакансія" icon="briefcase">
+            {FACETS.filter((f) => f.section === 'job').map(facetGroup)}
+            <div className="fs-group">
+              <ToggleRow label="Лише з явними ознаками ВПК у тексті" checked={markers} onChange={(v) => update({ markers: v ? 'true' : null })} />
+            </div>
+          </FilterSection>
+          <FilterSection title="Зарплата і дата" icon="graph">
+            <RangeGroup
+              title="Зарплата на місяць"
+              unit="₽"
+              from={salaryMin}
+              to={salaryMax}
+              onChange={(from, to) => update({ salary_min: from == null ? null : String(from), salary_max: to == null ? null : String(to) })}
+            />
+            <div className="fs-group">
+              <ToggleRow label="Лише із зазначеною зарплатою" checked={withSalary} onChange={(v) => update({ with_salary: v ? 'true' : null })} />
+            </div>
+            <RadioGroup title="Опубліковано" options={DAYS} value={days} onChange={(v) => update({ days: v === '0' ? null : v })} />
+          </FilterSection>
+          {facetsState.status === 'error' && <p className="fs-empty">Не вдалося порахувати кількість за фільтрами.</p>}
+        </aside>
+        <div className="cat-results">
+          {tab === 'professions'
+            ? <><ActiveChips chips={chips} onReset={reset} /><Professions base={base} /></>
+            : <Listings base={base} params={params} update={update} chips={<ActiveChips chips={chips} onReset={reset} />} />}
         </div>
-        <div className="segmented sm" aria-label="Стан рішення">
-          {LEVELS.map(([k, label]) => (
-            <button key={k} type="button" aria-pressed={level === k} onClick={() => update({ level: k === 'vpk' ? null : k })}>{label}</button>
-          ))}
-        </div>
-        <label className="row">
-          <input type="checkbox" checked={markers} onChange={(e) => update({ markers: e.target.checked ? 'true' : null })} />
-          Лише з явними ознаками ВПК у тексті
-        </label>
       </div>
-      {tab === 'professions' ? <Professions base={base} /> : <Listings base={base} params={params} update={update} />}
     </>
   )
 }
 
 type Update = (patch: Record<string, string | null>, keepPage?: boolean) => void
 
-function Listings({ base, params, update }: { base: VacancyQuery; params: URLSearchParams; update: Update }) {
+function Listings({ base, params, update, chips }: { base: VacancyQuery; params: URLSearchParams; update: Update; chips: ReactNode }) {
   const { asOf } = useData()
   const navigate = useNavigate()
   const qInput = params.get('q') ?? ''
@@ -127,14 +239,7 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
           </select>
         </div>
       </div>
-      {title && (
-        <div className="row" style={{ marginBottom: 12 }}>
-          <button className="chip" type="button" aria-pressed="true" onClick={() => update({ prof: null })} aria-label={`Прибрати фільтр «${title}»`}>
-            {title}
-            <Icon name="x" style={{ display: 'block' }} />
-          </button>
-        </div>
-      )}
+      {chips}
       <div className="panel">
         <div className="panel-head">
           <p>{data ? `${fmt(data.total)} ${plural(data.total, 'оголошення', 'оголошення', 'оголошень')}` : 'Завантаження…'}</p>
@@ -182,6 +287,12 @@ function Listings({ base, params, update }: { base: VacancyQuery; params: URLSea
 
 function Professions({ base }: { base: VacancyQuery }) {
   const navigate = useNavigate()
+  const { params } = useUrlFilters()
+  const open = (title: string) => {
+    const next = new URLSearchParams(params)
+    next.set('prof', title)
+    navigate({ pathname: '/vacancies', search: next.toString() })
+  }
   const query = { ...base, limit: 100 }
   const state = useApi(`prof:${JSON.stringify(query)}`, (signal) => api.professions(query, signal))
   const rows = state.status === 'ready' ? state.data : state.status === 'loading' ? state.stale : undefined
@@ -199,7 +310,7 @@ function Professions({ base }: { base: VacancyQuery }) {
           </thead>
           <tbody>
             {rows?.map((p) => (
-              <tr key={p.title} className="clickable" onClick={() => navigate(`/vacancies?prof=${encodeURIComponent(p.title)}`)}>
+              <tr key={p.title} className="clickable" onClick={() => open(p.title)}>
                 <td className="wrap"><b>{p.title}</b></td>
                 <td>{p.category ? <CategoryBadge category={p.category} /> : '—'}</td>
                 <td className="num"><span className="inline-bar" style={{ width: `${((p.vacancies / max) * 60).toFixed(0)}px` }} />{fmt(p.vacancies)}</td>

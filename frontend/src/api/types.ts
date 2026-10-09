@@ -321,6 +321,12 @@ export type ApiEmployerDetail = ApiEmployer & {
   match_conflicts: ApiMatchConflict[]
 }
 
+/** Vacancies per value of each filter field, counted under all the other filters. */
+export type ApiVacancyFacets = Record<
+  'region_id' | 'source' | 'category' | 'experience' | 'schedule' | 'employment' | 'domain' | 'role' | 'focus',
+  { value: string | null; vacancies: number }[]
+>
+
 export type ApiVacancy = {
   id: number
   source: string

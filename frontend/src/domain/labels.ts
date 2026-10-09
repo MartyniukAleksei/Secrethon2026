@@ -190,6 +190,26 @@ export function experienceName(raw: string | null): string | null {
   return raw
 }
 
+const SCHEDULES: Record<string, string> = {
+  fullday: 'Повний день', 'полный день': 'Повний день',
+  shift: 'Змінний графік', 'сменный график': 'Змінний графік',
+  flexible: 'Гнучкий графік', 'гибкий график': 'Гнучкий графік',
+  remote: 'Віддалена робота', 'удаленная работа': 'Віддалена робота',
+  flyinflyout: 'Вахта', 'вахтовый метод': 'Вахта',
+}
+/** Work schedule as published (hh codes or Russian text), in Ukrainian when known. */
+export const scheduleName = (raw: string) => SCHEDULES[raw.toLowerCase()] ?? raw
+
+const EMPLOYMENT: Record<string, string> = {
+  full: 'Повна зайнятість', 'полная занятость': 'Повна зайнятість',
+  part: 'Часткова зайнятість', 'частичная занятость': 'Часткова зайнятість',
+  project: 'Проєктна робота', 'проектная работа': 'Проєктна робота',
+  probation: 'Стажування', 'стажировка': 'Стажування',
+  volunteer: 'Волонтерство', 'волонтерство': 'Волонтерство',
+}
+/** Employment type as published, in Ukrainian when known. */
+export const employmentName = (raw: string) => EMPLOYMENT[raw.toLowerCase()] ?? raw
+
 /** How a related GUR company relates to this one (edges are stored as listed on a company's profile). */
 export function relationName(r: Pick<ApiRelation, 'kind' | 'direction'>): string {
   const out = r.direction === 'out'

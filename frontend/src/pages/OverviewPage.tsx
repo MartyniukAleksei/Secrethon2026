@@ -3,7 +3,7 @@ import { CountUp } from '../components/CountUp'
 import { useData } from '../data/DataContext'
 import { fmt, longDate, money, plural } from '../domain/format'
 import { Icon } from '../ui/Icon'
-import type { ApiFunnel, ApiStats } from '../api/types'
+import type { ApiStats } from '../api/types'
 import type { IconName } from '../ui/icons'
 import './OverviewPage.css'
 
@@ -87,8 +87,6 @@ export function OverviewPage() {
         </dl>
       </section>
 
-      <Funnel funnel={stats.funnel} />
-
       <div className="overview-body">
         <section className="overview-routes" aria-labelledby="overview-routes-title">
           <div className="overview-section-head">
@@ -127,59 +125,5 @@ export function Dedup({ stats }: { stats: ApiStats }) {
       {fmt(stats.vpk_employers)} {plural(stats.vpk_employers, 'картка', 'картки', 'карток')} підприємств (дублі {share}%) →{' '}
       {fmt(stats.vpk_legal_entities)} {plural(stats.vpk_legal_entities, 'юрособа', 'юрособи', 'юросіб')}
     </>
-  )
-}
-
-type Step = { label: string; value: number; to?: string; tone?: 'muted' | 'accent' }
-
-/** How many were found, screened out and why, and how many are confirmed; every step links to its list. */
-function Funnel({ funnel: f }: { funnel: ApiFunnel }) {
-  const vacancies: Step[] = [
-    { label: 'Вакансій зібрано', value: f.collected },
-    { label: 'Відсіяно: цивільні, цивільні під санкціями, іноземні', value: f.excluded, to: '/methodology#funnel', tone: 'muted' },
-    { label: 'Відсіяно: без ознак ВПК', value: f.no_signal, to: '/methodology#funnel', tone: 'muted' },
-    { label: 'Через кадрові агентства', value: f.agency, to: '/vacancies?scope=agency' },
-    { label: 'ВПК на перевірці', value: f.likely, to: '/vacancies?level=likely' },
-    { label: 'ВПК підтверджено', value: f.confirmed, to: '/vacancies?level=confirmed', tone: 'accent' },
-  ]
-  const companies: Step[] = [
-    { label: 'Карток підприємств', value: f.cards, to: '/companies' },
-    { label: 'Юросіб', value: f.legal_entities, to: '/companies' },
-    { label: 'Рішення ВПК прийнято', value: f.decided, to: '/companies', tone: 'accent' },
-    { label: 'Є в базі ГУР', value: f.on_gur, to: '/companies' },
-  ]
-  return (
-    <section className="overview-funnel" aria-labelledby="overview-funnel-title">
-      <div className="overview-section-head">
-        <h2 id="overview-funnel-title">Від зібраного до підтвердженого</h2>
-      </div>
-      <div className="overview-funnel-grid">
-        <Bars steps={vacancies} />
-        <Bars steps={companies} />
-      </div>
-    </section>
-  )
-}
-
-function Bars({ steps }: { steps: Step[] }) {
-  const max = Math.max(...steps.map((s) => s.value), 1)
-  return (
-    <div className="panel bars">
-      {steps.map((s) => (
-        <div key={s.label} className="bar-row">
-          <span title={s.label}>{s.to ? <Link to={s.to}>{s.label}</Link> : s.label}</span>
-          <div className="bar-track">
-            <div
-              className="bar-fill"
-              style={{
-                width: `${Math.max((s.value / max) * 100, 0.5)}%`,
-                background: s.tone === 'muted' ? 'var(--label-3)' : s.tone === 'accent' ? 'var(--warning)' : 'var(--accent-foreground)',
-              }}
-            />
-          </div>
-          <b>{fmt(s.value)}</b>
-        </div>
-      ))}
-    </div>
   )
 }

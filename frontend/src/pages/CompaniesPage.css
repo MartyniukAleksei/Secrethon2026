@@ -1,6 +1,4 @@
-.cat { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 12px; align-items: start; }
-.cat-filters { display: grid; gap: 20px; padding: 18px 16px; position: sticky; top: 86px; }
-.cat-filters .group-title { font-size: 13px; font-weight: 600; color: var(--label-2); margin-bottom: 6px; }
+.cat { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 12px; align-items: start; }
 .cat-results { display: grid; gap: 10px; }
 .cat-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cat-head .search { flex: 1 1 260px; }
@@ -20,7 +18,6 @@
 
 @media (max-width: 900px) {
   .cat { grid-template-columns: minmax(0, 1fr); }
-  .cat-filters { position: static; }
 }
 .cat-count-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cat-count { font-size: 14px; color: var(--label-2); padding: 0 4px; }

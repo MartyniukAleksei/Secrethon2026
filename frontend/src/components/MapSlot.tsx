@@ -8,7 +8,7 @@ import type { ApiMapNetwork, ApiMapPoint, ApiMapRelation } from '../api/types'
 import { useApi } from '../data/useApi'
 import { useData } from '../data/DataContext'
 import { effectiveCategory, isSanctioned } from '../domain/labels'
-import { markerColor, markerIcon, SELECTED_COLOR } from './mapMarkers'
+import { categoryKey, LEGEND, markerColor, markerIcon, SELECTED_COLOR } from './mapMarkers'
 import type { Employer } from '../domain/types'
 import { useToast } from '../features/toast/ToastContext'
 import { Icon } from '../ui/Icon'
@@ -19,6 +19,22 @@ const EMPTY: ApiMapPoint[] = []
 const EMPTY_NETWORK: ApiMapNetwork = { relations: [], company_tags: [] }
 const RELATION_COLORS = { supplier: '#b45309', parent: '#2563eb' }
 const COUNTRY_CENTER = [95, 62]
+// From this zoom on, markers are never clustered: every cluster can be opened by zooming to it.
+const CLUSTER_OFF_ZOOM = 15
+const CLUSTER_COLOR = '#2f7d4f'
+const clusterIcon = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" fill="${CLUSTER_COLOR}" fill-opacity=".9" stroke="white" stroke-width="3"/></svg>`)}`
+type Place = { lng: number; lat: number; ids: number[] }
+/** Hiring places at (almost) one spot, ~10 m: one marker that lists every employer there. */
+function places(points: ApiMapPoint[]): Place[] {
+  const byKey = new Map<string, Place>()
+  for (const p of points) {
+    const key = `${p.lng.toFixed(4)}:${p.lat.toFixed(4)}`
+    const place = byKey.get(key) ?? { lng: p.lng, lat: p.lat, ids: [] }
+    if (!place.ids.includes(p.employer_id)) place.ids.push(p.employer_id)
+    byKey.set(key, place)
+  }
+  return [...byKey.values()]
+}
 let sdkPromise: ReturnType<typeof load> | undefined
 function loadSdk() {
   if (!sdkPromise) {
@@ -78,6 +94,10 @@ export function MapSlot({ employers, selectedId, children }: {
   const [specialization, setSpecialization] = useState<'all' | 'uav' | 'weapons'>('all')
   const [activeRelation, setActiveRelation] = useState<ApiMapRelation | null>(null)
   const [sanctioned, setSanctioned] = useState(false)
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+  // Only the selected company's holdings and/or supply chains (all the links, step by step).
+  const [focusKinds, setFocusKinds] = useState<{ parent: boolean; supplier: boolean }>({ parent: false, supplier: false })
+  const [placeList, setPlaceList] = useState<number[] | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [theme, setTheme] = useState(document.documentElement.className)
   const pointsState = useApi(`map-points:${attempt}`, api.mapPoints)
@@ -85,11 +105,46 @@ export function MapSlot({ employers, selectedId, children }: {
   const network = networkState.status === 'ready' ? networkState.data : EMPTY_NETWORK
   const companyTags = useMemo(() => new Map(network.company_tags.map((tag) => [tag.company_id, tag])), [network])
   const allPoints = pointsState.status === 'ready' ? pointsState.data : EMPTY
-  const points = useMemo(() => {
+  const filtered = useMemo(() => {
     const ids = new Set(employers.filter((e) => (!sanctioned || isSanctioned(e)) &&
       (specialization === 'all' || (e.gur_company_id != null && companyTags.get(e.gur_company_id)?.[specialization]))).map((e) => e.id))
     return allPoints.filter((p) => ids.has(p.employer_id))
   }, [allPoints, employers, sanctioned, specialization, companyTags])
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const id of new Set(filtered.map((p) => p.employer_id))) {
+      const key = byId[id] ? categoryKey(byId[id]) : 'none'
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return counts
+  }, [filtered, byId])
+  const selectedCompany = selectedId != null ? byId[selectedId]?.gur_company_id ?? null : null
+  const focusing = selectedId != null && (focusKinds.parent || focusKinds.supplier)
+  // The companies linked to the selected one by the chosen kinds, directly or through others.
+  const focus = useMemo(() => {
+    if (!focusing || selectedCompany == null) return null
+    const kinds = network.relations.filter((r) => focusKinds[r.kind])
+    const companies = new Set([selectedCompany])
+    const relations = new Set<ApiMapRelation>()
+    for (let grew = true; grew;) {
+      grew = false
+      for (const r of kinds) {
+        if (relations.has(r) || !(companies.has(r.company_id) || companies.has(r.related_id))) continue
+        relations.add(r)
+        for (const id of [r.company_id, r.related_id]) if (!companies.has(id)) { companies.add(id); grew = true }
+        grew = true
+      }
+    }
+    return { companies, relations }
+  }, [focusing, selectedCompany, network, focusKinds])
+  const points = useMemo(() => {
+    if (focusing) {
+      // The whole network of the company, whatever the other filters: a link would else break off.
+      if (!focus) return allPoints.filter((p) => p.employer_id === selectedId)
+      return allPoints.filter((p) => p.employer_id === selectedId || focus.companies.has(byId[p.employer_id]?.gur_company_id ?? NaN))
+    }
+    return filtered.filter((p) => !hiddenCategories.size || !hiddenCategories.has(byId[p.employer_id] ? categoryKey(byId[p.employer_id]) : 'none'))
+  }, [focusing, focus, allPoints, filtered, hiddenCategories, byId, selectedId])
   const located = new Set(points.map((p) => p.employer_id)).size
   const vacancies = points.reduce((sum, point) => sum + point.vacancies, 0)
   const companyPoints = useMemo(() => {
@@ -108,8 +163,16 @@ export function MapSlot({ employers, selectedId, children }: {
     const to = companyPoints.get(relation.company_id)
     return from && to ? [{ relation, from, to }] : []
   }), [network, companyPoints])
-  const visibleSegments = useMemo(() => segments.filter(({ relation }) =>
-    relation.kind === 'supplier' ? showSupply : showHoldings), [segments, showSupply, showHoldings])
+  const visibleSegments = useMemo(() => segments.filter(({ relation }) => focus
+    ? focus.relations.has(relation)
+    : relation.kind === 'supplier' ? showSupply : showHoldings), [segments, showSupply, showHoldings, focus])
+  // Linked companies with no hiring place on the map: listed, but no line can reach them.
+  const focusUnplaced = useMemo(() => {
+    if (!focus) return []
+    const names = new Map<number, string>()
+    for (const r of focus.relations) { names.set(r.company_id, r.company_name); names.set(r.related_id, r.related_name) }
+    return [...names].filter(([id]) => id !== selectedCompany && !companyPoints.has(id)).map(([, name]) => name)
+  }, [focus, companyPoints, selectedCompany])
   const supplyCount = segments.filter(({ relation }) => relation.kind === 'supplier').length
   const holdingsCount = segments.filter(({ relation }) => relation.kind === 'parent').length
   const selectedRelation = visibleSegments.find(({ relation }) => relation === activeRelation)
@@ -157,18 +220,27 @@ export function MapSlot({ employers, selectedId, children }: {
   useEffect(() => {
     const map = mapRef.current
     if (!engine || !map || !showMarkers) return
-    const clusterer = new Clusterer(map, { radius: 55 })
-    clusterer.load(points.map((p) => ({
-      coordinates: [p.lng, p.lat],
-      icon: markerIcon(markerColor(byId[p.employer_id] ? effectiveCategory(byId[p.employer_id]) : null)),
-      size: [32, 40], anchor: [16, 40], userData: p.employer_id,
+    const clusterer = new Clusterer(map, {
+      radius: 55,
+      disableClusteringAtZoom: CLUSTER_OFF_ZOOM,
+      clusterStyle: { icon: clusterIcon, size: [44, 44], labelColor: '#ffffff', labelFontSize: 14 },
+    })
+    clusterer.load(places(points).map((place) => ({
+      coordinates: [place.lng, place.lat],
+      icon: markerIcon(markerColor(byId[place.ids[0]] ? effectiveCategory(byId[place.ids[0]]) : null)),
+      size: [32, 40], anchor: [16, 40], userData: place.ids,
+      ...(place.ids.length > 1 ? { label: { text: String(place.ids.length), color: '#ffffff', fontSize: 11, offset: [0, -24], haloRadius: 1, haloColor: '#1c1f19' } } : {}),
     })))
     clusterer.on('click', (event) => {
       if (event.target.type === 'cluster') {
+        // Zoom at least one step and never past the zoom where clustering stops, so it always opens.
+        const zoom = Math.min(Math.max(clusterer.getClusterExpansionZoom(event.target.id), map.getZoom() + 1), CLUSTER_OFF_ZOOM)
         map.setCenter(event.lngLat)
-        map.setZoom(clusterer.getClusterExpansionZoom(event.target.id))
+        map.setZoom(zoom)
       } else {
-        navigate(`/map?co=${event.target.data.userData}`)
+        const ids: number[] = event.target.data.userData
+        if (ids.length === 1) navigate(`/map?co=${ids[0]}`)
+        else setPlaceList(ids)
       }
     })
     return () => clusterer.destroy()
@@ -224,9 +296,9 @@ export function MapSlot({ employers, selectedId, children }: {
     const map = mapRef.current
     if (!engine || !map) return
     const selected = points.filter((p) => p.employer_id === selectedId)
-    fit(map, selected.length ? selected : points)
+    fit(map, selected.length && !focusing ? selected : points)
     map.setPitch(pitch.current)
-  }, [engine, selectedId, points])
+  }, [engine, selectedId, points, focusing])
 
   useEffect(() => {
     pitch.current = mode === '3d' ? 45 : 0
@@ -306,6 +378,64 @@ export function MapSlot({ employers, selectedId, children }: {
             </details>}
           </div>
         </details>
+        <details className="map-layers map-legend" open={selectedId == null}>
+          <summary><Icon name="pin" />Умовні позначення</summary>
+          <div className="map-layers-body">
+            <p className="map-layer-note">Колір мітки — напрям вакансій підприємства. Зніми позначку, щоб приховати.</p>
+            {LEGEND.map((row) => (
+              <label key={row.key}>
+                <input
+                  type="checkbox"
+                  checked={!hiddenCategories.has(row.key)}
+                  disabled={focusing}
+                  onChange={() => setHiddenCategories((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(row.key)) next.delete(row.key)
+                    else next.add(row.key)
+                    return next
+                  })}
+                />
+                <img className="map-legend-pin" src={markerIcon(markerColor(row.category))} alt="" />
+                <span>{row.name}</span>
+                <small>{categoryCounts.get(row.key) ?? 0}</small>
+              </label>
+            ))}
+            <div className="map-legend-static">
+              <p><img className="map-legend-pin" src={markerIcon(SELECTED_COLOR)} alt="" /><span>Обраний роботодавець</span></p>
+              <p><i className="map-legend-cluster" style={{ background: CLUSTER_COLOR }}>3</i><span>Кілька місць поруч: натисни, щоб розкрити (з масштабу {CLUSTER_OFF_ZOOM} — окремі мітки)</span></p>
+              <p><i className="map-legend-count">2</i><span>Число на мітці — кілька роботодавців в одній точці</span></p>
+              <p><i className="map-line-key supply" /><span>Ланцюг постачання: постачальник → замовник</span></p>
+              <p><i className="map-line-key holdings" /><span>Холдинг: материнська → дочірня</span></p>
+            </div>
+          </div>
+        </details>
+        {selectedId != null && (
+          <div className="map-layers map-focus" role="group" aria-label="Зв’язки обраної компанії">
+            <div className="map-focus-title"><Icon name="graph" />Показати лише зв’язки обраної</div>
+            <div className="map-layers-body">
+              {selectedCompany == null ? (
+                <p className="map-layer-note">Компанії немає в базі ГУР, тому зв’язків для неї немає.</p>
+              ) : (
+                <>
+                  <label><input type="checkbox" checked={focusKinds.parent} disabled={networkState.status !== 'ready'} onChange={(e) => setFocusKinds((k) => ({ ...k, parent: e.target.checked }))} /><i className="map-line-key holdings" /><span>Її холдинги</span></label>
+                  <label><input type="checkbox" checked={focusKinds.supplier} disabled={networkState.status !== 'ready'} onChange={(e) => setFocusKinds((k) => ({ ...k, supplier: e.target.checked }))} /><i className="map-line-key supply" /><span>Її ланцюги постачання</span></label>
+                  {focus && (
+                    <p className="map-layer-note">
+                      {focus.companies.size > 1 ? `Пов’язаних компаній: ${focus.companies.size - 1}, з них на карті — ${focus.companies.size - 1 - focusUnplaced.length}.` : 'Зв’язків обраного типу немає.'}
+                      {' '}Інші фільтри карти тимчасово не діють.
+                    </p>
+                  )}
+                  {focusUnplaced.length > 0 && (
+                    <details className="map-connections">
+                      <summary>Без координат ({focusUnplaced.length})</summary>
+                      <div>{focusUnplaced.map((name) => <span key={name} className="map-focus-unplaced">{name}</span>)}</div>
+                    </details>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       <div className="map-tr">
         <button className="btn btn-sm" type="button" onClick={toggleFullscreen} aria-pressed={fullscreen}>
@@ -338,6 +468,19 @@ export function MapSlot({ employers, selectedId, children }: {
         {selectedRelation.from.lat === selectedRelation.to.lat && selectedRelation.from.lng === selectedRelation.to.lng && <p>Обидві компанії мають спільні координати. Зв’язок показано в переліку без окремої лінії.</p>}
         {(selectedRelation.relation.evidence_url || selectedRelation.relation.profile_url) && <a className="map-link-source" href={selectedRelation.relation.evidence_url ?? selectedRelation.relation.profile_url!} target="_blank" rel="noopener noreferrer">{selectedRelation.relation.evidence_url ? 'Джерело зв’язку' : 'Картка ГУР'} <Icon name="external" /></a>}
       </div>}
+      {placeList && (
+        <div className="map-link-pop" role="dialog" aria-label="Роботодавці в одній точці">
+          <div className="map-link-head"><strong>В одній точці: {placeList.length}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити" onClick={() => setPlaceList(null)}><Icon name="x" /></button></div>
+          <div className="map-place-list">
+            {placeList.map((id) => byId[id] && (
+              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(`/map?co=${id}`) }}>
+                <img className="map-legend-pin" src={markerIcon(markerColor(effectiveCategory(byId[id])))} alt="" />
+                <span>{byId[id].name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="map-orn" role="toolbar" aria-label="Керування картою">
         <button className="btn" type="button" disabled={!engine} onClick={() => { const map = mapRef.current; if (map) { fit(map, points); map.setPitch(pitch.current) } }}><Icon name="globe" />Уся вибірка</button>
         <button className="btn btn-icon" type="button" disabled={!engine} aria-label="Наблизити" onClick={() => { const map = mapRef.current; if (map) map.setZoom(map.getZoom() + 1) }}>+</button>

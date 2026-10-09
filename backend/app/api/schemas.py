@@ -379,6 +379,11 @@ class VacancyDetailOut(VacancyOut):
     reviews: list[VacancyReviewOut]
 
 
+class FacetValue(BaseModel):
+    value: str | None
+    vacancies: int
+
+
 class VacancyPage(BaseModel):
     total: int
     items: list[VacancyOut]

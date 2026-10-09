@@ -112,7 +112,7 @@ async def download(
     """Датасет у форматі csv, json, jsonl або parquet, наприклад `vacancies.csv`.
 
     Фільтри (scope, level, markers, focus, domain, role, employer_id, region_id, category, title,
-    q, days)
+    q, days, source, experience, schedule, employment, salary_min, salary_max, with_salary)
     застосовуються лише до `vacancies` і мають той самий зміст, що в `/api/vacancies`; без
     фільтрів — усі показані на сайті активні вакансії (ВПК і через кадрові агентства).
     """

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -19,12 +20,27 @@ Focus = Literal["drone", "missile", "kab", "other"]
 Sort = Literal["confirmed", "published", "salary"]
 
 
+# A null value of a faceted column (no category, experience, schedule or employment given).
+NONE = "none"
+Many = Sequence[str] | str | None
+
+
+def many(value: Any) -> tuple[Any, ...]:
+    """One value, several or none, as a tuple: filters take a scalar or a list."""
+    if value is None or value == "":
+        return ()
+    if isinstance(value, (str, int)):
+        return (value,)
+    return tuple(value)
+
+
 @dataclass(frozen=True)
 class VacancyFilter:
     level: LevelFilter = "vpk"
     employer_id: int | None = None
-    region_id: int | None = None
-    category: str | None = None
+    # Each of the faceted fields takes one value or several (any of them matches).
+    region_id: int | Sequence[int] | None = None
+    category: Many = None
     title: str | None = None
     q: str | None = None
     days: int | None = None
@@ -32,12 +48,23 @@ class VacancyFilter:
     # Only vacancies with explicit ВПК markers in the text (state secret, GOZ, military acceptance…).
     markers: bool = False
     # The card's legal entity: its focus tag, industry (direction_domain) and role.
-    focus: Focus | None = None
-    domain: str | None = None
-    role: str | None = None
+    focus: Focus | Sequence[Focus] | None = None
+    domain: Many = None
+    role: Many = None
+    # Job site and the vacancy's own fields, as published (`none` = not given).
+    source: Many = None
+    experience: Many = None
+    schedule: Many = None
+    employment: Many = None
+    # Monthly salary in RUB (see `monthly_salary`); `with_salary` drops vacancies without one.
+    salary_min: int | None = None
+    salary_max: int | None = None
+    with_salary: bool = False
 
-    def where(self) -> tuple[str, dict[str, Any]]:
+    def parts(self) -> tuple[list[str], dict[str, str], dict[str, Any]]:
+        """Plain clauses, the clause of each faceted field, and the query parameters."""
         clauses: list[str] = [f"v.{SHOWN}"]
+        facets: dict[str, str] = {}
         params: dict[str, Any] = {}
         if self.scope != "all":
             clauses.append("v.final_category = :scope")
@@ -50,30 +77,44 @@ class VacancyFilter:
         if self.employer_id is not None:
             clauses.append("v.card_id = :employer_id")
             params["employer_id"] = self.employer_id
-        if self.focus == "other":
-            clauses.append(
-                f"v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
-                " WHERE c.vpk_category = 'vpk')"
-                f" AND v.company_id NOT IN (SELECT company_id FROM ({FOCUS_SELECT}) f)"
-            )
-        elif self.focus:
-            clauses.append(
-                f"v.company_id IN (SELECT company_id FROM ({FOCUS_SELECT}) f WHERE f.focus = :focus)"
-            )
-            params["focus"] = self.focus
-        for column in ("domain", "role"):
-            if value := getattr(self, column):
-                clauses.append(
-                    f"v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
-                    f" WHERE c.direction_{column} = :{column})"
+        if focus := many(self.focus):
+            tagged = [f for f in focus if f != "other"]
+            options = []
+            if "other" in focus:
+                options.append(
+                    f"(v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
+                    " WHERE c.vpk_category = 'vpk')"
+                    f" AND v.company_id NOT IN (SELECT company_id FROM ({FOCUS_SELECT}) f))"
                 )
-                params[column] = value
-        if self.region_id is not None:
-            clauses.append("v.region_id = :region_id")
-            params["region_id"] = self.region_id
-        if self.category:
-            clauses.append("v.category = :category")
-            params["category"] = self.category
+            if tagged:
+                options.append(
+                    f"v.company_id IN (SELECT company_id FROM ({FOCUS_SELECT}) f"
+                    " WHERE f.focus = ANY(:focus))"
+                )
+                params["focus"] = tagged
+            facets["focus"] = "(" + " OR ".join(options) + ")"
+        for column in ("domain", "role"):
+            if values := many(getattr(self, column)):
+                facets[column] = (
+                    f"v.company_id IN (SELECT company_id FROM ({CLASSIFICATION_SELECT}) c"
+                    f" WHERE c.direction_{column} = ANY(:{column}))"
+                )
+                params[column] = list(values)
+        if regions := many(self.region_id):
+            facets["region_id"] = "v.region_id = ANY(:region_id)"
+            params["region_id"] = [int(r) for r in regions]
+        if sources := many(self.source):
+            facets["source"] = "v.source = ANY(:source)"
+            params["source"] = list(sources)
+        for column in ("category", "experience", "schedule", "employment"):
+            if values := many(getattr(self, column)):
+                known = [x for x in values if x != NONE]
+                options = [f"v.{column} = ANY(:{column})"] if known else []
+                if NONE in values:
+                    options.append(f"v.{column} IS NULL")
+                facets[column] = "(" + " OR ".join(options) + ")"
+                if known:
+                    params[column] = known
         if self.title:
             clauses.append("v.title = :title")
             params["title"] = self.title
@@ -91,7 +132,77 @@ class VacancyFilter:
         if self.days:
             clauses.append(f"v.published_at > {AS_OF} - make_interval(days => :days)")
             params["days"] = self.days
-        return " AND ".join(clauses), params
+        if self.with_salary:
+            clauses.append("v.monthly_salary IS NOT NULL")
+        if self.salary_min is not None:
+            clauses.append("v.monthly_salary >= :salary_min")
+            params["salary_min"] = self.salary_min
+        if self.salary_max is not None:
+            clauses.append("v.monthly_salary <= :salary_max")
+            params["salary_max"] = self.salary_max
+        return clauses, facets, params
+
+    def where(self) -> tuple[str, dict[str, Any]]:
+        clauses, facets, params = self.parts()
+        return " AND ".join([*clauses, *facets.values()]), params
+
+
+# Faceted fields: the value each vacancy counts under (focus is joined apart: a company may
+# have several tags).
+FACET_COLUMNS = {
+    "region_id": "b.region_id::text",
+    "source": "b.source",
+    "category": "b.category",
+    "experience": "b.experience",
+    "schedule": "b.schedule",
+    "employment": "b.employment",
+    "domain": "b.direction_domain",
+    "role": "b.direction_role",
+}
+
+
+async def facets(session: AsyncSession, f: VacancyFilter) -> dict[str, list[Row]]:
+    """Vacancies per value of every faceted field, under all the other filters (not its own)."""
+    clauses, faceted, params = f.parts()
+    flags = "".join(f", ({clause}) AS f_{name}" for name, clause in faceted.items())
+
+    def others(name: str) -> str:
+        return " AND ".join([f"b.f_{n}" for n in faceted if n != name] or ["TRUE"])
+
+    selects = [
+        f"SELECT '{name}' AS facet, {column} AS value, count(*) AS vacancies"
+        f" FROM b WHERE {others(name)} GROUP BY 2"
+        for name, column in FACET_COLUMNS.items()
+    ]
+    selects.append(
+        "SELECT 'focus' AS facet,"
+        " coalesce(fo.focus, CASE WHEN b.vpk_category = 'vpk' THEN 'other' END) AS value,"
+        " count(DISTINCT b.vacancy_id) AS vacancies"
+        f" FROM b LEFT JOIN ({FOCUS_SELECT}) fo ON fo.company_id = b.company_id"
+        f" WHERE {others('focus')} GROUP BY 2"
+    )
+    rows = await session.execute(
+        text(f"""
+            WITH {CTE},
+            b AS (
+                SELECT v.vacancy_id, v.company_id, v.region_id, v.source, v.category,
+                       v.experience, v.schedule, v.employment,
+                       c.direction_domain, c.direction_role, c.vpk_category{flags}
+                FROM v LEFT JOIN ({CLASSIFICATION_SELECT}) c ON c.company_id = v.company_id
+                WHERE {" AND ".join(clauses)}
+            )
+            {" UNION ALL ".join(selects)}
+        """),
+        params,
+    )
+    out: dict[str, list[Row]] = {name: [] for name in [*FACET_COLUMNS, "focus"]}
+    for r in rows.mappings():
+        if r["facet"] == "focus" and r["value"] is None:
+            continue  # not a ВПК company: no focus to filter by
+        out[r["facet"]].append({"value": r["value"], "vacancies": r["vacancies"]})
+    for values in out.values():
+        values.sort(key=lambda x: (-x["vacancies"], str(x["value"])))
+    return out
 
 
 LIST_COLUMNS = """

@@ -11,7 +11,7 @@
 .map-ph svg { width: 28px; height: 28px; color: var(--label-2); margin-bottom: 6px; }
 .map-ph h4 { font-size: 15px; font-weight: 600; }
 .map-ph p { font-size: 13px; color: var(--label-2); margin-top: 4px; }
-.map-tl { position: absolute; left: 12px; top: 12px; z-index: 3; display: grid; justify-items: start; gap: 8px; max-width: calc(100% - 24px); }
+.map-tl { position: absolute; left: 12px; top: 12px; z-index: 3; display: grid; justify-items: start; align-content: start; gap: 8px; max-width: calc(100% - 24px); max-height: calc(100% - 230px); overflow-y: auto; scrollbar-width: thin; }
 .map-tl .segmented { background: var(--surface-raised); box-shadow: var(--shadow-control); }
 .map-tr { position: absolute; right: 12px; top: 12px; z-index: 3; display: flex; gap: 8px; }
 .map-tr .btn { background: var(--surface-raised); box-shadow: var(--shadow-control); }
@@ -65,3 +65,17 @@
 }
 /* OpenStreetMap fallback: keep Leaflet's panes under the slot's own controls and panels. */
 .map-leaflet { z-index: 0; isolation: isolate; }
+/* Legend of the pin colours (doubles as a filter), the cluster and the lines. */
+.map-legend-pin { width: 16px; height: 20px; flex: none; }
+.map-legend-static { border-top: 1px solid var(--stroke); margin-top: 6px; padding-top: 4px; }
+.map-legend-static p { display: flex; gap: 8px; align-items: center; padding: 5px 0; font-size: 12px; line-height: 16px; color: var(--label-2); }
+.map-legend-cluster { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--stroke); color: #fff; font: 600 9px/1 var(--ff-sans); font-style: normal; }
+.map-legend-count { display: inline-grid; place-items: center; min-width: 16px; height: 16px; flex: none; border-radius: 8px; background: var(--n-900); color: #fff; font: 600 9px/1 var(--ff-sans); font-style: normal; }
+.map-focus { width: 300px; }
+.map-focus-title { display: flex; align-items: center; gap: 8px; padding: 10px 12px 2px; font-size: 13px; font-weight: 600; }
+.map-focus-unplaced { display: block; padding: 4px; overflow-wrap: anywhere; }
+.map-place-list { display: grid; max-height: 260px; overflow-y: auto; }
+.map-place-list button { display: flex; gap: 8px; align-items: center; padding: 8px 4px; text-align: left; font: inherit; cursor: pointer; border-radius: 8px; }
+.map-place-list button:hover { background: var(--fill-1); }
+.map-place-list span { min-width: 0; overflow-wrap: anywhere; }
+.map-legend .map-layers-body { max-height: none; }

@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app import reviews
 from app.api.deps import Session
 from app.api.schemas import (
+    FacetValue,
     ProfessionOut,
     VacancyDetailOut,
     VacancyOut,
@@ -15,9 +16,22 @@ from app.api.schemas import (
     VacancyReviewOut,
 )
 from app.repository import vacancies
+from app.repository.cache import cache
 from app.repository.vacancies import Focus, LevelFilter, Scope, Sort, VacancyFilter
 
 router = APIRouter(tags=["vacancies"])
+
+
+FOCUS_VALUES = set(get_args(Focus))
+# A comma-separated list: `region_id=64,77` is either of the two regions.
+ListParam = Annotated[str | None, Query(max_length=2000)]
+
+
+def split(raw: str | None, name: str, allowed: set[str] | None = None) -> tuple[str, ...]:
+    values = tuple(x.strip() for x in (raw or "").split(",") if x.strip())
+    if allowed is not None and (bad := [x for x in values if x not in allowed]):
+        raise HTTPException(status_code=422, detail=f"unknown {name}: {', '.join(bad)}")
+    return values
 
 
 def filter_params(default_scope: Scope = "vpk") -> Callable[..., VacancyFilter]:
@@ -26,30 +40,47 @@ def filter_params(default_scope: Scope = "vpk") -> Callable[..., VacancyFilter]:
     def params(
         level: LevelFilter = "vpk",
         employer_id: int | None = None,
-        region_id: int | None = None,
-        category: str | None = None,
+        region_id: ListParam = None,
+        category: ListParam = None,
         title: str | None = None,
         q: Annotated[str | None, Query(max_length=200)] = None,
         days: Annotated[int | None, Query(ge=1, le=3650)] = None,
         scope: Scope = default_scope,
         markers: bool = False,
-        focus: Focus | None = None,
-        domain: Annotated[str | None, Query(max_length=40)] = None,
-        role: Annotated[str | None, Query(max_length=40)] = None,
+        focus: ListParam = None,
+        domain: ListParam = None,
+        role: ListParam = None,
+        source: ListParam = None,
+        experience: ListParam = None,
+        schedule: ListParam = None,
+        employment: ListParam = None,
+        salary_min: Annotated[int | None, Query(ge=0)] = None,
+        salary_max: Annotated[int | None, Query(ge=0)] = None,
+        with_salary: bool = False,
     ) -> VacancyFilter:
+        regions = split(region_id, "region_id")
+        if not all(r.lstrip("-").isdigit() for r in regions):
+            raise HTTPException(status_code=422, detail="region_id must be integers")
         return VacancyFilter(
             level=level,
             employer_id=employer_id,
-            region_id=region_id,
-            category=category,
+            region_id=tuple(int(r) for r in regions),
+            category=split(category, "category"),
             title=title,
             q=(q or "").strip() or None,
             days=days,
             scope=scope,
             markers=markers,
-            focus=focus,
-            domain=domain,
-            role=role,
+            focus=split(focus, "focus", FOCUS_VALUES),  # type: ignore[arg-type]
+            domain=split(domain, "domain"),
+            role=split(role, "role"),
+            source=split(source, "source"),
+            experience=split(experience, "experience"),
+            schedule=split(schedule, "schedule"),
+            employment=split(employment, "employment"),
+            salary_min=salary_min,
+            salary_max=salary_max,
+            with_salary=with_salary,
         )
 
     return params
@@ -69,6 +100,20 @@ async def list_vacancies(
     """Shown vacancies: of ВПК enterprises (`scope=vpk`), recruitment agencies, or both."""
     total, rows = await vacancies.list_vacancies(session, f, sort, limit, offset)
     return VacancyPage(total=total, items=[VacancyOut.model_validate(r) for r in rows])
+
+
+@router.get("/vacancies/facets")
+async def vacancy_facets(session: Session, f: Filter) -> dict[str, list[FacetValue]]:
+    """Vacancies per value of each filter field (region, source, experience…), counted under
+    all the other filters, as a filter sidebar shows them."""
+
+    async def load() -> dict[str, list[FacetValue]]:
+        return {
+            k: [FacetValue.model_validate(x) for x in v]
+            for k, v in (await vacancies.facets(session, f)).items()
+        }
+
+    return await cache.get_or_load(("vacancy-facets", f), load)
 
 
 @router.get("/vacancies/{vacancy_id}")
