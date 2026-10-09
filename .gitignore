@@ -10,6 +10,9 @@ __pycache__/
 .env.*
 !.env.example
 
+# Private sharing instructions containing the MCP access key
+/MCP_FOR_VLAD.md
+
 # OS / editors
 .DS_Store
 .idea/

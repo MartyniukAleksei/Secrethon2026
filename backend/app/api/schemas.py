@@ -153,7 +153,7 @@ class CompanySiteOut(BaseModel):
 class MapRelationOut(BaseModel):
     company_id: int
     related_id: int
-    kind: Literal["supplier", "parent"]
+    kind: Literal["supplier", "parent", "related", "bank", "successor", "branch"]
     company_name: str
     related_name: str
     source: str

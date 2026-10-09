@@ -1,8 +1,10 @@
 import asyncio
+import json
 import logging
 import re
 import time
 from collections import defaultdict, deque
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 from urllib.parse import urlsplit
@@ -14,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.agent_provider import ProviderError, post_json
+from app.agent_scope import MapScope, scope_ids
 from app.api.deps import Session
 from app.api.schemas import EmployerDetailOut, EmployerOut, StatsOut, VacancyOut
 from app.config import settings
@@ -21,6 +24,7 @@ from app.repository import agent as queries
 from app.repository import employers, stats, vacancies
 from app.repository.sql import AS_OF
 from app.repository.vacancies import VacancyFilter
+from app.search import fold, variants
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 logger = logging.getLogger(__name__)
@@ -29,10 +33,12 @@ requests: dict[str, deque] = defaultdict(deque)
 
 
 class Context(BaseModel):
+    page: Literal["map", "other"] = "other"
     company_id: int | None = Field(default=None, gt=0)
     region_id: int | None = Field(default=None, ge=0)
     category: str | None = Field(default=None, max_length=80)
     days: int = Field(default=30, ge=0, le=3650)
+    map_scope: MapScope | None = None
 
 
 class History(BaseModel):
@@ -44,6 +50,7 @@ class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     history: list[History] = Field(default_factory=list, max_length=12)
     context: Context = Field(default_factory=Context)
+    web_access: Literal["ask", "allowed", "db_only"] = "ask"
 
 
 class ToolArgs(BaseModel):
@@ -58,6 +65,7 @@ class ToolArgs(BaseModel):
     metric: Literal["vacancies", "median_salary"] = "vacancies"
     limit: int = Field(default=10, ge=1, le=30)
     only_sanctioned: bool = False
+    map_mode: Literal["focus_company", "show_relations"] = "focus_company"
 
     @field_validator("employer_ids")
     @classmethod
@@ -67,11 +75,19 @@ class ToolArgs(BaseModel):
         return value
 
 
+class EvidenceSection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["database", "public_web", "analysis"]
+    text: str = Field(min_length=1, max_length=8000)
+    source_ids: list[str] = Field(default_factory=list, max_length=30)
+
+
 class Finish(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=12000)
     artifact_ids: list[str] = Field(default_factory=list, max_length=5)
     source_ids: list[str] = Field(default_factory=list, max_length=30)
+    sections: list[EvidenceSection] = Field(default_factory=list, max_length=3)
 
 
 def safe_url(url: str | None) -> str | None:
@@ -159,15 +175,40 @@ TOOLS = [
         ["employer_id"],
     ),
     declaration(
+        "show_on_map",
+        "Open and zoom to one verified employer on the map. For questions about "
+        "its relationships use map_mode=show_relations to open ONLY its network. "
+        "Resolve ambiguous names first; employer_id must come from database tools. "
+        "Call once after obtaining company_profile, before finish. "
+        "Coordinates are hiring places and registry sites; distinguish them.",
+        {
+            "employer_id": INTEGER,
+            "map_mode": {**STRING, "enum": ["focus_company", "show_relations"]},
+        },
+        ["employer_id", "map_mode"],
+    ),
+    declaration(
         "finish",
         "Finish with Ukrainian plain text, citing sources as [s1], [s2]. "
         "Select existing artifact/source IDs only. Never fabricate IDs, values or URLs.",
         {
             "text": STRING,
+            "sections": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "kind": {"type": "STRING", "enum": ["database", "public_web", "analysis"]},
+                        "text": STRING,
+                        "source_ids": {"type": "ARRAY", "items": STRING},
+                    },
+                    "required": ["kind", "text", "source_ids"],
+                },
+            },
             "artifact_ids": {"type": "ARRAY", "items": STRING},
             "source_ids": {"type": "ARRAY", "items": STRING},
         },
-        ["text"],
+        ["text", "sections"],
     ),
 ]
 
@@ -186,24 +227,88 @@ SYSTEM = """Ти аналітичний асистент платформи Се
 Завжди завершуй через finish. Для графіка вибери artifact_id створеного інструментом
 графіка, для порівнянь також таблицю. Не використовуй HTML чи Markdown-таблиці.
 Показуй період та дату зрізу. Стисло пояснюй обмеження, які стосуються відповіді.
+У finish завжди передавай sections: database (факти платформи), public_web (заяви
+з матеріалів Tavily), analysis (твої висновки або уточнення). Пропускай порожні блоки.
+Кожен блок database/public_web має посилання [sN] та source_ids відповідного походження.
+У висновку також посилайся на використані докази. Не називай вебзбіг перевіреним.
+Map scope фіксує область та фільтри питання. analytics/vacancies застосовують його
+на сервері. company_profile/overview показують загальні дані, не підсумок області.
+Підсумок області охоплює всю вибірку; рейтинг обмежений subset_limit. Вказуй це явно.
+Кружки карти — місця найму; будівлі — головні офіси та філії за реєстром.
+Адреса реєстру не доводить, що там є завод. Географічна близькість не доводить зв'язку.
+Географічна аналітика вакансій обмежується місцями найму у видимій області,
+а не юридичними адресами підприємств.
+Не запускай вебпошук для всіх компаній області: максимум дві компанії за відповідь.
+Для масового вебдослідження попроси вибрати конкретні підприємства або звузити запит.
+Для свіжих новин, публічних згадок або відомостей про підприємство, яких немає в базі,
+використовуй search_mentions після встановлення компанії. Не видавай старі дані бази
+за новини. Дотримуйся політики вебдоступу цього запиту; дозвіл з історії не переноситься.
+Якщо page=map і користувач питає про одне конкретне підприємство, знайди його,
+отримай company_profile і виклич show_on_map(focus_company). Для запиту про його
+зв'язки, постачальників чи холдинг виклич show_on_map(show_relations) з ID САМЕ
+запитаного підприємства, а не останнього іншого переглянутого профілю.
+Поза картою викликай show_on_map лише коли користувач просить показати на карті.
+Не переміщуй карту для оглядів області, рейтингів чи порівняння кількох підприємств.
+Для нової явно названої компанії пошук і профіль не обмежуються поточною областю.
+Якщо повна назва не знайдена, search_employers може знайти згадку в описі картки:
+поясни, що показуєш пов'язану картку, а не окрему установу. Часткові кандидати не
+підтверджують тотожність: перевір профілі або попроси уточнення; не обирай навмання.
+Не обіцяй переміщення карти, якщо show_on_map повернув помилку чи немає координат.
 """
 
 
+class WebPermissionRequired(Exception):
+    def __init__(self, company: str, days: int):
+        self.permission = {"company": company, "days": days}
+        super().__init__("Web search requires user permission")
+
+
+def requests_relation_map(request: ChatIn) -> bool:
+    question = fold(request.message)
+    question = re.sub(r"['’ʼ`‘]", "", question)
+    if request.context.page != "map" and not re.search(r"\b(?:карти|карте|карту|map)\b", question):
+        return False
+    # Look at clauses separately so "не показуй зв'язки, покажи розташування"
+    # cannot force the network. Do not inherit intent from conversation history.
+    for clause in re.split(r"[,;.!?\n]", question):
+        if re.search(r"\b(?:без|не)\b", clause):
+            continue
+        if re.search(
+            r"\b(?:звяз\w*|связ\w*|постачаль\w*|постачан\w*|поставщик\w*|"
+            r"холдинг\w*|ланцюг\w*|relations?|relationships?|suppliers?|holdings?)\b",
+            clause,
+        ):
+            return True
+    return False
+
+
 class Run:
-    def __init__(self, session, context: Context):
+    def __init__(
+        self, session, context: Context, *, web_access: str = "ask", relation_map: bool = False
+    ):
         self.session = session
         self.context = context
+        self.web_access = web_access
+        self.relation_map = relation_map
         self.sources: dict[str, dict] = {}
         self.artifacts: dict[str, dict] = {}
         self.as_of = None
         self.web_calls = 0
+        self.scope_employer_ids: list[int] | None = None
+        self.scope_totals: dict | None = None
+        self.result_ids: set[int] = set()
+        self.profile_id: int | None = None
+        self.profiles: dict[int, dict] = {}
+        self.map_action: dict | None = None
 
-    def source(self, title: str, url: str, published_at=None) -> str | None:
+    def source(
+        self, title: str, url: str, published_at=None, origin="database", excerpt=None
+    ) -> str | None:
         url = safe_url(url)
         if not url:
             return None
         for ident, source in self.sources.items():
-            if source["url"] == url:
+            if source["url"] == url and source["origin"] == origin:
                 return ident
         ident = f"s{len(self.sources) + 1}"
         self.sources[ident] = {
@@ -211,6 +316,10 @@ class Run:
             "title": title,
             "url": url,
             "published_at": published_at,
+            "origin": origin,
+            "retrieved_at": datetime.now(UTC),
+            "excerpt": excerpt,
+            "verification": "unverified" if origin == "public_web" else "database_record",
         }
         return ident
 
@@ -220,8 +329,13 @@ class Run:
         return ident
 
     def filters(self, args: ToolArgs) -> VacancyFilter:
+        scope = self.context.map_scope
+        bounds = scope.bounds if scope and scope.mode == "viewport" else None
         return VacancyFilter(
-            employer_id=args.employer_id,
+            employer_id=args.employer_id or (self.context.company_id if not scope else None),
+            employer_ids=self.scope_employer_ids,
+            bounds=(bounds.west, bounds.south, bounds.east, bounds.north) if bounds else None,
+            scope="all" if scope else "vpk",
             region_id=(args.region_id or None)
             if args.region_id is not None
             else self.context.region_id,
@@ -230,8 +344,32 @@ class Run:
             q=args.query or None,
         )
 
+    async def prepare_scope(self):
+        if not self.context.map_scope or self.scope_employer_ids is not None:
+            return
+        scope = self.context.map_scope
+        cards = await employers.list_employers(self.session)
+        f = scope.filters
+        network = (
+            await employers.map_network(self.session)
+            if f.specialization != "all" or f.network_kinds
+            else {"relations": [], "company_tags": []}
+        )
+        self.scope_employer_ids = scope_ids(cards, scope, network)
+        self.scope_totals = await queries.scope_summary(self.session, self.filters(ToolArgs()))
+        self.as_of = self.scope_totals.pop("as_of", None)
+
     async def tool(self, name: str, raw: dict) -> dict:
         args = ToolArgs.model_validate(raw)
+        if name == "search_mentions" and self.web_access == "db_only":
+            return {
+                "error": (
+                    "User chose database only. Do not search the web; "
+                    "finish from database evidence."
+                )
+            }
+        if name in {"analytics", "vacancies"}:
+            await self.prepare_scope()
         if name == "overview":
             result = StatsOut.model_validate(await stats.overview(self.session)).model_dump()
             self.as_of = result["as_of"]
@@ -239,17 +377,97 @@ class Run:
             return result
         if name == "search_employers":
             rows = await employers.list_employers(self.session)
-            needle = args.query.casefold().strip()
-            if not needle:
+            needles = [re.findall(r"\w+", v) for v in variants(args.query)]
+            if not any(needles):
                 return {"error": "Specify a company name or INN"}
+
+            def matches_text(value):
+                return any(tokens and all(t in fold(value) for t in tokens) for tokens in needles)
+
             matches = [
-                EmployerOut.model_validate(r).model_dump()
+                r
                 for r in rows
-                if needle in r["name"].casefold() or needle == r.get("inn")
+                if matches_text(r["name"] + " " + (r.get("gur_name") or ""))
+                or args.query.strip() == r.get("inn")
             ]
+            associations = {}
+            partial = False
+            if not matches and any(len(tokens) > 1 for tokens in needles):
+                seeds = {token for tokens in needles for token in tokens if len(token) >= 3}
+                candidates = [
+                    r
+                    for r in rows
+                    if any(
+                        seed in fold(r["name"] + " " + (r.get("gur_name") or "")) for seed in seeds
+                    )
+                ]
+                # A short query may name an institution mentioned in a company's description.
+                # Inspect bounded candidates only; do not scan every company's full profile.
+                descriptions = await queries.company_descriptions(
+                    self.session,
+                    [r["gur_company_id"] for r in candidates[:5] if r.get("gur_company_id")],
+                )
+                for candidate in candidates[:5]:
+                    description = descriptions.get(candidate.get("gur_company_id"), "")
+                    if matches_text(description):
+                        matches.append(candidate)
+                        associations[candidate["id"]] = description[:2500]
+                if not matches:
+                    matches, partial = candidates, bool(candidates)
+            matches = [EmployerOut.model_validate(r).model_dump() for r in matches]
             for row in matches[:15]:
-                row["source_id"] = self.source(row["name"], f"/companies/{row['id']}")
-            return {"candidates": matches[:15], "total_matches": len(matches)}
+                row["source_id"] = self.source(
+                    row["name"], f"/companies/{row['id']}", excerpt=associations.get(row["id"])
+                )
+                if row["id"] in associations:
+                    row["matched_in"] = "profile_description; association, not a separate entity"
+                    row["matching_excerpt"] = associations[row["id"]]
+            return {
+                "candidates": matches[:15],
+                "total_matches": len(matches),
+                "partial_match": partial,
+            }
+        if name == "show_on_map":
+            profile = self.profiles.get(args.employer_id)
+            if not profile:
+                return {"error": "Read company_profile for this employer first; never invent IDs"}
+            map_mode = "show_relations" if self.relation_map else args.map_mode
+            if (
+                self.map_action
+                and self.map_action["employer_id"] == profile["id"]
+                and self.map_action["kind"] == "show_relations"
+            ):
+                map_mode = "show_relations"
+            points = [
+                p
+                for p in await employers.map_points(self.session)
+                if p["employer_id"] == profile["id"]
+            ]
+            sites = [
+                site
+                for site in profile.get("sites", [])
+                if site.get("lat") is not None
+                and site.get("lng") is not None
+                and (site["geo_qc"] if site.get("geo_qc") is not None else 5) <= 3
+            ]
+            if map_mode == "focus_company" and not points and not sites:
+                return {
+                    "error": (
+                        "No hiring or registry coordinates in database; "
+                        "cannot zoom to this employer"
+                    )
+                }
+            self.map_action = {"kind": map_mode, "employer_id": profile["id"]}
+            return {
+                "map_action": self.map_action,
+                "company": profile["name"],
+                "hiring_places": len(points),
+                "registry_sites": len(sites),
+                "coordinate_kind": "hiring_locations_and_registry_sites"
+                if sites
+                else "hiring_locations",
+                "source_id": self.source(profile["name"], f"/companies/{profile['id']}"),
+            }
         if name in {"company_profile", "search_mentions"}:
             if not args.employer_id:
                 return {"error": "employer_id required"}
@@ -259,18 +477,43 @@ class Run:
             profile = EmployerDetailOut.model_validate(row).model_dump()
             source_id = self.source(profile["name"], f"/companies/{args.employer_id}")
             if name == "company_profile":
+                self.profiles[args.employer_id] = profile
+                self.result_ids.add(profile["id"])
+                self.profile_id = profile["id"]
                 self.as_of = (await self.session.execute(text(f"SELECT {AS_OF}"))).scalar_one()
                 if profile.get("profile_url"):
                     self.source("Профіль джерела: " + profile["name"], profile["profile_url"])
                 if profile.get("gur") and profile["gur"].get("gur_url"):
                     self.source("ГУР: " + profile["name"], profile["gur"]["gur_url"])
                 relations = profile["gur"]["relations"] if profile.get("gur") else []
+                if profile.get("gur"):
+                    cid = profile["gur"]["company_id"]
+                    evidence = await queries.relation_evidence(self.session, cid)
+                    for relation in relations:
+                        edge = next(
+                            (
+                                e
+                                for e in evidence
+                                if e["kind"] == relation["kind"]
+                                and (e["related_id"] if e["company_id"] == cid else e["company_id"])
+                                == relation["company_id"]
+                            ),
+                            None,
+                        )
+                        relation["source_id"] = self.source(
+                            "Джерело зв’язку: " + relation["name"],
+                            edge["evidence_url"]
+                            if edge and edge.get("evidence_url")
+                            else profile["gur"].get("gur_url"),
+                        )
                 relation_id = self.artifact(
                     {
                         "kind": "relations",
                         "title": "Зв’язки підприємства",
                         "company": profile["name"],
-                        "items": relations,
+                        "items": relations[:30],
+                        "total": len(relations),
+                        "employer_id": profile["id"],
                     }
                 )
                 return {
@@ -284,7 +527,7 @@ class Run:
         if name == "analytics":
             f = self.filters(args)
             # Name matching belongs to employer_profile, not vacancy title.
-            f = VacancyFilter(region_id=f.region_id, category=f.category, days=f.days)
+            f = replace(f, q=None, employer_id=None if args.employer_ids else f.employer_id)
             result = await queries.analytics(
                 self.session,
                 f,
@@ -300,6 +543,7 @@ class Run:
             rows = result["rows"]
             for row in rows:
                 if args.group_by == "company" and row["id"]:
+                    self.result_ids.add(row["id"])
                     row["source_id"] = self.source(row["label"], f"/companies/{row['id']}")
             unit = "вакансій" if args.metric == "vacancies" else "RUB/місяць"
             title = "Кількість вакансій" if args.metric == "vacancies" else "Медіана зарплати"
@@ -310,6 +554,10 @@ class Run:
                 "as_of": result["as_of"],
                 "active_only": True,
                 "only_sanctioned": args.only_sanctioned,
+                "map_scope": self.context.map_scope.model_dump()
+                if self.context.map_scope
+                else None,
+                "totals": self.scope_totals,
             }
             table_id = self.artifact(
                 {"kind": "table", "title": title, "unit": unit, "rows": rows, "scope": scope}
@@ -340,6 +588,8 @@ class Run:
             items = [VacancyOut.model_validate(row).model_dump() for row in rows]
             for row in items:
                 row["source_id"] = self.source(row["title"], row["url"])
+                if row.get("employer_id"):
+                    self.result_ids.add(row["employer_id"])
             return {
                 "total": total,
                 "items": items,
@@ -349,12 +599,16 @@ class Run:
         return {"error": "Unknown tool"}
 
     async def mentions(self, profile: dict, days: int | None) -> dict:
+        if self.web_access == "db_only":
+            return {"error": "User chose database only. Web search is disabled for this question."}
         if not settings.tavily_api_key:
             return {"error": "Tavily is not configured"}
         if self.web_calls >= 2:
             return {"error": "Web search limit reached for this turn"}
-        self.web_calls += 1
         days = min(days or 7, 365)
+        if self.web_access != "allowed":
+            raise WebPermissionRequired(profile["name"], days)
+        self.web_calls += 1
         today = datetime.now(UTC).date()
         query = f'"{profile["name"]}"'
         if profile.get("locality"):
@@ -380,7 +634,13 @@ class Run:
             if not url or url in seen:
                 continue
             seen.add(url)
-            ident = self.source(row.get("title", url), url, row.get("published_date"))
+            ident = self.source(
+                row.get("title", url),
+                url,
+                row.get("published_date"),
+                origin="public_web",
+                excerpt=row.get("content", "")[:2500],
+            )
             items.append(
                 {
                     "source_id": ident,
@@ -409,16 +669,65 @@ class Run:
         }
 
 
+def function_reply(call: dict, result: dict) -> dict:
+    response = {"name": call["name"], "response": jsonable_encoder(result)}
+    if "id" in call:
+        response["id"] = call["id"]
+    return {"functionResponse": response}
+
+
 async def answer(request: ChatIn, session) -> dict:
-    run = Run(session, request.context)
+    run = Run(
+        session,
+        request.context,
+        web_access=request.web_access,
+        relation_map=requests_relation_map(request),
+    )
+    await run.prepare_scope()
     contents = [
         {"role": "model" if h.role == "assistant" else "user", "parts": [{"text": h.text}]}
         for h in request.history
     ]
     contents.append({"role": "user", "parts": [{"text": request.message}]})
     prompt = SYSTEM + "\nPage context: " + request.context.model_dump_json()
+    if run.relation_map:
+        prompt += (
+            "\nRequired map mode: show_relations. The user asks for a company's network, "
+            "not just its location. Resolve the requested company from database, "
+            "read its profile and call show_on_map before finish. "
+            "Do not navigate if identity remains ambiguous."
+        )
+    if request.web_access == "db_only" or not settings.tavily_api_key:
+        prompt += (
+            "\nWeb access: disabled. Answer only from database tools. "
+            "Explain missing information; do not offer or attempt web search."
+        )
+    elif request.web_access == "ask":
+        prompt += (
+            "\nWeb access: requires permission. Call search_mentions when needed; "
+            "the server will pause and ask the user before accessing Tavily. "
+            "Do not claim a search already happened."
+        )
+    else:
+        prompt += (
+            "\nWeb access: user allowed Tavily for this question only. "
+            "Use search_mentions when needed."
+        )
+    available_tools = [
+        tool
+        for tool in TOOLS
+        if tool["name"] != "search_mentions"
+        or request.web_access != "db_only"
+        and settings.tavily_api_key
+    ]
     prompt += "\nCurrent UTC date: " + datetime.now(UTC).date().isoformat()
+    if run.scope_totals is not None:
+        ident = run.source("Підсумок області дослідження", "/")
+        prompt += "\nDatabase scope totals (whole selection): " + json.dumps(
+            jsonable_encoder({**run.scope_totals, "source_id": ident}), ensure_ascii=False
+        )
     tools_used = []
+    evidence = []
     for step in range(8):
         response = await post_json(
             "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -427,7 +736,7 @@ async def answer(request: ChatIn, session) -> dict:
             {
                 "systemInstruction": {"parts": [{"text": prompt}]},
                 "contents": contents,
-                "tools": [{"functionDeclarations": TOOLS}],
+                "tools": [{"functionDeclarations": available_tools}],
                 "toolConfig": {"functionCallingConfig": {"mode": "ANY"}},
                 "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096},
             },
@@ -436,12 +745,22 @@ async def answer(request: ChatIn, session) -> dict:
         )
         candidates = response.get("candidates", [])
         if not candidates or not candidates[0].get("content", {}).get("parts"):
-            raise ProviderError("Gemini")
+            logger.warning(
+                "Gemini empty response: round=%s finish_reason=%s",
+                step + 1,
+                candidates[0].get("finishReason") if candidates else "NO_CANDIDATES",
+            )
+            raise ProviderError("Gemini", reason="empty_response")
         content = candidates[0]["content"]
         contents.append(content)  # Preserve thought signatures and all model parts.
         calls = [p["functionCall"] for p in content["parts"] if "functionCall" in p]
         if not calls:
-            raise ProviderError("Gemini")
+            logger.warning(
+                "Gemini response without tools: round=%s finish_reason=%s",
+                step + 1,
+                candidates[0].get("finishReason"),
+            )
+            raise ProviderError("Gemini", reason="missing_function_call")
         replies = []
         for call in calls:
             name = call["name"]
@@ -453,18 +772,39 @@ async def answer(request: ChatIn, session) -> dict:
                     result = {"error": "Invalid finish arguments"}
                 else:
                     cited = re.findall(r"\[(s\d+)\]", final.text)
+                    for section in final.sections:
+                        cited.extend(section.source_ids + re.findall(r"\[(s\d+)\]", section.text))
                     if any(i not in run.artifacts for i in final.artifact_ids) or any(
                         i not in run.sources for i in final.source_ids + cited
                     ):
                         replies.append(
-                            {
-                                "functionResponse": {
-                                    "name": name,
-                                    "response": {
-                                        "error": "Use only existing artifact and source IDs"
-                                    },
-                                }
-                            }
+                            function_reply(
+                                call, {"error": "Use only existing artifact and source IDs"}
+                            )
+                        )
+                        continue
+                    invalid_sections = (
+                        bool(run.sources)
+                        and not final.sections
+                        or len({s.kind for s in final.sections}) != len(final.sections)
+                    )
+                    for section in final.sections:
+                        refs = section.source_ids + re.findall(r"\[(s\d+)\]", section.text)
+                        if section.kind != "analysis" and (
+                            not refs or any(run.sources[i]["origin"] != section.kind for i in refs)
+                        ):
+                            invalid_sections = True
+                    if invalid_sections:
+                        replies.append(
+                            function_reply(
+                                call,
+                                {
+                                    "error": (
+                                        "Each database/public_web section must cite matching "
+                                        "evidence; one section per kind."
+                                    )
+                                },
+                            )
                         )
                         continue
                     artifact_ids = list(dict.fromkeys(final.artifact_ids))
@@ -472,33 +812,79 @@ async def answer(request: ChatIn, session) -> dict:
                         companion = run.artifacts[ident].get("companion_id")
                         if companion and companion not in artifact_ids:
                             artifact_ids.append(companion)
-                    source_ids = list(dict.fromkeys(final.source_ids + cited))
                     # Keep evidence even when the model forgets to select source IDs.
-                    sources = [run.sources[i] for i in source_ids] or list(run.sources.values())
+                    if run.relation_map and run.map_action is None and len(tools_used) < 18:
+                        roots = {
+                            run.artifacts[i]["employer_id"]
+                            for i in artifact_ids
+                            if run.artifacts[i]["kind"] == "relations"
+                            and run.artifacts[i].get("employer_id") in run.profiles
+                        }
+                        # A selected relation diagram explicitly identifies its root.
+                        # Never guess from the last inspected profile or page company.
+                        if len(roots) == 1:
+                            raw = {"employer_id": roots.pop(), "map_mode": "show_relations"}
+                            result = await run.tool("show_on_map", raw)
+                            tools_used.append("show_on_map")
+                            evidence.append(
+                                {"tool": "show_on_map", "arguments": raw, "result": result}
+                            )
+                    sources = list(run.sources.values())
+                    actions = []
+                    if run.result_ids:
+                        actions.append(
+                            {"kind": "show_companies", "employer_ids": sorted(run.result_ids)[:30]}
+                        )
+                    relation_root = (
+                        run.map_action["employer_id"] if run.map_action else run.profile_id
+                    )
+                    if relation_root:
+                        actions.append({"kind": "show_relations", "employer_id": relation_root})
                     return jsonable_encoder(
                         {
-                            "text": final.text,
+                            "text": "\n\n".join(s.text for s in final.sections)
+                            if final.sections
+                            else final.text,
+                            "sections": [s.model_dump() for s in final.sections],
                             "artifacts": [run.artifacts[i] for i in artifact_ids],
                             "sources": sources,
                             "as_of": run.as_of,
                             "tools_used": tools_used,
+                            "context": request.context.model_dump(),
+                            "scope_totals": run.scope_totals,
+                            "actions": actions,
+                            "map_action": run.map_action,
+                            "evidence": evidence,
+                            "generated_at": datetime.now(UTC),
                         }
                     )
             else:
                 if len(tools_used) >= 18:
                     result = {"error": "Tool budget exhausted; finish with available evidence"}
-                    replies.append({"functionResponse": {"name": name, "response": result}})
+                    replies.append(function_reply(call, result))
                     continue
                 try:
                     result = await run.tool(name, raw)
                     tools_used.append(name)
+                    evidence.append({"tool": name, "arguments": raw, "result": result})
                 except ValidationError:
                     result = {"error": "Invalid arguments; check parameter types and limits"}
+                except WebPermissionRequired as exc:
+                    return jsonable_encoder(
+                        {
+                            "text": "Для цієї відповіді потрібен пошук у відкритих джерелах.",
+                            "web_permission": exc.permission,
+                            "sources": [],
+                            "artifacts": [],
+                            "tools_used": tools_used,
+                            "as_of": run.as_of,
+                            "context": request.context.model_dump(),
+                            "map_action": None,
+                        }
+                    )
                 except ProviderError as exc:
                     result = {"error": f"{exc.provider} unavailable", "status": exc.status}
-            replies.append(
-                {"functionResponse": {"name": name, "response": jsonable_encoder(result)}}
-            )
+            replies.append(function_reply(call, result))
         contents.append({"role": "user", "parts": replies})
         logger.info("Agent round %s: %s", step + 1, ", ".join(c["name"] for c in calls))
     raise HTTPException(422, "Не вдалося завершити аналіз. Спробуйте звузити запитання.")
@@ -536,11 +922,24 @@ async def chat(payload: ChatIn, request: Request, session: Session) -> dict:
             async with asyncio.timeout(180):
                 return await answer(payload, session)
     except ProviderError as exc:
-        message = (
-            "Вичерпано ліміт Gemini. Спробуйте пізніше."
-            if exc.status == 429
-            else "Gemini недоступний. Перевірте ключ, модель і доступ до API."
+        logger.warning(
+            "Agent provider failure: provider=%s status=%s reason=%s",
+            exc.provider,
+            exc.status,
+            exc.reason,
         )
+        if exc.reason in ("empty_response", "missing_function_call", "invalid_json"):
+            message = "Gemini повернув некоректну відповідь. Спробуйте повторити запит."
+        elif exc.status == 429:
+            message = "Вичерпано ліміт Gemini. Спробуйте пізніше."
+        elif exc.status in (401, 403):
+            message = "Gemini відхилив доступ. Перевірте API-ключ і дозволи на сервері."
+        elif exc.status == 404:
+            message = "Модель Gemini недоступна. Перевірте GEMINI_MODEL на сервері."
+        elif exc.status == 400:
+            message = "Gemini відхилив запит агента. Потрібна перевірка журналу сервера."
+        else:
+            message = "Gemini тимчасово недоступний. Спробуйте повторити запит трохи пізніше."
         raise HTTPException(503, message) from None
     except (SQLAlchemyError, OSError):
         raise HTTPException(503, "База даних недоступна. Спробуйте пізніше.") from None

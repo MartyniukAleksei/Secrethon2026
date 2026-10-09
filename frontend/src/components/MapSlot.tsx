@@ -14,12 +14,20 @@ import { useToast } from '../features/toast/ToastContext'
 import { useFilters } from '../state/FiltersContext'
 import { Icon } from '../ui/Icon'
 import './MapSlot.css'
+import type { Bounds, MapView } from '../features/agent/types'
+import { insideBounds, normalizeBounds } from '../features/agent/mapBounds'
+import { useAgent } from '../features/agent/AgentContext'
+import { mapExtras } from './mapNavigation'
+import type { LeafletConnection } from './LeafletMap'
+import { cameraPadding, companyLocation } from './mapCamera'
 
 const API_KEY = import.meta.env.VITE_2GIS_API_KEY?.trim()
 const EMPTY: ApiMapPoint[] = []
 const EMPTY_SITES: ApiMapSite[] = []
 const EMPTY_NETWORK: ApiMapNetwork = { relations: [], company_tags: [] }
-const RELATION_COLORS = { supplier: '#b45309', parent: '#2563eb' }
+const RELATION_COLORS = { supplier: '#b45309', parent: '#2563eb', related: '#7c3aed', bank: '#0f766e', successor: '#64748b', branch: '#2563eb' }
+const RELATION_NAMES = { supplier: 'Постачальник → замовник', parent: 'Материнська → дочірня компанія', related: 'Пов’язані компанії', bank: 'Зв’язок із банком', successor: 'Правонаступництво', branch: 'Філія або представництво' }
+const OTHER_KINDS = ['related', 'bank', 'successor', 'branch'] as const
 const COUNTRY_CENTER = [95, 62]
 // From this zoom on, markers are never clustered: every cluster can be opened by zooming to it.
 const CLUSTER_OFF_ZOOM = 15
@@ -74,18 +82,24 @@ function fit(map: MapGL, points: { lng: number; lat: number }[]) {
   }
 }
 
-export function MapSlot({ employers, selectedId, children }: {
+export function MapSlot({ employers, selectedId, children, onContextChange, search = '', resultIds = [] }: {
   employers: Employer[]
   selectedId?: number
   children?: ReactNode
+  onContextChange?: (view: MapView | null) => void
+  search?: string
+  resultIds?: number[]
 }) {
   const { byId } = useData()
+  const agent = useAgent()
+  const [bounds, setBounds] = useState<Bounds | null>(null)
   const navigate = useNavigate()
   const filters = useFilters()
   const [params] = useSearchParams()
   const initialLayers = params.get('layers')?.split(',') ?? []
   const say = useToast()
   const root = useRef<HTMLDivElement>(null)
+  const settingsPanel = useRef<HTMLDetailsElement>(null)
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapGL | null>(null)
   const pitch = useRef(0)
@@ -103,7 +117,7 @@ export function MapSlot({ employers, selectedId, children }: {
   const [sanctioned, setSanctioned] = useState(false)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   // Only the selected company's holdings and/or supply chains (all the links, step by step).
-  const [focusKinds, setFocusKinds] = useState<{ parent: boolean; supplier: boolean }>({ parent: false, supplier: false })
+  const [focusKinds, setFocusKinds] = useState(() => ({ parent: params.get('network') === '1' && initialLayers.includes('parent'), supplier: params.get('network') === '1' && initialLayers.includes('supplier'), other: params.get('network') === '1' && params.get('network_other') === '1' }))
   const [placeList, setPlaceList] = useState<number[] | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [theme, setTheme] = useState(document.documentElement.className)
@@ -128,11 +142,13 @@ export function MapSlot({ employers, selectedId, children }: {
     return counts
   }, [filtered, filteredSites, byId])
   const selectedCompany = selectedId != null ? byId[selectedId]?.gur_company_id ?? null : null
-  const focusing = selectedId != null && (focusKinds.parent || focusKinds.supplier)
+  const focusing = selectedId != null && (focusKinds.parent || focusKinds.supplier || focusKinds.other)
   // The companies linked to the selected one by the chosen kinds, directly or through others.
   const focus = useMemo(() => {
     if (!focusing || selectedCompany == null) return null
-    const kinds = network.relations.filter((r) => focusKinds[r.kind])
+    const kinds = network.relations.filter((r) => r.kind === 'supplier' || r.kind === 'parent'
+      ? focusKinds[r.kind]
+      : focusKinds.other && (r.company_id === selectedCompany || r.related_id === selectedCompany))
     const companies = new Set([selectedCompany])
     const relations = new Set<ApiMapRelation>()
     for (let grew = true; grew;) {
@@ -185,7 +201,7 @@ export function MapSlot({ employers, selectedId, children }: {
   }), [network, companyPoints])
   const visibleSegments = useMemo(() => segments.filter(({ relation }) => focus
     ? focus.relations.has(relation)
-    : relation.kind === 'supplier' ? showSupply : showHoldings), [segments, showSupply, showHoldings, focus])
+    : relation.kind === 'supplier' ? showSupply : relation.kind === 'parent' && showHoldings), [segments, showSupply, showHoldings, focus])
   // Linked companies with no hiring place on the map: listed, but no line can reach them.
   const focusUnplaced = useMemo(() => {
     if (!focus) return []
@@ -196,6 +212,21 @@ export function MapSlot({ employers, selectedId, children }: {
   const supplyCount = segments.filter(({ relation }) => relation.kind === 'supplier').length
   const holdingsCount = segments.filter(({ relation }) => relation.kind === 'parent').length
   const selectedRelation = visibleSegments.find(({ relation }) => relation === activeRelation)
+  const leafletConnections = useMemo<LeafletConnection[]>(() => visibleSegments.map(({ from, to, relation }) => ({
+    from: [from.lat, from.lng], to: [to.lat, to.lng], color: RELATION_COLORS[relation.kind],
+    label: `${RELATION_NAMES[relation.kind]}: ${relation.related_name} — ${relation.company_name}`,
+  })), [visibleSegments])
+  const selectLeafletRelation = useCallback((index: number) => setActiveRelation(visibleSegments[index]?.relation ?? null), [visibleSegments, setActiveRelation])
+  const onBoundsChange = useCallback((value: Bounds) => setBounds(old => JSON.stringify(old) === JSON.stringify(value) ? old : value), [])
+  useEffect(() => {
+    if (!onContextChange) return
+    const layers: ('supplier' | 'parent')[] = [...(showSupply ? ['supplier' as const] : []), ...(showHoldings ? ['parent' as const] : [])]
+    const kinds: MapView['network_kinds'] = [...(focusKinds.supplier ? ['supplier' as const] : []), ...(focusKinds.parent ? ['parent' as const] : []), ...(focusKinds.other ? OTHER_KINDS : [])]
+    onContextChange({ bounds, search, sanctioned, specialization, hidden_categories: [...hiddenCategories], layers,
+      network_company_id: focusing ? selectedId! : null, network_kinds: focusing ? kinds : [], result_ids: resultIds,
+      visible_count: new Set(points.filter(p => !bounds || insideBounds(p.lng, p.lat, bounds)).map(p => p.employer_id)).size })
+  }, [onContextChange, bounds, search, sanctioned, specialization, hiddenCategories, showSupply, showHoldings, focusKinds, focusing, selectedId, points, resultIds])
+  useEffect(() => () => onContextChange?.(null), [onContextChange])
 
   function focusRelation(segment: (typeof segments)[number]) {
     setActiveRelation(segment.relation)
@@ -239,6 +270,14 @@ export function MapSlot({ employers, selectedId, children }: {
 
   useEffect(() => {
     const map = mapRef.current
+    if (!engine || !map) return
+    const update = () => { const b = map.getBounds(); onBoundsChange(normalizeBounds(b.southWest[0], b.southWest[1], b.northEast[0], b.northEast[1])) }
+    map.on('moveend', update); map.on('resize', update); update()
+    return () => { map.off('moveend', update); map.off('resize', update) }
+  }, [engine, onBoundsChange])
+
+  useEffect(() => {
+    const map = mapRef.current
     if (!engine || !map || !showMarkers) return
     const clusterer = new Clusterer(map, {
       radius: 55,
@@ -258,12 +297,12 @@ export function MapSlot({ employers, selectedId, children }: {
         map.setZoom(zoom)
       } else {
         const ids: number[] = event.target.data.userData
-        if (ids.length === 1) navigate(filters.href('/map', { co: String(ids[0]) }))
+        if (ids.length === 1) navigate(filters.href('/map', mapExtras(params, ids[0])))
         else setPlaceList(ids)
       }
     })
     return () => clusterer.destroy()
-  }, [engine, points, showMarkers, navigate, filters])
+  }, [engine, points, showMarkers, navigate, filters, params])
 
   useEffect(() => {
     const map = mapRef.current
@@ -292,12 +331,12 @@ export function MapSlot({ employers, selectedId, children }: {
         map.setZoom(zoom)
       } else {
         const ids: number[] = event.target.data.userData
-        if (ids.length === 1) navigate(filters.href('/map', { co: String(ids[0]) }))
+        if (ids.length === 1) navigate(filters.href('/map', mapExtras(params, ids[0])))
         else setPlaceList(ids)
       }
     })
     return () => clusterer.destroy()
-  }, [engine, sites, showSites, byId, navigate, theme, filters])
+  }, [engine, sites, showSites, byId, navigate, theme, filters, params])
 
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(document.documentElement.className))
@@ -309,11 +348,14 @@ export function MapSlot({ employers, selectedId, children }: {
     const map = mapRef.current
     if (!engine || !map) return
     const arrows = visibleSegments.filter(({ from, to }) => from.lat !== to.lat || from.lng !== to.lng).map(({ relation, from, to }) => {
-      const arrow = new engine.Arrow(map, {
+      const options = {
         coordinates: [[from.lng, from.lat], [to.lng, to.lat]],
         color: RELATION_COLORS[relation.kind], width: 3, strokeWidth: 1, strokeColor: '#ffffff',
         tipWidthMultiplier: 3, tipHeightMultiplier: 3, zIndex: 3,
-      })
+      }
+      const arrow = relation.kind === 'supplier' || relation.kind === 'parent'
+        ? new engine.Arrow(map, options)
+        : new engine.Polyline(map, { coordinates: options.coordinates, color: options.color, width: options.width, zIndex: 3 })
       arrow.on('click', () => setActiveRelation(relation))
       return arrow
     })
@@ -348,10 +390,22 @@ export function MapSlot({ employers, selectedId, children }: {
   useEffect(() => {
     const map = mapRef.current
     if (!engine || !map) return
-    const all = [...points, ...sites]
-    const selected = all.filter((p) => p.employer_id === selectedId)
-    fit(map, selected.length && !focusing ? selected : all)
-    map.setPitch(pitch.current)
+    const frame = () => {
+      const selected = !focusing ? companyLocation(points, sites, selectedId) : undefined
+      const padding = root.current ? cameraPadding(root.current) : { top: 80, bottom: 100, left: 50, right: 50 }
+      map.setPadding(selected ? padding : { top: 0, bottom: 0, left: 0, right: 0 }, { duration: 0 })
+      if (selected) {
+        map.setCenter([selected.lng, selected.lat])
+        map.setZoom(14)
+      } else fit(map, [...points, ...sites])
+      map.setPitch(pitch.current)
+    }
+    frame()
+    const resize = new ResizeObserver(frame)
+    if (root.current) resize.observe(root.current)
+    const card = root.current?.querySelector('.map-pop')
+    if (card) resize.observe(card)
+    return () => resize.disconnect()
   }, [engine, selectedId, points, sites, focusing])
 
   useEffect(() => {
@@ -372,9 +426,9 @@ export function MapSlot({ employers, selectedId, children }: {
         coordinates: [s.lng, s.lat], icon: siteIcon(SELECTED_COLOR, s.kind), size: [40, 50], anchor: [20, 50], zIndex: 10,
       })),
     ]
-    markers.forEach((marker) => marker.on('click', () => navigate(filters.href('/map', { co: String(selectedId) }))))
+    markers.forEach((marker) => marker.on('click', () => navigate(filters.href('/map', mapExtras(params, selectedId)))))
     return () => markers.forEach((marker) => marker.destroy())
-  }, [engine, selectedId, points, sites, showMarkers, showSites, navigate, filters])
+  }, [engine, selectedId, points, sites, showMarkers, showSites, navigate, filters, params])
 
   useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === root.current)
@@ -389,10 +443,21 @@ export function MapSlot({ employers, selectedId, children }: {
     } catch { say('Повноекранний режим недоступний у цьому браузері.') }
   }
 
+  async function openMapAgent() {
+    if (document.fullscreenElement === root.current) {
+      try { await document.exitFullscreen() }
+      catch { say('Вийди з повноекранного режиму, щоб відкрити агента.'); return }
+    }
+    if (settingsPanel.current) settingsPanel.current.open = false
+    agent.setTarget(selectedId != null ? 'company' : 'viewport')
+    agent.setPanelTab('chat')
+    agent.open()
+  }
+
   // Without 2GIS (no key, an error or no answer in 15 s) the same places go on OpenStreetMap.
   const fallback = !API_KEY || !!error
   const colorOf = useCallback((id: number) => markerColor(byId[id] ? effectiveCategory(byId[id]) : null), [byId])
-  const select = useCallback((id: number) => navigate(filters.href('/map', { co: String(id) })), [navigate, filters])
+  const select = useCallback((id: number) => navigate(filters.href('/map', mapExtras(params, id))), [navigate, filters, params])
   const status = fallback ? '' : !engine ? 'Завантаження карти 2ГІС…' : ''
   const selectedMissing = selectedId !== undefined && ![...points, ...sites].some((p) => p.employer_id === selectedId)
   return (
@@ -400,10 +465,13 @@ export function MapSlot({ employers, selectedId, children }: {
       <div className="map-canvas" ref={container} aria-label="Карта місць найму на базі 2ГІС" />
       {fallback && (
         <Suspense fallback={null}>
-          <LeafletMap points={showMarkers ? points : EMPTY} sites={showSites ? sites : EMPTY_SITES} selectedId={selectedId} colorOf={colorOf} onSelect={select} />
+          <LeafletMap points={showMarkers ? points : EMPTY} sites={showSites ? sites : EMPTY_SITES} selectedId={selectedId} colorOf={colorOf} onSelect={select} onBoundsChange={onBoundsChange} connections={leafletConnections} focusNetwork={focusing} onRelationSelect={selectLeafletRelation} />
         </Suspense>
       )}
       <div className="map-tl">
+        <details className="map-settings" ref={settingsPanel}>
+          <summary><Icon name="map" />Шари та вигляд<Icon name="chev" /></summary>
+          <div className="map-settings-body">
         <div className="segmented sm">
           {(['2d', '3d'] as const).map((m) => (
             <button key={m} type="button" disabled={!engine} aria-pressed={mode === m} onClick={() => setMode(m)}>{m.toUpperCase()}</button>
@@ -432,13 +500,13 @@ export function MapSlot({ employers, selectedId, children }: {
             {visibleSegments.length > 0 && <details className="map-connections">
               <summary>Перелік зв’язків ({visibleSegments.length})</summary>
               <div>{visibleSegments.map((segment) => <button type="button" key={`${segment.relation.kind}:${segment.relation.company_id}:${segment.relation.related_id}`} onClick={() => focusRelation(segment)}>
-                <i className={`map-line-key ${segment.relation.kind === 'supplier' ? 'supply' : 'holdings'}`} />
-                <span>{segment.relation.related_name} → {segment.relation.company_name}</span>
+                <i className="map-line-key" style={{ background: RELATION_COLORS[segment.relation.kind] }} />
+                <span>{segment.relation.related_name} — {segment.relation.company_name}<small>{RELATION_NAMES[segment.relation.kind]}</small></span>
               </button>)}</div>
             </details>}
           </div>
         </details>
-        <details className="map-layers map-legend" open={selectedId == null}>
+        <details className="map-layers map-legend">
           <summary><Icon name="pin" />Умовні позначення</summary>
           <div className="map-layers-body">
             <p className="map-layer-note">Колір будівлі — напрям вакансій підприємства. Зніми позначку, щоб приховати підприємства цього напряму.</p>
@@ -473,7 +541,7 @@ export function MapSlot({ employers, selectedId, children }: {
           </div>
         </details>
         {selectedId != null && (
-          <details className="map-layers map-focus" open aria-label="Зв’язки обраної компанії">
+          <details className="map-layers map-focus" open={focusing} aria-label="Зв’язки обраної компанії">
             <summary><Icon name="graph" />Лише зв’язки обраної</summary>
             <div className="map-layers-body">
               {selectedCompany == null ? (
@@ -482,6 +550,7 @@ export function MapSlot({ employers, selectedId, children }: {
                 <>
                   <label><input type="checkbox" checked={focusKinds.parent} disabled={networkState.status !== 'ready'} onChange={(e) => setFocusKinds((k) => ({ ...k, parent: e.target.checked }))} /><i className="map-line-key holdings" /><span>Її холдинги</span></label>
                   <label><input type="checkbox" checked={focusKinds.supplier} disabled={networkState.status !== 'ready'} onChange={(e) => setFocusKinds((k) => ({ ...k, supplier: e.target.checked }))} /><i className="map-line-key supply" /><span>Її ланцюги постачання</span></label>
+                  <label><input type="checkbox" checked={focusKinds.other} disabled={networkState.status !== 'ready'} onChange={(e) => setFocusKinds((k) => ({ ...k, other: e.target.checked }))} /><i className="map-line-key" style={{ background: RELATION_COLORS.related }} /><span>Інші її зв’язки</span></label>
                   {focus && (
                     <p className="map-layer-note">
                       {focus.companies.size > 1 ? `Пов’язаних компаній: ${focus.companies.size - 1}, з них на карті — ${focus.companies.size - 1 - focusUnplaced.length}.` : 'Зв’язків обраного типу немає.'}
@@ -499,18 +568,27 @@ export function MapSlot({ employers, selectedId, children }: {
             </div>
           </details>
         )}
+          </div>
+        </details>
+        {focusing && focus && networkState.status === 'ready' && <div className="map-network-status" role="status">
+          <b>Зв’язки {byId[selectedId!]?.name ?? 'обраного підприємства'}</b>
+          <small>{focus.relations.size} у базі · {visibleSegments.filter(({ from, to }) => from.lat !== to.lat || from.lng !== to.lng).length} ліній на карті</small>
+          {focusUnplaced.length > 0 && <small>{focusUnplaced.length} пов’язаних компаній без координат</small>}
+        </div>}
       </div>
       <div className="map-tr">
-        <button className="btn btn-sm" type="button" onClick={toggleFullscreen} aria-pressed={fullscreen}>
-          <Icon name="expand" />{fullscreen ? 'Згорнути' : 'На весь екран'}
+        <button className="btn btn-icon btn-sm" type="button" onClick={toggleFullscreen} aria-pressed={fullscreen} aria-label={fullscreen ? 'Згорнути карту' : 'Карта на весь екран'} title={fullscreen ? 'Згорнути карту' : 'На весь екран'}>
+          <Icon name="expand" />
         </button>
       </div>
       {status && <div className="map-ph" role="status"><div>
         <Icon name="map" /><h4>{status}</h4>
       </div></div>}
-      {(engine || fallback) && <div className="map-info" role="status">
+      {(engine || fallback) && <details className="map-info">
+        <summary><Icon name="pin" /><span>{pointsState.status === 'loading' ? 'Завантаження місць найму…' : pointsState.status === 'error' ? 'Місця найму недоступні' : `${located} роботодавців`}</span><Icon name="chev" /></summary>
+        <div className="map-info-body" role="status">
         {fallback && <p>
-          Резервна карта OpenStreetMap: 2ГІС недоступний, зв’язки й щільність показуються лише на 2ГІС.{' '}
+          Резервна карта OpenStreetMap: 2ГІС недоступний, щільність показується лише на 2ГІС.{' '}
           {API_KEY && <button type="button" onClick={() => setAttempt((n) => n + 1)}>Спробувати 2ГІС</button>}
         </p>}
         {pointsState.status === 'loading' ? 'Завантаження місць найму…'
@@ -520,24 +598,30 @@ export function MapSlot({ employers, selectedId, children }: {
             {selectedMissing ? <p>Для обраного роботодавця немає координат у поточній вибірці.</p> : !points.length && !sites.length ? <p>У поточній вибірці немає місць із координатами.</p> : <p>Будівлі — адреси підприємств за реєстром (ФНС через DaData), кружки — місця найму з вакансій.</p>}
             {(showSupply || showHoldings) && <p>{showSupply ? `${supplyCount} зв’язків постачання` : ''}{showSupply && showHoldings ? ' · ' : ''}{showHoldings ? `${holdingsCount} зв’язків холдингів` : ''}. Лінії між підприємствами, не маршрути перевезень.</p>}
             {showHeatmap && <p>Щільність: {vacancies} вакансій із координатами.</p>}</>}
-      </div>}
+        </div>
+      </details>}
+      <button className="map-agent-launch" type="button" aria-label="Запитати агента на карті" aria-expanded={agent.isOpen} onClick={openMapAgent}>
+        <span className="map-agent-launch-icon"><Icon name="spark" /></span>
+        <span><b>Запитати агента</b><small>{selectedId != null ? byId[selectedId]?.name ?? 'Про обране підприємство' : 'Про цю область карти'}</small></span>
+      </button>
       {children}
       {selectedRelation && <div className="map-link-pop" role="dialog" aria-label="Зв’язок між підприємствами">
-        <div className="map-link-head"><strong>{selectedRelation.relation.kind === 'supplier' ? 'Постачальник → замовник' : 'Материнська → дочірня компанія'}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити зв’язок" onClick={() => setActiveRelation(null)}><Icon name="x" /></button></div>
+        <div className="map-link-head"><strong>{RELATION_NAMES[selectedRelation.relation.kind]}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити зв’язок" onClick={() => setActiveRelation(null)}><Icon name="x" /></button></div>
         <Link to={`/companies/${selectedRelation.from.employer_id}`}>{selectedRelation.relation.related_name}</Link>
-        <span className="map-link-direction">↓</span>
+        <span className="map-link-direction">{selectedRelation.relation.kind === 'supplier' || selectedRelation.relation.kind === 'parent' ? '↓' : '↔'}</span>
         <Link to={`/companies/${selectedRelation.to.employer_id}`}>{selectedRelation.relation.company_name}</Link>
         {selectedRelation.relation.label && <p className="map-link-label">{selectedRelation.relation.label}</p>}
         <p>Координати — юридична адреса компанії за реєстром, а якщо її немає — місце найму з найбільшою кількістю вакансій.</p>
         {selectedRelation.from.lat === selectedRelation.to.lat && selectedRelation.from.lng === selectedRelation.to.lng && <p>Обидві компанії мають спільні координати. Зв’язок показано в переліку без окремої лінії.</p>}
         {(selectedRelation.relation.evidence_url || selectedRelation.relation.profile_url) && <a className="map-link-source" href={selectedRelation.relation.evidence_url ?? selectedRelation.relation.profile_url!} target="_blank" rel="noopener noreferrer">{selectedRelation.relation.evidence_url ? 'Джерело зв’язку' : 'Картка ГУР'} <Icon name="external" /></a>}
+        <button type="button" className="btn btn-sm" onClick={() => agent.ask(`Поясни зв’язок «${selectedRelation.relation.related_name} → ${selectedRelation.relation.company_name}», тип ${selectedRelation.relation.kind}. Покажи докази цього зв’язку та обмеження даних.`, { target: 'company', companyId: selectedRelation.to.employer_id })}><Icon name="spark" />Пояснити зв’язок</button>
       </div>}
       {placeList && (
         <div className="map-link-pop" role="dialog" aria-label="Роботодавці в одній точці">
           <div className="map-link-head"><strong>В одній точці: {placeList.length}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити" onClick={() => setPlaceList(null)}><Icon name="x" /></button></div>
           <div className="map-place-list">
             {placeList.map((id) => byId[id] && (
-              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(filters.href('/map', { co: String(id) })) }}>
+              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(filters.href('/map', mapExtras(params, id))) }}>
                 <img className="map-legend-pin" src={siteIcon(markerColor(effectiveCategory(byId[id])), 'head_office')} alt="" />
                 <span>{byId[id].name}</span>
               </button>
@@ -545,11 +629,11 @@ export function MapSlot({ employers, selectedId, children }: {
           </div>
         </div>
       )}
-      <div className="map-orn" role="toolbar" aria-label="Керування картою">
-        <button className="btn" type="button" disabled={!engine} onClick={() => { const map = mapRef.current; if (map) { fit(map, points); map.setPitch(pitch.current) } }}><Icon name="globe" />Уся вибірка</button>
+      {!fallback && <div className="map-orn" role="toolbar" aria-label="Керування картою">
+        <button className="btn btn-icon" type="button" disabled={!engine} aria-label="Показати всю вибірку" title="Уся вибірка" onClick={() => { const map = mapRef.current; if (map) { fit(map, [...(showMarkers ? points : []), ...(showSites ? sites : [])]); map.setPitch(pitch.current) } }}><Icon name="globe" /></button>
         <button className="btn btn-icon" type="button" disabled={!engine} aria-label="Наблизити" onClick={() => { const map = mapRef.current; if (map) map.setZoom(map.getZoom() + 1) }}>+</button>
         <button className="btn btn-icon" type="button" disabled={!engine} aria-label="Віддалити" onClick={() => { const map = mapRef.current; if (map) map.setZoom(map.getZoom() - 1) }}>−</button>
-      </div>
+      </div>}
     </div>
   )
 }

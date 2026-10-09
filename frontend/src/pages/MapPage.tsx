@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { AskButton } from '../components/AskButton'
 import { FilterBar } from '../components/FilterBar'
 import { MapSlot } from '../components/MapSlot'
 import { EmployerRow } from '../components/rows'
@@ -13,25 +12,30 @@ import { EmployerBadgeGroups } from '../ui/EmployerBadgeGroups'
 import { Icon } from '../ui/Icon'
 import './MapPage.css'
 import { matcher } from '../domain/search'
+import { useAgent } from '../features/agent/AgentContext'
+import { mapExtras } from '../components/mapNavigation'
 
 const LIST_LIMIT = 300
 
 export function MapPage() {
   const { employers, byId } = useData()
   const filters = useFilters()
+  const agent = useAgent()
   const [params] = useSearchParams()
+  const rawResultIds = params.get('agent_ids') ?? ''
+  const resultIds = useMemo(() => rawResultIds.split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0).slice(0, 30), [rawResultIds])
   const [search, setSearch] = useState('')
   const list = useMemo(() => {
     const m = matcher(search)
-    return employers.filter((e) => filters.matches(e) && m(e.name, e.gur_name, e.locality, e.region, e.inn))
-  }, [employers, filters, search])
+    return employers.filter((e) => (!resultIds.length || resultIds.includes(e.id)) && filters.matches(e) && m(e.name, e.gur_name, e.locality, e.region, e.inn))
+  }, [employers, filters, search, resultIds])
   // The selected employer opens even if the map filters leave it out (a link from its profile).
   const sel = byId[Number(params.get('co'))] as Employer | undefined
   const outside = sel != null && !list.includes(sel)
-  const onMap = outside ? [sel, ...list] : list
+  const onMap = useMemo(() => outside ? [sel!, ...list] : list, [outside, sel, list])
 
   return (
-    <>
+    <div className="map-screen">
       <div className="page-head">
         <div>
           <h1>Карта</h1>
@@ -52,19 +56,20 @@ export function MapPage() {
           </div>
           <label className="sr" htmlFor="map-search">Пошук роботодавця, міста, регіону або ІПН</label>
           <input id="map-search" className="input" type="search" placeholder="Роботодавець, місто або ІПН" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {resultIds.length > 0 && <div className="map-result-note"><span>Вибірка з відповіді агента</span><Link to={filters.href('/map')}>Показати всі</Link></div>}
           <div className="scroll">
             {!list.length && <p className="map-list-empty">За обраними фільтрами роботодавців не знайдено.</p>}
             {list.slice(0, LIST_LIMIT).map((e) => (
-              <EmployerRow key={e.id} employer={e} to={filters.href('/map', { co: String(e.id) })} current={e.id === sel?.id} />
+              <EmployerRow key={e.id} employer={e} to={filters.href('/map', mapExtras(params, e.id))} current={e.id === sel?.id} />
             ))}
           </div>
         </aside>
         <div className="panel" style={{ display: 'flex' }}>
-          <MapSlot employers={onMap} selectedId={sel?.id}>
+          <MapSlot key={`${rawResultIds}:${params.get('layers')}:${params.get('network')}:${params.get('network_other')}:${params.get('agent_view')}`} employers={onMap} selectedId={sel?.id} onContextChange={agent.setMapView} search={search} resultIds={resultIds}>
             {sel && (
               <div className="map-pop" role="dialog" aria-label={sel.name}>
                 <div className="pop-top">
-                  <Link className="btn btn-secondary btn-icon btn-sm" to={filters.href('/map')} aria-label="Закрити"><Icon name="x" /></Link>
+                  <Link className="btn btn-secondary btn-icon btn-sm" to={filters.href('/map', mapExtras(params))} aria-label="Закрити"><Icon name="x" /></Link>
                 </div>
                 <h4>{sel.name}</h4>
                 <p className="place"><Icon name="pin" />{[sel.locality, sel.region].filter(Boolean).join(', ') || 'Місто не вказано'}</p>
@@ -81,7 +86,6 @@ export function MapPage() {
                 </dl>
                 <EmployerBadgeGroups employer={sel} />
                 <div className="map-pop-actions">
-                  <AskButton question={`Розкажи коротко про ${sel.name}`} />
                   <Link className="btn btn-primary btn-sm" to={`/companies/${sel.id}`}>Відкрити профіль</Link>
                 </div>
               </div>
@@ -89,6 +93,6 @@ export function MapPage() {
           </MapSlot>
         </div>
       </div>
-    </>
+    </div>
   )
 }

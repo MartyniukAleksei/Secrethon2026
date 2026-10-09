@@ -1,4 +1,8 @@
-.map-page { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 10px; height: calc(100dvh - 160px); min-height: 560px; }
+.page:has(> .map-screen) { display: flex; flex: 1; min-height: 0; padding-bottom: 20px; }
+.map-screen { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.map-screen .page-head { flex: none; }
+.map-page { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 10px; flex: 1; min-height: 420px; }
+.map-page > .panel { border-radius: 14px; }
 .map-list { display: flex; flex-direction: column; gap: 10px; padding: 14px 10px 10px; min-height: 0; }
 .map-list .scroll { overflow-y: auto; min-height: 0; display: grid; gap: 4px; align-content: start; grid-auto-rows: max-content; }
 .map-list-empty { padding: 16px 10px; color: var(--label-2); font-size: 14px; }
@@ -11,11 +15,14 @@
 .map-pop-note { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--warning-soft); color: var(--warning); font-size: 12.5px; line-height: 18px; }
 .map-pop-reset { all: unset; cursor: pointer; text-decoration: underline; font-weight: 600; }
 .map-pop-reset:focus-visible { outline: 2px solid var(--ring); border-radius: 4px; }
+.map-result-note { display: flex; gap: 8px; justify-content: space-between; padding: 2px 6px; font-size: 12px; color: var(--label-2); }
+.map-result-note a { color: var(--accent-foreground); }
 
 @media (max-width: 900px) {
+  .page:has(> .map-screen), .map-screen { display: block; }
   .map-page { grid-template-columns: minmax(0, 1fr); height: auto; }
   .map-list .scroll { max-height: 260px; }
   .map-page .map-slot { min-height: 620px; }
   /* A bottom sheet low enough to leave the layer, legend and focus panels above it. */
-  .map-pop { left: 10px; right: 10px; width: auto; top: auto; bottom: 64px; max-height: 36%; }
+  .map-pop { left: 10px; right: 10px; width: auto; top: auto; bottom: 82px; max-height: 36%; }
 }

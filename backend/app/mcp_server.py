@@ -91,7 +91,13 @@ async def execute_tool(name: str, args: dict) -> dict[str, Any]:
         web_requests.append(now)
     try:
         async with tool_slots, asyncio.timeout(60), SessionLocal() as session:
-            run = Run(session, Context(days=0))
+            # Direct MCP search_mentions is an explicit request to use Tavily.
+            # The site's conversational agent asks permission separately.
+            run = Run(
+                session,
+                Context(days=0),
+                web_access="allowed" if name == "search_mentions" else "db_only",
+            )
             data = await run.tool(name, args)
             if "error" in data:
                 raise ToolError(str(data["error"]))

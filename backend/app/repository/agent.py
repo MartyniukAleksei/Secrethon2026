@@ -18,6 +18,17 @@ GROUPS = {
 }
 
 
+async def company_descriptions(session: AsyncSession, company_ids: list[int]) -> dict[int, str]:
+    """Descriptions for a bounded set of identity candidates, without loading full profiles."""
+    if not company_ids:
+        return {}
+    result = await session.execute(
+        text("SELECT company_id, description_uk FROM company WHERE company_id = ANY(:ids)"),
+        {"ids": company_ids[:5]},
+    )
+    return {r.company_id: r.description_uk or "" for r in result}
+
+
 async def analytics(
     session: AsyncSession,
     filters: VacancyFilter,
@@ -50,7 +61,8 @@ async def analytics(
             SELECT {ident} AS id, {label} AS label, {value} AS value,
                    count(*) AS vacancies, count(v.monthly_salary) AS salary_samples,
                    count(*) FILTER (WHERE v.level = 'confirmed') AS confirmed_vacancies,
-                   max(coalesce(g.sanctions_count, 0)) AS sanctions_count
+                   max(coalesce(g.sanctions_count, 0)) AS sanctions_count,
+                   count(DISTINCT v.card_id) AS employers
             FROM v
             LEFT JOIN employer_profile ep ON ep.employer_profile_id = v.card_id
             LEFT JOIN region r ON r.region_id = v.region_id
@@ -63,3 +75,32 @@ async def analytics(
     )
     as_of = (await session.execute(text(f"SELECT {AS_OF}"))).scalar_one()
     return {"rows": [dict(row) for row in rows.mappings()], "as_of": as_of}
+
+
+async def scope_summary(session: AsyncSession, filters: VacancyFilter) -> dict:
+    where, params = filters.where()
+    result = await session.execute(
+        text(f"""
+            WITH {CTE}
+            SELECT count(DISTINCT v.card_id) AS employers, count(*) AS vacancies,
+                   count(v.monthly_salary) AS salary_samples,
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY v.monthly_salary) AS median_salary
+            FROM v WHERE {where}
+        """),
+        params,
+    )
+    summary = dict(result.mappings().one())
+    summary["as_of"] = (await session.execute(text(f"SELECT {AS_OF}"))).scalar_one()
+    return summary
+
+
+async def relation_evidence(session: AsyncSession, company_id: int) -> list[dict]:
+    result = await session.execute(
+        text("""
+            SELECT company_id, related_id, kind, source, evidence_url, label
+            FROM company_edge WHERE company_id = :id OR related_id = :id
+            ORDER BY kind, company_id, related_id
+        """),
+        {"id": company_id},
+    )
+    return [dict(row) for row in result.mappings()]
