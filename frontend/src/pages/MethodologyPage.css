@@ -3,3 +3,38 @@
 .method h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
 .method p, .method li { font-size: 15px; line-height: 23px; color: var(--label-1); font-weight: 450; }
 .method ul { margin: 6px 0 0; padding-left: 20px; }
+.method h4 { font-size: 15px; font-weight: 600; margin: 16px 0 6px; }
+.method h4:first-of-type { margin-top: 12px; }
+.method details { margin-top: 10px; }
+.method summary { cursor: pointer; font-size: 14.5px; font-weight: 600; color: var(--label-2); }
+.method code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86em; padding: 1px 5px; border-radius: 6px; background: var(--fill-1); }
+.method pre { margin: 8px 0; padding: 12px 14px; border-radius: var(--r-inner); background: var(--fill-1); overflow-x: auto; }
+.method pre code { padding: 0; background: none; font-size: 13px; line-height: 20px; white-space: pre; }
+.method table.data { min-width: 0; }
+.method td.method-desc { white-space: normal; color: var(--label-2); }
+.method-classes td:first-child { white-space: nowrap; }
+.method-classes td:first-child code { display: block; width: max-content; margin-top: 2px; }
+.method-note, .method-muted { color: var(--label-2) !important; font-size: 14px !important; }
+.method-note { margin-top: 8px; }
+.method-steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; }
+.method-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.method-kpis div { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--r-inner); background: var(--fill-1); }
+.method-kpis strong { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.method-kpis span { font-size: 13.5px; line-height: 19px; color: var(--label-2); }
+.method-disagreements { display: grid; gap: 6px; margin-top: 8px; }
+.method-disagreements li { font-size: 14px; line-height: 21px; }
+.method-mcp { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; margin: 6px 0; align-items: center; }
+.method-mcp dt { font-size: 14px; font-weight: 600; color: var(--label-2); }
+.method-mcp dd { margin: 0; min-width: 0; font-size: 14px; line-height: 21px; color: var(--label-1); }
+.method-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.method-copy code { word-break: break-all; }
+.method-skeleton { height: 280px; }
+.method-toc { display: flex; flex-wrap: wrap; gap: 6px; max-width: 780px; margin-bottom: 12px; }
+.method-toc a { padding: 4px 10px; border-radius: var(--r-control); background: var(--fill-1); color: var(--label-1); font-size: 13.5px; text-decoration: none; }
+.method-toc a:hover { background: var(--fill-2); }
+.method section { scroll-margin-top: 16px; }
+
+@media (max-width: 720px) {
+  .method-kpis, .method-mcp { grid-template-columns: minmax(0, 1fr); }
+  .method-classes td:first-child { white-space: normal; }
+}

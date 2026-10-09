@@ -25,3 +25,31 @@
 @media (max-width: 720px) {
   .opendata-snapshot, .opendata-card-head { flex-direction: column; }
 }
+
+.opendata-loading { opacity: 0.6; transition: opacity 0.15s; }
+.opendata-overview p + p { margin-top: 8px; }
+.opendata-funnel { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 6px 0 12px; color: var(--label-2); }
+.opendata-funnel div { display: grid; }
+.opendata-funnel strong { font-size: 24px; font-weight: 650; color: var(--label-1); font-variant-numeric: tabular-nums; }
+.opendata-funnel span { font-size: 13.5px; color: var(--label-2); }
+.opendata-dedup { color: var(--label-2) !important; font-size: 14px !important; }
+
+.opendata-step { margin: 14px 0 8px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--label-2); }
+.opendata-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.opendata-option {
+  display: grid; gap: 4px; align-content: start; text-align: left; padding: 12px 14px; cursor: pointer;
+  border: 1px solid var(--stroke); border-radius: var(--r-inner); background: var(--surface-raised); color: var(--label-1);
+  font: inherit;
+}
+.opendata-option:hover { background: var(--fill-1); }
+.opendata-option[aria-checked="true"] { border-color: var(--selected); box-shadow: inset 0 0 0 1px var(--selected); }
+.opendata-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.opendata-option-title { font-size: 15px; font-weight: 600; }
+.opendata-option-counts { font-size: 13px; color: var(--label-1); font-variant-numeric: tabular-nums; }
+.opendata-option-for { font-size: 13px; line-height: 18px; color: var(--label-2); }
+.opendata-hint { margin-top: 8px; color: var(--label-2) !important; font-size: 14px !important; line-height: 21px !important; }
+.opendata-builder .opendata-snapshot { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--stroke); }
+
+@media (max-width: 720px) {
+  .opendata-options { grid-template-columns: 1fr; }
+}

@@ -154,7 +154,7 @@ CREATE TABLE public.company_edge (
     label text,
     evidence_url text,
     CONSTRAINT company_edge_check CHECK ((company_id <> related_id)),
-    CONSTRAINT company_edge_kind_check CHECK ((kind = ANY (ARRAY['parent'::text, 'bank'::text, 'related'::text, 'successor'::text, 'supplier'::text])))
+    CONSTRAINT company_edge_kind_check CHECK ((kind = ANY (ARRAY['parent'::text, 'bank'::text, 'related'::text, 'successor'::text, 'supplier'::text, 'branch'::text])))
 );
 
 
@@ -1986,3 +1986,40 @@ CREATE TABLE discovery_log (
 
 CREATE INDEX discovery_log_company_idx ON discovery_log (company_id);
 CREATE INDEX discovery_log_run_idx ON discovery_log (run_id);
+
+-- 0013 (pipeline): LLM as a judge.
+CREATE TABLE judge_review (
+    run_id       int    NOT NULL REFERENCES classifier_run ON DELETE CASCADE,
+    item_kind    text   NOT NULL CHECK (item_kind IN ('company', 'vacancy')),
+    item_id      bigint NOT NULL,
+    stratum      text   NOT NULL,
+    our_label    text   NOT NULL,
+    judge_label  text   NOT NULL,
+    agree        boolean NOT NULL,
+    agree_vpk    boolean NOT NULL,
+    confidence   real,
+    reason       text,
+    PRIMARY KEY (run_id, item_kind, item_id)
+);
+
+-- 0014 (pipeline): company head offices and branches by the register.
+CREATE TABLE company_site (
+    site_id      bigserial PRIMARY KEY,
+    company_id   bigint NOT NULL REFERENCES company ON DELETE CASCADE,
+    kind         text   NOT NULL CHECK (kind IN ('head_office', 'branch')),
+    source       text   NOT NULL CHECK (source IN ('dadata')),
+    name         text,
+    kpp          text,
+    status       text,
+    address      text   NOT NULL,
+    postal_code  text,
+    region       text,
+    city         text,
+    lat          numeric(9, 6),
+    lng          numeric(9, 6),
+    geo_qc       smallint,
+    hid          text,
+    CHECK ((lat IS NULL) = (lng IS NULL))
+);
+
+CREATE INDEX company_site_company_idx ON company_site (company_id);

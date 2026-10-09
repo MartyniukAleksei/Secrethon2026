@@ -5,7 +5,7 @@ import type { AgentArtifact, AgentResponse, AgentSource } from './types'
 
 const number = (value: number | null) => value == null ? 'Немає даних' : value.toLocaleString('uk-UA', { maximumFractionDigits: 0 })
 const date = (value: string) => new Date(value).toLocaleDateString('uk-UA')
-const kinds: Record<string, string> = { parent: 'Холдинг', supplier: 'Постачання', bank: 'Банк', related: 'Зв’язок', successor: 'Правонаступник' }
+const kinds: Record<string, string> = { parent: 'Холдинг', supplier: 'Постачання', bank: 'Банк', related: 'Зв’язок', successor: 'Правонаступник', branch: 'Філія' }
 
 function SourceLink({ source, children }: { source: AgentSource; children?: ReactNode }) {
   if (source.url.startsWith('/')) return <Link to={source.url}>{children ?? source.title}</Link>

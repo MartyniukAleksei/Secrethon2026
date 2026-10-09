@@ -64,6 +64,9 @@ INSERT INTO company_section (company_id, section, url_uk) VALUES (570, 'rostec',
 INSERT INTO company_sanction (company_id, jurisdiction, is_sanctioned, listed_on) VALUES
   (570, 'US', true, '2022-06-02'), (570, 'UA', true, NULL), (522, 'US', true, NULL);
 INSERT INTO company_edge (company_id, related_id, kind) VALUES (570, 522, 'parent');
+-- dedup links a filial to its head office; the head's card lists it as a branch.
+INSERT INTO company (company_id, name_full_uk, country_id) VALUES (571, 'Філія АТ "КБП"', 1);
+INSERT INTO company_edge (company_id, related_id, kind, source) VALUES (571, 570, 'branch', 'dedup');
 
 -- The map keeps sourced relationships even when an endpoint has no vacancy coordinates.
 INSERT INTO company (company_id, name_full_uk, country_id, address_uk)
@@ -174,6 +177,12 @@ INSERT INTO vacancy (vacancy_id, source, external_id, url, employer_profile_id, 
    '2026-10-04T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z'),
   (11, 'hh', 'v11', 'https://hh.ru/vacancy/11', 6, 'КБП, филиал в Москве', 'Инженер-конструктор', 'Москва',
    '2026-09-30T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z');
+-- Register sites of КБП: the head office, a Moscow branch (the branch card 6 is in region 77)
+-- and a branch located only to a city (qc 4), which stays off the map.
+INSERT INTO company_site (company_id, kind, source, name, kpp, address, lat, lng, geo_qc) VALUES
+  (570, 'head_office', 'dadata', 'АО "КБП"', '710501001', 'г Тула, ул Щегловская засека, д 59', 54.2010, 37.5830, 0),
+  (570, 'branch', 'dadata', 'ФИЛИАЛ АО "КБП" В Г. МОСКВЕ', '772801001', 'г Москва, ул Профсоюзная, д 65', 55.6620, 37.5520, 1),
+  (570, 'branch', 'dadata', 'ФИЛИАЛ АО "КБП" В КАЗАНИ', '166101001', 'г Казань', 55.7960, 49.1060, 4);
 INSERT INTO employer_group (employer_profile_id, group_id, company_id, is_head, is_branch, branch_key, method) VALUES
   (1, 1, 570, true, false, NULL, 'company'),
   (5, 1, 570, false, false, NULL, 'company'),
@@ -222,3 +231,11 @@ INSERT INTO discovery_log (run_id, company_id, provider, query, url, title, snip
   (2, 570, 'exa', 'КБП Тула продукция', 'https://example.com/news', 'Новость', 'без фактов', '2026-10-07T10:01:00Z', 'no_fact'),
   (2, 570, 'opensanctions', NULL, 'https://www.opensanctions.org/entities/kbp', NULL, NULL, '2026-10-07T11:00:00Z', 'fact'),
   (2, 600, 'exa', 'Алабуга БпЛА', NULL, NULL, NULL, '2026-10-07T12:00:00Z', 'query');
+
+-- LLM as a judge: it agrees on КБП and vacancy 1, and disagrees on Алабуга.
+INSERT INTO classifier_run (run_id, classifier, version, params, started_at)
+VALUES (20, 'llm_judge', 'judge-test', '{"model": "test-judge"}', '2026-10-09T12:00:00Z');
+INSERT INTO judge_review (run_id, item_kind, item_id, stratum, our_label, judge_label, agree, agree_vpk, confidence, reason) VALUES
+  (20, 'company', 570, 'vpk/decided', 'vpk', 'vpk', true, true, 0.95, 'Разработчик вооружения.'),
+  (20, 'company', 600, 'vpk/review', 'vpk', 'out', false, false, 0.7, 'Нет фактов о военной продукции.'),
+  (20, 'vacancy', 1, 'vpk/company', 'vpk', 'vpk', true, true, 0.9, 'Завод КБП.');

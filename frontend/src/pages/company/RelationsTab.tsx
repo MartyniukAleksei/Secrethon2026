@@ -4,7 +4,7 @@ import type { ApiRelation } from '../../api/types'
 import type { TabProps } from './CompanyPage'
 
 const GROUPS: { title: string; test: (r: ApiRelation) => boolean }[] = [
-  { title: 'Структура холдингу', test: (r) => r.kind === 'parent' || r.kind === 'successor' },
+  { title: 'Структура холдингу', test: (r) => r.kind === 'parent' || r.kind === 'successor' || r.kind === 'branch' },
   { title: 'Постачання', test: (r) => r.kind === 'supplier' },
   { title: 'Банки', test: (r) => r.kind === 'bank' },
   { title: "Інші зв'язки", test: (r) => r.kind === 'related' },

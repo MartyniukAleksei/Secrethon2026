@@ -128,6 +128,28 @@ class MapPointOut(BaseModel):
     vacancies: int
 
 
+class MapSiteOut(BaseModel):
+    """A company's head office or branch by the register (DaData), not a hiring place."""
+
+    employer_id: int
+    kind: Literal["head_office", "branch"]
+    name: str | None
+    address: str
+    lat: float
+    lng: float
+    geo_qc: int | None
+
+
+class CompanySiteOut(BaseModel):
+    kind: Literal["head_office", "branch"]
+    name: str | None
+    address: str
+    lat: float | None
+    lng: float | None
+    geo_qc: int | None
+    on_map: bool
+
+
 class MapRelationOut(BaseModel):
     company_id: int
     related_id: int
@@ -187,7 +209,9 @@ class SanctionOut(BaseModel):
 
 
 class RelationOut(BaseModel):
-    kind: Literal["parent", "bank", "related", "successor", "supplier"]
+    # 'branch' (a filial -> its head office) comes from the pipeline's dedup.
+    # Keep in sync with RELATION_KINDS in app/repository/employers.py.
+    kind: Literal["parent", "bank", "related", "successor", "supplier", "branch"]
     direction: Literal["out", "in"]
     company_id: int
     name: str
@@ -294,6 +318,7 @@ class EmployerDetailOut(EmployerOut):
     professions: list[ProfessionOut]
     localities: list[LocalityOut]
     hiring_locations: list[HiringLocationOut]
+    sites: list[CompanySiteOut]  # where the company is by the register
     gur: GurCompanyOut | None
     # Legal entity behind the page; 'candidate' marks a probable link.
     company_id: int | None

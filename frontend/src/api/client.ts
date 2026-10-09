@@ -1,4 +1,4 @@
-import type { ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiMapSite, ApiMethodology, ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportCoverage, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -70,9 +70,11 @@ export const exportUrl = (dataset: string, format: ExportFormat, params: Params 
   `/api/export/${dataset}.${format}${query(params)}`
 
 export const api = {
-  exportCatalog: (signal?: AbortSignal) => get<ApiExportCatalog>('/export', signal),
+  exportCatalog: (variant: { coverage: ExportCoverage; dedup: boolean }, signal?: AbortSignal) =>
+    get<ApiExportCatalog>(`/export${query({ coverage: variant.coverage === 'site' ? undefined : variant.coverage, dedup: variant.dedup ? undefined : 'false' })}`, signal),
   mapPoints: (signal?: AbortSignal) => get<ApiMapPoint[]>('/employers/map-points', signal),
   mapNetwork: (signal?: AbortSignal) => get<ApiMapNetwork>('/employers/map-network', signal),
+  mapSites: (signal?: AbortSignal) => get<ApiMapSite[]>('/employers/map-sites', signal),
   stats: (signal?: AbortSignal) => get<ApiStats>('/stats', signal),
   employers: (signal?: AbortSignal) => get<ApiEmployer[]>('/employers', signal),
   employer: (id: number, signal?: AbortSignal) => get<ApiEmployerDetail>(`/employers/${id}`, signal),
@@ -83,6 +85,7 @@ export const api = {
   saveReview: (id: number, review: ApiVacancyReviewInput) => post<ApiVacancyReview>(`/vacancies/${id}/reviews`, review),
   saveEmployerReview: (id: number, review: ApiEmployerReviewInput) => post<ApiEmployerReview>(`/employers/${id}/reviews`, review),
   discoverySummary: (signal?: AbortSignal) => get<ApiDiscoveryCount[]>('/discovery/summary', signal),
+  methodology: (signal?: AbortSignal) => get<ApiMethodology>('/methodology', signal),
   discovery: (params: { company_id?: number; provider?: string; status?: string; q?: string; limit?: number; offset?: number }, signal?: AbortSignal) =>
     get<ApiDiscoveryPage>(`/discovery${query(params)}`, signal),
   professions: (params: Omit<VacancyQuery, 'employer_id' | 'title' | 'q' | 'sort' | 'offset'>, signal?: AbortSignal) =>

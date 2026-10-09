@@ -28,7 +28,18 @@ AGENCY = f"final_category = 'agency' AND {SHOWN}"
 
 AS_OF = "(SELECT max(last_seen_at) FROM vacancy)"
 
-CTE = f"""
+
+def vacancy_cte(with_duplicates: bool = False) -> str:
+    """The `v` CTE of active vacancies. With duplicates, reposts and cross-site copies stay
+    in (they share their canonical vacancy's label) and `duplicate_of` points at it."""
+    source = (
+        "vacancy vac LEFT JOIN vacancy_duplicate dup ON dup.vacancy_id = vac.vacancy_id"
+        if with_duplicates
+        else "vacancy_unique vac LEFT JOIN vacancy_duplicate dup ON false"
+    )
+    # a copy whose canonical vacancy has no label stays in, unlabelled
+    label_join = "LEFT JOIN" if with_duplicates else "JOIN"
+    return f"""
 fin AS (
     SELECT vc.vacancy_id, vc.category AS final_category, vc.level AS final_level,
            vc.raw_label AS final_basis, vc.score AS final_score
@@ -62,6 +73,8 @@ v AS (
         vac.experience, vac.schedule, vac.employment, vac.published_at,
         fin.final_category, fin.final_level, fin.final_basis, fin.final_score,
         fin.final_level AS level, d.category, m.vacancy_id IS NOT NULL AS has_markers,
+        dup.canonical_id AS duplicate_of, dup.method AS duplicate_method,
+        dup.score AS duplicate_score,
         CASE
             WHEN vac.salary_currency = 'RUB'
              AND (vac.salary_period = 'MONTH' OR (vac.salary_period IS NULL AND vac.source = 'trudvsem'))
@@ -71,15 +84,18 @@ v AS (
                 ELSE coalesce(vac.salary_from, vac.salary_to)
             END
         END AS monthly_salary
-    FROM vacancy_unique vac
-    JOIN fin USING (vacancy_id)
-    LEFT JOIN direction d USING (vacancy_id)
-    LEFT JOIN markers m USING (vacancy_id)
+    FROM {source}
+    {label_join} fin ON fin.vacancy_id = coalesce(dup.canonical_id, vac.vacancy_id)
+    LEFT JOIN direction d ON d.vacancy_id = fin.vacancy_id
+    LEFT JOIN markers m ON m.vacancy_id = fin.vacancy_id
     LEFT JOIN employer_group g ON g.employer_profile_id = vac.employer_profile_id
     LEFT JOIN city_region cr ON cr.locality = vac.locality
     WHERE vac.is_active
 )
 """
+
+
+CTE = vacancy_cte()
 
 # `company` also holds registry-only companies (no GUR portal card); GUR ones have a Ukrainian name.
 ON_GUR = "name_full_uk IS NOT NULL"

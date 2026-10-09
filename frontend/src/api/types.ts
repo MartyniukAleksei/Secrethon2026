@@ -15,6 +15,26 @@ export type ApiMapPoint = {
   vacancies: number
 }
 
+/** A company's head office or branch by the register (DaData), not a hiring place. */
+export type ApiSiteKind = 'head_office' | 'branch'
+
+export type ApiMapSite = {
+  employer_id: number
+  kind: ApiSiteKind
+  name: string | null
+  address: string
+  lat: number
+  lng: number
+  /** DaData qc_geo: 0 house, 1 nearest house, 2 street, 3 settlement. */
+  geo_qc: number | null
+}
+
+export type ApiCompanySite = Omit<ApiMapSite, 'employer_id' | 'lat' | 'lng'> & {
+  lat: number | null
+  lng: number | null
+  on_map: boolean
+}
+
 export type ApiMapRelation = {
   company_id: number
   related_id: number
@@ -167,7 +187,7 @@ export type ApiEmployerReview = ApiEmployerReviewInput & {
 }
 
 export type ApiRelation = {
-  kind: 'parent' | 'bank' | 'related' | 'successor' | 'supplier'
+  kind: 'parent' | 'bank' | 'related' | 'successor' | 'supplier' | 'branch'
   direction: 'out' | 'in'
   company_id: number
   name: string
@@ -303,6 +323,8 @@ export type ApiEmployerDetail = ApiEmployer & {
     vacancy_id: number
     vacancy_url: string
   }[]
+  /** Where the company is by the register: head office and branches. */
+  sites: ApiCompanySite[]
   gur: ApiGurCompany | null
   /** Legal entity behind the page; 'candidate' marks a probable link. */
   company_id: number | null
@@ -398,6 +420,8 @@ export type ApiExportDataset = {
   name: string
   title: string
   description: string
+  /** What one row is: «одна юрособа», «одна вакансія». */
+  row: string
   key: string[]
   filterable: boolean
   columns: ApiExportColumn[]
@@ -408,9 +432,80 @@ export type ApiExportDataset = {
 
 export type ExportFormat = 'csv' | 'json' | 'jsonl' | 'parquet'
 
+/** Export coverage: as on the site, every ВПК company, or the whole database. */
+export type ExportCoverage = 'site' | 'vpk' | 'all'
+
+export type ApiExportCoverageCounts = { companies: number; cards: number; vacancies: number }
+
 export type ApiExportCatalog = {
   as_of: string | null
+  coverage: ExportCoverage
+  dedup: boolean
+  coverages: { name: ExportCoverage; title: string; description: string }[]
   formats: ExportFormat[]
   snapshot: { zip: string; sql: string }
   datasets: ApiExportDataset[]
+  overview: {
+    coverages: Record<ExportCoverage, ApiExportCoverageCounts>
+    dedup: {
+      vacancies_raw: number
+      vacancies_unique: number
+      reposts: number
+      cross_source: number
+      site_profiles: number
+      site_cards: number
+      company_duplicates: number
+      companies_raw: number
+    }
+  }
+}
+
+/** Numbers for the «Про дані» page (GET /api/methodology). */
+export type ApiJudgeStratum = { kind: 'company' | 'vacancy'; stratum: string; n: number; agree: number; agree_vpk: number }
+export type ApiJudgeDisagreement = {
+  kind: 'company' | 'vacancy'
+  item_id: number
+  stratum: string
+  our_label: string
+  judge_label: string
+  confidence: number | null
+  reason: string | null
+  name: string | null
+  card_id: number | null
+}
+export type ApiMethodology = {
+  matching: { kind: 'auto' | 'verified' | 'candidate_sure' | 'candidate_weak'; profiles: number }[]
+  match_methods: { method: string; links: number }[]
+  dedup: {
+    vacancies: number
+    reposts: number
+    cross_source: number
+    profiles: number
+    cards: number
+    branch_profiles: number
+    companies: number
+    company_duplicates: number
+    branch_edges: number
+  }
+  companies: { category: string; level: 'decided' | 'review'; decided_by: 'jev' | 'rule'; n: number }[]
+  vacancies: { category: string; level: string; n: number }[]
+  focus: { focus: string; basis: string; n: number }[]
+  checks: {
+    facts_verified: number
+    facts_rejected: number
+    contacts_verified: number
+    contacts_rejected: number
+    profiles: number
+    sanctions_found: number
+  }
+  judge: {
+    run_id: number
+    version: string
+    model: string | null
+    started_at: string
+    strata: ApiJudgeStratum[]
+    disagreements: ApiJudgeDisagreement[]
+  } | null
+  human: { employer_reviews: number; employer_cards: number; vacancy_human: number; vacancy_llm: number }
+  mcp: { enabled: boolean; url: string; key: string | null; tools: { name: string; description: string }[] }
 }

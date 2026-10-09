@@ -26,18 +26,79 @@ def test_catalog_lists_every_dataset(client: TestClient) -> None:
     catalog = client.get("/api/export").json()
     assert catalog["as_of"].startswith("2026-10-05T12:00:00")
     counts = {d["name"]: d["row_count"] for d in catalog["datasets"]}
+    # Default: as on the site — legal entities behind cards with a shown vacancy (КБП, Алабуга;
+    # the Алабуга duplicate row is left out), and only their sanctions, relations, products.
     assert counts == {
-        "companies": 5,
-        "company_sanctions": 3,
-        "company_relations": 2,
-        "company_products": 2,
+        "companies": 2,
+        "company_sanctions": 2,
+        "company_relations": 2,  # КБП → ВК and the КБП filial → КБП: one end in the set
+        "company_products": 1,
         "company_sources": 0,
         "employers": 4,  # cards: КБП, Алабуга, the КБП branch, the agency
+        "employer_profiles": 5,  # КБП on trudvsem and hh, the branch, Алабуга, the agency
         "vacancies": 7,  # shown, active, unique: 1, 2, 3, 4, 8, 10, 11
     }
     vacancies = next(d for d in catalog["datasets"] if d["name"] == "vacancies")
     assert vacancies["urls"]["csv"] == "/api/export/vacancies.csv"
     assert vacancies["filterable"] is True
+    assert vacancies["row"] == "одна вакансія"
+    assert [c["name"] for c in catalog["coverages"]] == ["site", "vpk", "all"]
+    assert catalog["overview"]["coverages"]["site"] == {"companies": 2, "cards": 4, "vacancies": 7}
+    assert catalog["overview"]["dedup"]["cross_source"] == 1
+    assert catalog["overview"]["dedup"]["site_profiles"] == 5
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        # every ВПК legal entity; Алабуга's excluded vacancy 5 is in, the bakery is not
+        ("coverage=vpk", {"companies": 2, "employers": 4, "vacancies": 8, "company_products": 1}),
+        # the whole database: the foreign company and the supplier too, every active vacancy
+        ("coverage=all", {"companies": 5, "employers": 5, "vacancies": 9, "company_products": 2}),
+        # with duplicates: the duplicate company row and the cross-site copy of vacancy 1
+        (
+            "coverage=all&dedup=false",
+            {"companies": 6, "employers": 5, "vacancies": 10, "company_products": 2},
+        ),
+        ("dedup=false", {"companies": 3, "employers": 4, "vacancies": 8, "company_products": 1}),
+    ],
+)
+def test_catalog_variants(client: TestClient, query: str, expected: dict[str, int]) -> None:
+    catalog = client.get(f"/api/export?{query}").json()
+    counts = {d["name"]: d["row_count"] for d in catalog["datasets"]}
+    assert {k: counts[k] for k in expected} == expected
+    companies = next(d for d in catalog["datasets"] if d["name"] == "companies")
+    assert companies["urls"]["csv"] == f"/api/export/companies.csv?{query}"
+    assert catalog["snapshot"]["zip"] == f"/api/export/snapshot.zip?{query}"
+    items = client.get(f"/api/export/companies.json?{query}").json()["items"]
+    assert len(items) == counts["companies"]
+
+
+def test_duplicates_are_marked(client: TestClient) -> None:
+    rows = client.get("/api/export/vacancies.json?dedup=false").json()["items"]
+    copy = next(r for r in rows if r["vacancy_id"] == 9)
+    assert copy["duplicate_of"] == 1 and copy["duplicate_method"] == "cross_source"
+    assert copy["level"] == "confirmed"  # the label of the canonical vacancy
+    assert all(r["duplicate_of"] is None for r in rows if r["vacancy_id"] != 9)
+    companies = client.get("/api/export/companies.json?dedup=false").json()["items"]
+    assert {c["company_id"]: c["canonical_id"] for c in companies} == {
+        570: None,
+        600: None,
+        601: 600,
+    }
+    response = client.get("/api/export/vacancies.csv?coverage=all&dedup=false")
+    assert 'filename="vacancies_all_raw_2026-10-05.csv"' in response.headers["content-disposition"]
+
+
+def test_employer_profiles_map_to_cards(client: TestClient) -> None:
+    rows = client.get("/api/export/employer_profiles.json").json()["items"]
+    by_id = {r["employer_profile_id"]: r for r in rows}
+    assert by_id[5]["card_id"] == 1 and not by_id[5]["is_head"]
+    assert by_id[5]["match_status"] == "candidate" and by_id[5]["match_confidence"] == 0.9
+    assert by_id[1]["match_method"] == "inn_kpp"
+    assert by_id[6]["is_branch"] and by_id[6]["card_id"] == 6
+    cards = {e["employer_id"] for e in client.get("/api/export/employers.json").json()["items"]}
+    assert {r["card_id"] for r in rows} <= cards
 
 
 @pytest.mark.parametrize("name", list(DATASETS))
@@ -66,6 +127,11 @@ def test_companies_values(client: TestClient) -> None:
     assert kbp["name_short_uk"] == 'АТ "КБП"'
     assert kbp["country"] == "російська федерація"
     assert kbp["sanctions_count"] == "2"
+    assert kbp["vpk_category"] == "vpk" and kbp["vpk_level"] == "decided"
+    assert kbp["direction_label"] == "НДДКР"
+    assert kbp["sanctions_all"] == "TW; UA; US"
+    assert kbp["on_site"] == "true"
+    assert set(kbp["card_ids"].split("; ")) == {"1", "6"}
 
 
 def test_employers_link_to_companies(client: TestClient) -> None:
@@ -78,7 +144,7 @@ def test_employers_link_to_companies(client: TestClient) -> None:
 
 
 def test_products_union(client: TestClient) -> None:
-    items = client.get("/api/export/company_products.json").json()["items"]
+    items = client.get("/api/export/company_products.json?coverage=all").json()["items"]
     assert {(i["company_id"], i["product_type"], i["product_id"]) for i in items} == {
         (570, "weapon", "test-weapon"),
         (522, "uav", "1"),
@@ -152,3 +218,20 @@ def test_snapshot_sql_loads_into_postgres(client: TestClient) -> None:
             await conn.close()
 
     assert asyncio.run(load()) == counts
+
+
+def test_snapshots_per_variant(client: TestClient) -> None:
+    response = client.get("/api/export/snapshot.zip?coverage=all&dedup=false")
+    assert (
+        'filename="stayhard_snapshot_all_raw_2026-10-05.zip"'
+        in response.headers["content-disposition"]
+    )
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+        assert manifest["coverage"] == "all" and manifest["dedup"] is False
+        assert manifest["datasets"]["vacancies"] == 10
+        assert "Уся база" in zf.read("README.md").decode()
+    with zipfile.ZipFile(io.BytesIO(client.get("/api/export/snapshot.zip").content)) as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+        assert manifest["coverage"] == "site" and manifest["datasets"]["vacancies"] == 7
+    assert client.get("/api/export?coverage=nope").status_code == 422
