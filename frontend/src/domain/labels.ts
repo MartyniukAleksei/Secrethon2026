@@ -68,6 +68,14 @@ const RELIABILITY_SOURCE: Record<string, string> = {
 const RELIABILITY_AGREEMENT: Record<string, string> = {
   '1': 'підтверджено кількома джерелами', '2': 'ймовірно', '3': 'можливо', '4': 'сумнівно', '6': 'неможливо оцінити',
 }
+/** Shown on hover over the reliability label: which scale the code follows. */
+export const RELIABILITY_SCALE = [
+  'Код Адміралтейства (NATO Admiralty Code, STANAG 2511): літера — надійність джерела, цифра — достовірність інформації.',
+  'Літера — найкраще джерело серед тих, що стосуються саме цієї категорії:',
+  'A — офіційний реєстр, санкційний список; B — ГУР, сайт компанії; C — вакансії, агрегатори, ЗМІ; D — інше; F — прямого джерела немає, рішення за сукупністю ознак.',
+  'Цифра — узгодженість рішення:',
+  '1 — імовірність ≥ 90% і щонайменше два незалежні види джерел; 2 — ≥ 90% за одним видом або за правилом; 3 — 60–90%; 4 — < 60%; 6 — судити немає з чого.',
+].join('\n')
 export function reliabilityName(code: string): string {
   const [letter, digit] = code.trim()
   return [RELIABILITY_SOURCE[letter], digit && RELIABILITY_AGREEMENT[digit]].filter(Boolean).join('; ')
