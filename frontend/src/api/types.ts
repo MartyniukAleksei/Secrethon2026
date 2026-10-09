@@ -398,6 +398,8 @@ export type ApiExportDataset = {
   name: string
   title: string
   description: string
+  /** What one row is: «одна юрособа», «одна вакансія». */
+  row: string
   key: string[]
   filterable: boolean
   columns: ApiExportColumn[]
@@ -408,11 +410,32 @@ export type ApiExportDataset = {
 
 export type ExportFormat = 'csv' | 'json' | 'jsonl' | 'parquet'
 
+/** Export coverage: as on the site, every ВПК company, or the whole database. */
+export type ExportCoverage = 'site' | 'vpk' | 'all'
+
+export type ApiExportCoverageCounts = { companies: number; cards: number; vacancies: number }
+
 export type ApiExportCatalog = {
   as_of: string | null
+  coverage: ExportCoverage
+  dedup: boolean
+  coverages: { name: ExportCoverage; title: string; description: string }[]
   formats: ExportFormat[]
   snapshot: { zip: string; sql: string }
   datasets: ApiExportDataset[]
+  overview: {
+    coverages: Record<ExportCoverage, ApiExportCoverageCounts>
+    dedup: {
+      vacancies_raw: number
+      vacancies_unique: number
+      reposts: number
+      cross_source: number
+      site_profiles: number
+      site_cards: number
+      company_duplicates: number
+      companies_raw: number
+    }
+  }
 }
 
 /** Numbers for the «Про дані» page (GET /api/methodology). */

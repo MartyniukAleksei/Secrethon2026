@@ -37,6 +37,8 @@ def vacancy_cte(with_duplicates: bool = False) -> str:
         if with_duplicates
         else "vacancy_unique vac LEFT JOIN vacancy_duplicate dup ON false"
     )
+    # a copy whose canonical vacancy has no label stays in, unlabelled
+    label_join = "LEFT JOIN" if with_duplicates else "JOIN"
     return f"""
 fin AS (
     SELECT vc.vacancy_id, vc.category AS final_category, vc.level AS final_level,
@@ -83,7 +85,7 @@ v AS (
             END
         END AS monthly_salary
     FROM {source}
-    JOIN fin ON fin.vacancy_id = coalesce(dup.canonical_id, vac.vacancy_id)
+    {label_join} fin ON fin.vacancy_id = coalesce(dup.canonical_id, vac.vacancy_id)
     LEFT JOIN direction d ON d.vacancy_id = fin.vacancy_id
     LEFT JOIN markers m ON m.vacancy_id = fin.vacancy_id
     LEFT JOIN employer_group g ON g.employer_profile_id = vac.employer_profile_id
