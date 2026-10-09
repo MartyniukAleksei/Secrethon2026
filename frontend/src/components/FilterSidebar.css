@@ -1,4 +1,7 @@
 /* Filter sidebar of the catalog pages: sections of collapsible checkbox groups with counts. */
+/* The catalog layout: the sidebar and the results; wide tables scroll inside the results. */
+.cat { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 12px; align-items: start; }
+.cat-results { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
 .fs-sidebar { display: grid; gap: 10px; align-content: start; position: sticky; top: 86px; max-height: calc(100dvh - 100px); overflow-y: auto; scrollbar-width: thin; padding-bottom: 4px; }
 .fs-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
 .fs-header h2 { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -49,6 +52,7 @@
 .btn.fs-mobile-toggle { display: none; }
 
 @media (max-width: 900px) {
+  .cat { grid-template-columns: minmax(0, 1fr); }
   .fs-sidebar { position: static; max-height: none; overflow: visible; }
   .fs-sidebar:not(.open) { display: none; }
   .btn.fs-mobile-toggle { display: inline-flex; justify-self: start; }
