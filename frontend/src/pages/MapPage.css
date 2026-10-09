@@ -6,7 +6,7 @@
 .map-pop { position: absolute; right: 12px; top: 60px; width: 350px; max-height: calc(100% - 132px); overflow-y: auto; z-index: 4; background: var(--surface-raised); border: 1px solid var(--stroke); border-radius: var(--r-card); box-shadow: var(--shadow-float); padding: 12px 14px 14px; }
 .map-pop h4 { font-size: 17px; font-weight: 600; line-height: 22px; margin-top: 8px; }
 .map-pop h5 { font-size: 13px; font-weight: 600; color: var(--label-2); margin: 14px 0 6px; }
-.map-pop-actions { display: flex; gap: 8px; margin-top: 12px; }
+.map-pop-actions { display: flex; gap: 8px; margin: 12px -14px -14px; padding: 10px 14px 14px; position: sticky; bottom: 0; background: var(--surface-raised); border-top: 1px solid var(--stroke); }
 .map-pop-actions .btn-primary { flex: 1; }
 
 @media (max-width: 900px) {

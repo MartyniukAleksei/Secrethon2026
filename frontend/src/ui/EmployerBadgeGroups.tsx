@@ -90,9 +90,9 @@ export function EmployerBadgeGroups({ employer: e }: Props) {
               ? human(autoSanctions, <span className={`badge ${hr.sanctions === 'sanctioned' ? 'hostile' : ''}`}>{HUMAN_SANCTIONS[hr.sanctions]}</span>)
               : <span
                   className={`badge ${sanctions.total > 0 ? 'hostile' : ''}`}
-                  title={[sanctions.codes.join(', '), newSanctionsTitle].filter(Boolean).join('\n') || undefined}
+                  title={[sanctions.total > 0 && autoSanctions, sanctions.codes.join(', '), newSanctionsTitle].filter(Boolean).join('\n') || undefined}
                 >
-                  {autoSanctions}
+                  {sanctions.total > 0 ? 'Під санкціями' : autoSanctions}
                 </span>}
           </dd>
         </div>

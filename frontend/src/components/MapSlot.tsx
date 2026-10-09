@@ -410,8 +410,8 @@ export function MapSlot({ employers, selectedId, children }: {
           </div>
         </details>
         {selectedId != null && (
-          <div className="map-layers map-focus" role="group" aria-label="Зв’язки обраної компанії">
-            <div className="map-focus-title"><Icon name="graph" />Показати лише зв’язки обраної</div>
+          <details className="map-layers map-focus" open aria-label="Зв’язки обраної компанії">
+            <summary><Icon name="graph" />Лише зв’язки обраної</summary>
             <div className="map-layers-body">
               {selectedCompany == null ? (
                 <p className="map-layer-note">Компанії немає в базі ГУР, тому зв’язків для неї немає.</p>
@@ -434,7 +434,7 @@ export function MapSlot({ employers, selectedId, children }: {
                 </>
               )}
             </div>
-          </div>
+          </details>
         )}
       </div>
       <div className="map-tr">
