@@ -10,6 +10,7 @@ from app.api.schemas import (
     EmployerReviewOut,
     MapNetworkOut,
     MapPointOut,
+    MapSiteOut,
 )
 from app.export_snapshot import snapshots
 from app.repository import employers
@@ -37,6 +38,16 @@ async def map_points(session: Session) -> list[MapPointOut]:
         return [MapPointOut.model_validate(r) for r in await employers.map_points(session)]
 
     return await cache.get_or_load("map-points", load)
+
+
+@router.get("/map-sites")
+async def map_sites(session: Session) -> list[MapSiteOut]:
+    """Head offices and branches by the register: a separate layer from the hiring places."""
+
+    async def load() -> list[MapSiteOut]:
+        return [MapSiteOut.model_validate(r) for r in await employers.map_sites(session)]
+
+    return await cache.get_or_load("map-sites", load)
 
 
 @router.get("/map-network")

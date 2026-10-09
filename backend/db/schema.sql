@@ -2001,3 +2001,25 @@ CREATE TABLE judge_review (
     reason       text,
     PRIMARY KEY (run_id, item_kind, item_id)
 );
+
+-- 0014 (pipeline): company head offices and branches by the register.
+CREATE TABLE company_site (
+    site_id      bigserial PRIMARY KEY,
+    company_id   bigint NOT NULL REFERENCES company ON DELETE CASCADE,
+    kind         text   NOT NULL CHECK (kind IN ('head_office', 'branch')),
+    source       text   NOT NULL CHECK (source IN ('dadata')),
+    name         text,
+    kpp          text,
+    status       text,
+    address      text   NOT NULL,
+    postal_code  text,
+    region       text,
+    city         text,
+    lat          numeric(9, 6),
+    lng          numeric(9, 6),
+    geo_qc       smallint,
+    hid          text,
+    CHECK ((lat IS NULL) = (lng IS NULL))
+);
+
+CREATE INDEX company_site_company_idx ON company_site (company_id);

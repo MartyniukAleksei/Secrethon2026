@@ -1,4 +1,4 @@
-import type { ApiMethodology, ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportCoverage, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiMapSite, ApiMethodology, ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportCoverage, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -74,6 +74,7 @@ export const api = {
     get<ApiExportCatalog>(`/export${query({ coverage: variant.coverage === 'site' ? undefined : variant.coverage, dedup: variant.dedup ? undefined : 'false' })}`, signal),
   mapPoints: (signal?: AbortSignal) => get<ApiMapPoint[]>('/employers/map-points', signal),
   mapNetwork: (signal?: AbortSignal) => get<ApiMapNetwork>('/employers/map-network', signal),
+  mapSites: (signal?: AbortSignal) => get<ApiMapSite[]>('/employers/map-sites', signal),
   stats: (signal?: AbortSignal) => get<ApiStats>('/stats', signal),
   employers: (signal?: AbortSignal) => get<ApiEmployer[]>('/employers', signal),
   employer: (id: number, signal?: AbortSignal) => get<ApiEmployerDetail>(`/employers/${id}`, signal),

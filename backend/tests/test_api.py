@@ -242,6 +242,39 @@ def test_classification_counters(client: TestClient) -> None:
     assert stats["agency_vacancies"] == 1  # employer 4: vacancy 8
 
 
+def test_map_sites_are_register_places_of_cards_on_the_map(client: TestClient) -> None:
+    sites = client.get("/api/employers/map-sites").json()
+    by_card = {}
+    for site in sites:
+        by_card.setdefault(site["employer_id"], []).append((site["kind"], site["name"]))
+    # The head card shows the head office and its branches; a city-level point stays off.
+    assert by_card[1] == [("head_office", 'АО "КБП"'), ("branch", 'ФИЛИАЛ АО "КБП" В Г. МОСКВЕ')]
+    assert sites[0] == {
+        "employer_id": 1,
+        "kind": "head_office",
+        "name": 'АО "КБП"',
+        "address": "г Тула, ул Щегловская засека, д 59",
+        "lat": 54.201,
+        "lng": 37.583,
+        "geo_qc": 0,
+    }
+    # A branch card (region 77) gets only the branch in its region, never the head office.
+    assert by_card.get(6, [("branch", 'ФИЛИАЛ АО "КБП" В Г. МОСКВЕ')]) == [
+        ("branch", 'ФИЛИАЛ АО "КБП" В Г. МОСКВЕ')
+    ]
+
+
+def test_employer_detail_lists_register_sites(client: TestClient) -> None:
+    sites = client.get("/api/employers/1").json()["sites"]
+    assert [(s["kind"], s["on_map"]) for s in sites] == [
+        ("head_office", True),
+        ("branch", True),
+        ("branch", False),  # located only to a city: listed, not put on the map
+    ]
+    branch = client.get("/api/employers/6").json()["sites"]
+    assert [s["name"] for s in branch] == ['ФИЛИАЛ АО "КБП" В Г. МОСКВЕ']
+
+
 def test_map_points(client: TestClient) -> None:
     response = client.get("/api/employers/map-points")
     assert response.status_code == 200

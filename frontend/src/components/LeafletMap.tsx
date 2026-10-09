@@ -5,14 +5,15 @@ import 'leaflet.markercluster'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
-import type { ApiMapPoint } from '../api/types'
-import { markerIcon, SELECTED_COLOR } from './mapMarkers'
+import type { ApiMapPoint, ApiMapSite } from '../api/types'
+import { hiringIcon, SELECTED_COLOR, siteIcon } from './mapMarkers'
 
 const COUNTRY_CENTER: L.LatLngExpression = [62, 95]
 
-/** The fallback map when 2GIS is unavailable: OpenStreetMap tiles, the same hiring places, one cluster layer. */
-export default function LeafletMap({ points, selectedId, colorOf, onSelect }: {
+/** The fallback map when 2GIS is unavailable: OpenStreetMap tiles, the same sites and hiring places. */
+export default function LeafletMap({ points, sites, selectedId, colorOf, onSelect }: {
   points: ApiMapPoint[]
+  sites: ApiMapSite[]
   selectedId?: number
   colorOf: (employerId: number) => string
   onSelect: (employerId: number) => void
@@ -46,23 +47,32 @@ export default function LeafletMap({ points, selectedId, colorOf, onSelect }: {
     const group = L.markerClusterGroup({ maxClusterRadius: 55, showCoverageOnHover: false })
     for (const p of points) {
       const selected = p.employer_id === selectedId
-      const icon = L.icon({
-        iconUrl: markerIcon(selected ? SELECTED_COLOR : colorOf(p.employer_id)),
-        iconSize: selected ? [40, 50] : [32, 40],
-        iconAnchor: selected ? [20, 50] : [16, 40],
-      })
-      const marker = L.marker([p.lat, p.lng], { icon, zIndexOffset: selected ? 1000 : 0, title: p.locality ?? undefined })
+      const size = selected ? 24 : 18
+      const icon = L.icon({ iconUrl: hiringIcon(selected ? SELECTED_COLOR : undefined), iconSize: [size, size], iconAnchor: [size / 2, size / 2] })
+      const marker = L.marker([p.lat, p.lng], { icon, zIndexOffset: selected ? 900 : 0, title: p.locality ?? undefined })
       marker.on('click', () => onSelect(p.employer_id))
       group.addLayer(marker)
     }
+    for (const s of sites) {
+      const selected = s.employer_id === selectedId
+      const icon = L.icon({
+        iconUrl: siteIcon(selected ? SELECTED_COLOR : colorOf(s.employer_id), s.kind),
+        iconSize: selected ? [40, 50] : [32, 40],
+        iconAnchor: selected ? [20, 50] : [16, 40],
+      })
+      const marker = L.marker([s.lat, s.lng], { icon, zIndexOffset: selected ? 1000 : 100, title: s.name ?? s.address })
+      marker.on('click', () => onSelect(s.employer_id))
+      group.addLayer(marker)
+    }
     map.addLayer(group)
-    const focus = points.filter((p) => p.employer_id === selectedId)
-    const shown = focus.length ? focus : points
+    const all = [...points, ...sites]
+    const focus = all.filter((p) => p.employer_id === selectedId)
+    const shown = focus.length ? focus : all
     if (shown.length) map.fitBounds(L.latLngBounds(shown.map((p) => [p.lat, p.lng])), { padding: [50, 50], maxZoom: 13 })
     return () => {
       map.removeLayer(group)
     }
-  }, [points, selectedId, colorOf, onSelect])
+  }, [points, sites, selectedId, colorOf, onSelect])
 
   return <div className="map-canvas map-leaflet" ref={container} aria-label="Карта місць найму на базі OpenStreetMap" />
 }

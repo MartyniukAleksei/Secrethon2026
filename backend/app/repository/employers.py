@@ -43,6 +43,32 @@ async def map_points(session: AsyncSession) -> list[Row]:
     return [dict(r) for r in result.mappings()]
 
 
+# Where a card's company is by the register (company_site): a head card shows all of its
+# company's sites, a branch card only the branches in its region (KPP starts with the region).
+CARD_SITES = """
+    JOIN employer_group eg ON eg.employer_profile_id = cards.card_id
+    JOIN company_site s ON s.company_id = eg.company_id
+    WHERE (NOT eg.is_branch OR (s.kind = 'branch' AND left(s.kpp, 2) = eg.branch_key))
+"""
+SITE_COLUMNS = "s.kind, s.name, s.address, s.lat::float AS lat, s.lng::float AS lng, s.geo_qc"
+# DaData qc_geo up to 3 (a settlement): coarser points (a whole city) would mislead on a map.
+SITE_ON_MAP = "s.lat IS NOT NULL AND coalesce(s.geo_qc, 5) <= 3"
+
+
+async def map_sites(session: AsyncSession) -> list[Row]:
+    """Head offices and branches of the employers on the map, from the register."""
+    result = await session.execute(
+        text(f"""
+            WITH {CTE},
+            cards AS (SELECT DISTINCT card_id FROM v WHERE {SHOWN} AND employer_profile_id IS NOT NULL)
+            SELECT DISTINCT eg.group_id AS employer_id, {SITE_COLUMNS}
+            FROM cards {CARD_SITES} AND {SITE_ON_MAP}
+            ORDER BY employer_id, s.kind DESC, s.name
+        """)
+    )
+    return [dict(r) for r in result.mappings()]
+
+
 async def _employer_select(session: AsyncSession) -> str:
     return with_human_review(EMPLOYER_SELECT, await employer_reviews_ready(session))
 
@@ -282,6 +308,17 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
         params,
     )
     employer["hiring_locations"] = [dict(r) for r in hiring_locations.mappings()]
+
+    sites = await session.execute(
+        text(f"""
+            WITH cards AS (SELECT CAST(:id AS bigint) AS card_id)
+            SELECT DISTINCT {SITE_COLUMNS}, ({SITE_ON_MAP}) AS on_map
+            FROM cards {CARD_SITES}
+            ORDER BY s.kind DESC, s.name
+        """),
+        params,
+    )
+    employer["sites"] = [dict(r) for r in sites.mappings()]
 
     # The legal entity behind the card: the group's, else the GUR card found by INN.
     company_id = employer["company_id"] or employer["gur_company_id"]

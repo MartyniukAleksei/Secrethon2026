@@ -15,6 +15,26 @@ export type ApiMapPoint = {
   vacancies: number
 }
 
+/** A company's head office or branch by the register (DaData), not a hiring place. */
+export type ApiSiteKind = 'head_office' | 'branch'
+
+export type ApiMapSite = {
+  employer_id: number
+  kind: ApiSiteKind
+  name: string | null
+  address: string
+  lat: number
+  lng: number
+  /** DaData qc_geo: 0 house, 1 nearest house, 2 street, 3 settlement. */
+  geo_qc: number | null
+}
+
+export type ApiCompanySite = Omit<ApiMapSite, 'employer_id' | 'lat' | 'lng'> & {
+  lat: number | null
+  lng: number | null
+  on_map: boolean
+}
+
 export type ApiMapRelation = {
   company_id: number
   related_id: number
@@ -303,6 +323,8 @@ export type ApiEmployerDetail = ApiEmployer & {
     vacancy_id: number
     vacancy_url: string
   }[]
+  /** Where the company is by the register: head office and branches. */
+  sites: ApiCompanySite[]
   gur: ApiGurCompany | null
   /** Legal entity behind the page; 'candidate' marks a probable link. */
   company_id: number | null

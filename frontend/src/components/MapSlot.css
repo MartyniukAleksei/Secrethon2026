@@ -68,6 +68,7 @@
 .map-leaflet { z-index: 0; isolation: isolate; }
 /* Legend of the pin colours (doubles as a filter), the cluster and the lines. */
 .map-legend-pin { width: 16px; height: 20px; flex: none; }
+.map-legend-dot { width: 12px; height: 12px; margin: 0 2px; flex: none; }
 .map-legend-static { border-top: 1px solid var(--stroke); margin-top: 6px; padding-top: 4px; }
 .map-legend-static p { display: flex; gap: 8px; align-items: center; padding: 5px 0; font-size: 12px; line-height: 16px; color: var(--label-2); }
 .map-legend-cluster { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--stroke); color: #fff; font: 600 9px/1 var(--ff-sans); font-style: normal; }

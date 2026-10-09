@@ -23,6 +23,7 @@ import { OverviewTab } from './OverviewTab'
 import { RelationsTab } from './RelationsTab'
 import { SourcesTab } from './SourcesTab'
 import { VacanciesTab } from './VacanciesTab'
+import { CompanySites } from './CompanySites'
 import './CompanyPage.css'
 
 export type TabProps = { employer: EmployerDetail }
@@ -36,9 +37,12 @@ const TABS: { id: string; label: string; render: (p: TabProps) => ReactNode }[] 
     id: 'map',
     label: 'На карті',
     render: ({ employer }) => (
-      <div className="panel prof-map">
-        <MapSlot employers={[employer]} selectedId={employer.id} />
-      </div>
+      <>
+        <div className="panel prof-map">
+          <MapSlot employers={[employer]} selectedId={employer.id} />
+        </div>
+        <CompanySites sites={employer.sites ?? []} />
+      </>
     ),
   },
   { id: 'sources', label: 'Джерела', render: (p) => <SourcesTab {...p} /> },

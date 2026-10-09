@@ -177,6 +177,12 @@ INSERT INTO vacancy (vacancy_id, source, external_id, url, employer_profile_id, 
    '2026-10-04T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z'),
   (11, 'hh', 'v11', 'https://hh.ru/vacancy/11', 6, 'КБП, филиал в Москве', 'Инженер-конструктор', 'Москва',
    '2026-09-30T00:00:00Z', '2026-10-05T00:00:00Z', '2026-10-05T12:00:00Z');
+-- Register sites of КБП: the head office, a Moscow branch (the branch card 6 is in region 77)
+-- and a branch located only to a city (qc 4), which stays off the map.
+INSERT INTO company_site (company_id, kind, source, name, kpp, address, lat, lng, geo_qc) VALUES
+  (570, 'head_office', 'dadata', 'АО "КБП"', '710501001', 'г Тула, ул Щегловская засека, д 59', 54.2010, 37.5830, 0),
+  (570, 'branch', 'dadata', 'ФИЛИАЛ АО "КБП" В Г. МОСКВЕ', '772801001', 'г Москва, ул Профсоюзная, д 65', 55.6620, 37.5520, 1),
+  (570, 'branch', 'dadata', 'ФИЛИАЛ АО "КБП" В КАЗАНИ', '166101001', 'г Казань', 55.7960, 49.1060, 4);
 INSERT INTO employer_group (employer_profile_id, group_id, company_id, is_head, is_branch, branch_key, method) VALUES
   (1, 1, 570, true, false, NULL, 'company'),
   (5, 1, 570, false, false, NULL, 'company'),
