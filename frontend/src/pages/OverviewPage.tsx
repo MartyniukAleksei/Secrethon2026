@@ -136,7 +136,6 @@ type Step = { label: string; value: number; to?: string; tone?: 'muted' | 'accen
 function Funnel({ funnel: f }: { funnel: ApiFunnel }) {
   const vacancies: Step[] = [
     { label: 'Вакансій зібрано', value: f.collected },
-    { label: 'Після вилучення дублів', value: f.unique_vacancies },
     { label: 'Відсіяно: цивільні, цивільні під санкціями, іноземні', value: f.excluded, to: '/methodology#funnel', tone: 'muted' },
     { label: 'Відсіяно: без ознак ВПК', value: f.no_signal, to: '/methodology#funnel', tone: 'muted' },
     { label: 'Через кадрові агентства', value: f.agency, to: '/vacancies?scope=agency' },
