@@ -18,7 +18,7 @@ type Props = {
 }
 
 export function AgentPanel({ fullscreen, onToggleFullscreen, onClose }: Props) {
-  const { isOpen, messages, typing, webPermission, chooseWebAccess, startNewChat, ask, target, setTarget, mapView, comparisonIds, toggleComparison, panelTab: tab, setPanelTab: setTab } = useAgent()
+  const { isOpen, messages, typing, progress, webPermission, chooseWebAccess, startNewChat, ask, target, setTarget, mapView, comparisonIds, toggleComparison, panelTab: tab, setPanelTab: setTab } = useAgent()
   const { byId, regionById } = useData()
   const filters = useFilters()
   const page = usePageContext()
@@ -31,7 +31,7 @@ export function AgentPanel({ fullscreen, onToggleFullscreen, onClose }: Props) {
   }, [isOpen, tab])
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight })
-  }, [messages, typing, tab, webPermission])
+  }, [messages, typing, progress, tab, webPermission])
   useEffect(() => {
     const textarea = input.current
     if (!textarea || !isOpen) return
@@ -194,6 +194,7 @@ export function AgentPanel({ fullscreen, onToggleFullscreen, onClose }: Props) {
               <i />
               <i />
             </span>
+            {progress && <span className="typing-status" role="status">{progress}</span>}
           </div>
         )}
       </div>

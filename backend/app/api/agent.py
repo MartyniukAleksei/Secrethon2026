@@ -4,6 +4,7 @@ import logging
 import re
 import time
 from collections import defaultdict, deque
+from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -11,6 +12,7 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -394,9 +396,16 @@ def requests_relation_map(request: ChatIn) -> bool:
 
 class Run:
     def __init__(
-        self, session, context: Context, *, web_access: str = "ask", relation_map: bool = False
+        self,
+        session,
+        context: Context,
+        *,
+        web_access: str = "ask",
+        relation_map: bool = False,
+        progress: Callable[[dict], None] | None = None,
     ):
         self.session = session
+        self.progress = progress
         self.context = context
         self.web_access = web_access
         self.relation_map = relation_map
@@ -598,7 +607,12 @@ class Run:
         self.scope_totals = await queries.scope_summary(self.session, self.filters(ToolArgs()))
         self.as_of = self.scope_totals.pop("as_of", None)
 
+    def report(self, stage: str, **details) -> None:
+        if self.progress is not None:
+            self.progress({"stage": stage, **details})
+
     async def tool(self, name: str, raw: dict) -> dict:
+        self.report("tool", tool=name)
         if name == "search_knowledge":
             args = ToolArgs.model_validate(raw)
             if args.employer_id is not None and args.employer_id not in self.profiles:
@@ -1176,7 +1190,7 @@ def permission_response(run: Run, request: ChatIn, tools_used: list, permission:
     )
 
 
-async def answer(request: ChatIn, session) -> dict:
+async def answer(request: ChatIn, session, progress: Callable[[dict], None] | None = None) -> dict:
     def clarify(text):
         return jsonable_encoder(
             {
@@ -1261,6 +1275,7 @@ async def answer(request: ChatIn, session) -> dict:
         request.context,
         web_access=request.web_access,
         relation_map=requests_relation_map(request),
+        progress=progress,
     )
     run.question = request.message
     await run.prepare_scope()
@@ -1622,6 +1637,7 @@ async def answer(request: ChatIn, session) -> dict:
             {ident: source["origin"] for ident, source in run.sources.items()},
             separators=(",", ":"),
         )
+        run.report("thinking", round=step + 1)
         response = await post_json(
             settings.gpt_base_url.rstrip("/") + "/chat/completions",
             {
@@ -1953,8 +1969,7 @@ async def status() -> dict:
     }
 
 
-@router.post("/chat")
-async def chat(payload: ChatIn, request: Request, session: Session) -> dict:
+def admit(request: Request) -> None:
     if not settings.agent_enabled or not settings.gpt_api_key or not settings.gpt_base_url:
         raise HTTPException(503, "Агент ще не налаштований на сервері.")
     now = time.monotonic()
@@ -1971,10 +1986,15 @@ async def chat(payload: ChatIn, request: Request, session: Session) -> dict:
     recent.append(now)
     if slots.locked():
         raise HTTPException(429, "Агент зайнятий. Спробуйте за кілька секунд.")
+
+
+async def guarded_answer(
+    payload: ChatIn, session, progress: Callable[[dict], None] | None = None
+) -> dict:
     try:
         async with slots:
             async with asyncio.timeout(180):
-                return await answer(payload, session)
+                return await answer(payload, session, progress)
     except ProviderError as exc:
         logger.warning(
             "Agent provider failure: provider=%s status=%s reason=%s",
@@ -2001,3 +2021,57 @@ async def chat(payload: ChatIn, request: Request, session: Session) -> dict:
         raise HTTPException(
             504, "Аналіз тривав надто довго. Спробуйте звузити запитання."
         ) from None
+
+
+@router.post("/chat")
+async def chat(payload: ChatIn, request: Request, session: Session) -> dict:
+    admit(request)
+    return await guarded_answer(payload, session)
+
+
+def sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(jsonable_encoder(data), ensure_ascii=False)}\n\n"
+
+
+@router.post("/chat/stream")
+async def chat_stream(payload: ChatIn, request: Request, session: Session) -> StreamingResponse:
+    # Same agent run as /chat, but progress (model rounds, tool calls) is pushed
+    # as Server-Sent Events while the final answer is still being assembled.
+    admit(request)
+    queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
+
+    async def work() -> None:
+        try:
+            result = await guarded_answer(
+                payload, session, lambda p: queue.put_nowait(("progress", p))
+            )
+        except HTTPException as exc:
+            queue.put_nowait(("error", {"status": exc.status_code, "detail": exc.detail}))
+        except Exception:
+            logger.exception("Agent stream failure")
+            queue.put_nowait(("error", {"status": 500, "detail": "Внутрішня помилка агента."}))
+        else:
+            queue.put_nowait(("result", result))
+
+    async def events() -> AsyncIterator[str]:
+        task = asyncio.create_task(work())
+        try:
+            while True:
+                try:
+                    event, data = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    # Keep proxies from closing an idle connection during slow rounds.
+                    yield ": ping\n\n"
+                    continue
+                yield sse(event, data)
+                if event != "progress":
+                    return
+        finally:
+            # A disconnected client must not keep a model run and a slot busy.
+            task.cancel()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

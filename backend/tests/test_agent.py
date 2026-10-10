@@ -201,3 +201,48 @@ def test_chat_rejects_oversize_input_and_reports_missing_configuration(monkeypat
         assert client.post("/api/agent/chat", json={"message": "x" * 4001}).status_code == 422
         result = client.post("/api/agent/chat", json={"message": "Привіт"})
         assert result.status_code == 503
+
+
+def test_chat_stream_sends_progress_then_result(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    async def fake_answer(request, session, progress=None):
+        progress({"stage": "thinking", "round": 1})
+        progress({"stage": "tool", "tool": "overview"})
+        return {"text": "Готово", "sources": []}
+
+    monkeypatch.setattr(agent.settings, "agent_enabled", True)
+    monkeypatch.setattr(agent.settings, "gpt_api_key", "test")
+    monkeypatch.setattr(agent.settings, "gpt_base_url", "https://example.test")
+    monkeypatch.setattr(agent, "answer", fake_answer)
+    agent.requests.clear()
+    with TestClient(app) as client:
+        result = client.post("/api/agent/chat/stream", json={"message": "Привіт"})
+    assert result.headers["content-type"].startswith("text/event-stream")
+    events = [
+        (block.split("\n")[0].removeprefix("event: "), json.loads(block.split("\n")[1][6:]))
+        for block in result.text.strip().split("\n\n")
+    ]
+    assert events == [
+        ("progress", {"stage": "thinking", "round": 1}),
+        ("progress", {"stage": "tool", "tool": "overview"}),
+        ("result", {"text": "Готово", "sources": []}),
+    ]
+
+
+def test_chat_stream_reports_errors_as_events(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    monkeypatch.setattr(agent.settings, "agent_enabled", True)
+    monkeypatch.setattr(agent.settings, "gpt_api_key", "test")
+    monkeypatch.setattr(agent.settings, "gpt_base_url", "https://example.test")
+    monkeypatch.setattr(agent, "answer", AsyncMock(side_effect=ProviderError("GPT", 429)))
+    agent.requests.clear()
+    with TestClient(app) as client:
+        result = client.post("/api/agent/chat/stream", json={"message": "Привіт"})
+    assert result.text.startswith("event: error\n")
+    assert json.loads(result.text.split("\n")[1][6:])["status"] == 503
