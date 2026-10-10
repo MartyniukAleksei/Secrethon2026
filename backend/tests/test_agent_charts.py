@@ -22,8 +22,8 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                 run = Run(session, Context(days=0))
                 overview = await run.tool("overview", {})
                 assert overview["as_of"]
-                assert "source_id" not in overview
-                assert run.sources == {}
+                assert run.sources[overview["source_id"]]["url"] == "/"
+                assert run.sources[overview["source_id"]]["origin"] == "database"
                 results = {view: await run.tool("analytics", {"view": view}) for view in TITLES}
                 for view, result in results.items():
                     assert result["stats"]["vacancies"] == 6, view
@@ -62,7 +62,8 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                 }
                 # Finish can select the whole dashboard and retain chart evidence even
                 # when the model only cites the platform source in its text.
-                summary_text = "## Найм\n\n6 вакансій [s1]."
+                chart_source_id = results["kpi"]["source_id"]
+                summary_text = f"## Найм\n\n6 вакансій [{chart_source_id}]."
                 monkeypatch.setattr(agent, "Run", lambda session, context, **kwargs: run)
                 monkeypatch.setattr(
                     agent,
@@ -74,7 +75,11 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                                 "text": summary_text,
                                 "artifact_ids": list(run.artifacts),
                                 "sections": [
-                                    {"kind": "database", "text": summary_text, "source_ids": ["s1"]}
+                                    {
+                                        "kind": "database",
+                                        "text": summary_text,
+                                        "source_ids": [chart_source_id],
+                                    }
                                 ],
                             },
                         )
@@ -82,8 +87,10 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                 )
                 answer = await agent.answer(ChatIn(message="Уся аналітика"), session)
                 assert len(answer["artifacts"]) == 19
-                assert len(answer["sources"]) == 4  # platform and three company cards
-                assert answer["sources"][0]["url"] == "/vacancies"
+                assert len(answer["sources"]) == 5  # overview, analytics, three company cards
+                sources = {source["id"]: source for source in answer["sources"]}
+                assert sources[overview["source_id"]]["url"] == "/"
+                assert sources[chart_source_id]["url"] == "/vacancies"
                 assert all(source["title"] != "Огляд платформи" for source in answer["sources"])
                 assert "## Найм" in answer["text"]
         finally:

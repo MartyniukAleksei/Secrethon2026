@@ -166,6 +166,7 @@ def test_saved_research_keeps_web_status_and_remaps_citations(monkeypatch):
 def test_chat_context_is_bounded_and_cannot_authorize_web(monkeypatch):
     from test_agent import response
 
+    monkeypatch.setattr(agent.settings, "tavily_api_key", "test-only")
     provider = AsyncMock(return_value=response("finish", {"text": "Уточніть підприємство."}))
     monkeypatch.setattr(agent, "post_json", provider)
     asyncio.run(
