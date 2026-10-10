@@ -8,6 +8,7 @@ import { ResearchDraft } from './ResearchDraft'
 import { sendAgentRequest, type AgentRequest, type AgentTarget, type MapView, type WebPermission } from './types'
 import { useData } from '../../data/DataContext'
 import { mapActionHref } from './mapActions'
+import { researchContext, type Research } from './research'
 
 type QuestionSnapshot = { payload: AgentRequest; locationKey: string; requestedLocation: string }
 
@@ -31,6 +32,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const pending = useRef<AbortController | null>(null)
   const busy = useRef(false)
   const history = useRef<AgentRequest['history']>([])
+  const approvedContext = useRef<string[]>([])
+  const rememberResearch = useCallback((record: Research) => {
+    const value = researchContext(record)
+    approvedContext.current = [...approvedContext.current.filter(item => item !== value), value].slice(-8)
+  }, [])
 
   // Keep the current page context without recreating the request callback.
   const ctx = useRef({ filters, companyId, section, target, mapView, comparisonIds, byId, locationKey: location.key })
@@ -45,6 +51,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     busy.current = false
     waitingForPermission.current = null
     history.current = []
+    approvedContext.current = []
     setMessages([])
     setTyping(false)
     setWebPermission(null)
@@ -63,6 +70,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     pending.current = controller
     void sendAgentRequest(payload, controller.signal).then(response => {
       if (controller.signal.aborted || pending.current !== controller) return
+      const action = response.map_action
+      if (action && ['focus_company', 'show_relations', 'show_hiring_places'].includes(action.kind) && Number.isSafeInteger(action.employer_id) && ctx.current.byId[action.employer_id] && ctx.current.locationKey === locationKey && window.location.href === requestedLocation) {
+        setTarget('company')
+        navigate(`${mapActionHref(action)}&agent_view=${nextId.current}`)
+      }
       if (response.web_permission) {
         if (payload.web_access !== 'ask') throw new Error('Не вдалося застосувати вибір джерел. Спробуйте повторити запит.')
         waitingForPermission.current = snapshot
@@ -73,12 +85,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         role: 'assistant', text: response.text + '\n' + JSON.stringify({ artifacts: response.artifacts, sources: response.sources, map_action: response.map_action }),
       }]
       history.current = [...history.current, ...turns].slice(-12).map(item => ({ ...item, text: item.text.slice(0, 12000) }))
-      setMessages(m => [...m, { id: nextId.current++, role: 'bot', body: <><AgentAnswer response={response} /><ResearchDraft response={response} question={q} context={payload.context} /></> }])
-      const action = response.map_action
-      if (action && ['focus_company', 'show_relations'].includes(action.kind) && Number.isSafeInteger(action.employer_id) && ctx.current.byId[action.employer_id] && ctx.current.locationKey === locationKey && window.location.href === requestedLocation) {
-        setTarget('company')
-        navigate(`${mapActionHref(action)}&agent_view=${nextId.current}`)
-      }
+      setMessages(m => [...m, { id: nextId.current++, role: 'bot', body: <><AgentAnswer response={response} /><ResearchDraft response={response} question={q} context={payload.context} onRemember={rememberResearch} /></> }])
     }).catch((error: unknown) => {
       if (controller.signal.aborted || pending.current !== controller) return
       const text = error instanceof Error ? error.message : 'Не вдалося отримати відповідь. Спробуйте ще раз.'
@@ -89,7 +96,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       pending.current = null
       if (!controller.signal.aborted) setTyping(false)
     })
-  }, [navigate])
+  }, [navigate, rememberResearch])
 
   const chooseWebAccess = useCallback((access: 'allowed' | 'db_only') => {
     const snapshot = waitingForPermission.current
@@ -116,7 +123,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
     setOpen(true)
     setMessages((m) => [...m, { id: nextId.current++, role: 'user', body: q }])
-    const payload: AgentRequest = { message: q, history: history.current.slice(-12), web_access: 'ask', context: {
+    const payload: AgentRequest = { message: q, history: history.current.slice(-12), approved_context: [...approvedContext.current], web_access: 'ask', context: {
       page: page === 'map' ? 'map' : 'other',
       // The agent takes one region; several or «none» leave the question country-wide.
       company_id: mapMode ? undefined : id,
@@ -141,6 +148,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       typing,
       webPermission, chooseWebAccess,
       startNewChat,
+      rememberResearch,
       panelTab, setPanelTab,
       open: () => setOpen(true),
       close: () => setOpen(false),
@@ -149,7 +157,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       target, setTarget, mapView, setMapView, comparisonIds,
       toggleComparison: (id: number) => setComparisonIds(ids => ids.includes(id) ? ids.filter(i => i !== id) : ids.length < 5 ? [...ids, id] : ids),
     }),
-    [isOpen, messages, typing, ask, target, mapView, comparisonIds, setMapView, panelTab, webPermission, chooseWebAccess, startNewChat],
+    [isOpen, messages, typing, ask, target, mapView, comparisonIds, setMapView, panelTab, webPermission, chooseWebAccess, startNewChat, rememberResearch],
   )
 
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>

@@ -10,6 +10,7 @@ import { hiringIcon, SELECTED_COLOR, siteIcon } from './mapMarkers'
 import type { Bounds } from '../features/agent/types'
 import { normalizeBounds } from '../features/agent/mapBounds'
 import { cameraPadding, companyLocation } from './mapCamera'
+import type { MarkerLocation } from './mapNavigation'
 
 const COUNTRY_CENTER: L.LatLngExpression = [62, 95]
 export type LeafletConnection = {
@@ -17,15 +18,17 @@ export type LeafletConnection = {
 }
 
 /** The fallback map when 2GIS is unavailable: OpenStreetMap tiles, the same sites and hiring places. */
-export default function LeafletMap({ points, sites, selectedId, colorOf, onSelect, onBoundsChange, connections, focusNetwork, onRelationSelect }: {
+export default function LeafletMap({ points, sites, selectedId, selectedMarker, colorOf, onSelect, onBoundsChange, connections, focusNetwork, focusHiring = false, onRelationSelect }: {
   points: ApiMapPoint[]
   sites: ApiMapSite[]
   selectedId?: number
+  selectedMarker?: MarkerLocation
   colorOf: (employerId: number) => string
-  onSelect: (employerId: number) => void
+  onSelect: (employerId: number, marker: MarkerLocation) => void
   onBoundsChange?: (bounds: Bounds) => void
   connections: LeafletConnection[]
   focusNetwork: boolean
+  focusHiring?: boolean
   onRelationSelect: (index: number) => void
 }) {
   const container = useRef<HTMLDivElement>(null)
@@ -69,7 +72,7 @@ export default function LeafletMap({ points, sites, selectedId, colorOf, onSelec
       const size = selected ? 24 : 18
       const icon = L.icon({ iconUrl: hiringIcon(selected ? SELECTED_COLOR : undefined), iconSize: [size, size], iconAnchor: [size / 2, size / 2] })
       const marker = L.marker([p.lat, p.lng], { icon, zIndexOffset: selected ? 900 : 0, title: p.locality ?? undefined })
-      marker.on('click', () => onSelect(p.employer_id))
+      marker.on('click', () => onSelect(p.employer_id, p))
       group.addLayer(marker)
     }
     for (const s of sites) {
@@ -80,7 +83,7 @@ export default function LeafletMap({ points, sites, selectedId, colorOf, onSelec
         iconAnchor: selected ? [20, 50] : [16, 40],
       })
       const marker = L.marker([s.lat, s.lng], { icon, zIndexOffset: selected ? 1000 : 100, title: s.name ?? s.address })
-      marker.on('click', () => onSelect(s.employer_id))
+      marker.on('click', () => onSelect(s.employer_id, s))
       group.addLayer(marker)
     }
     map.addLayer(group)
@@ -94,7 +97,7 @@ export default function LeafletMap({ points, sites, selectedId, colorOf, onSelec
     const slot = container.current?.parentElement
     if (!map || !slot) return
     const frame = () => {
-      const selected = !focusNetwork ? companyLocation(points, sites, selectedId) : undefined
+      const selected = focusHiring ? undefined : selectedMarker ?? (!focusNetwork ? companyLocation(points, sites, selectedId) : undefined)
       const shown = selected ? [selected] : [...points, ...sites]
       const padding = cameraPadding(slot)
       if (shown.length) map.fitBounds(L.latLngBounds(shown.map(p => [p.lat, p.lng])), {
@@ -109,7 +112,7 @@ export default function LeafletMap({ points, sites, selectedId, colorOf, onSelec
     const card = slot.querySelector('.map-pop')
     if (card) resize.observe(card)
     return () => resize.disconnect()
-  }, [points, sites, selectedId, focusNetwork])
+  }, [points, sites, selectedId, selectedMarker, focusNetwork, focusHiring])
 
   useEffect(() => {
     const map = mapRef.current

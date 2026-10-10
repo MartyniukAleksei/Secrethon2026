@@ -9,6 +9,7 @@ from app.repository.vacancies import VacancyFilter
 GROUPS = {
     "summary": ("(1::integer)", "'Уся вибірка'::text"),
     "company": ("v.card_id", "coalesce(ep.name, v.employer_name, 'Невідомо')"),
+    "profession": ("v.title", "coalesce(v.title, 'Назва вакансії не вказана')"),
     "region": ("v.region_id", "coalesce(r.name, 'Регіон не вказано')"),
     "category": ("v.category", "coalesce(v.category, 'Напрям не вказано')"),
     "month": (

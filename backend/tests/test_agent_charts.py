@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.pool import NullPool
+from test_agent import response
 
 from app.api import agent
 from app.api.agent import ChatIn, Context, Run, ToolArgs
@@ -67,33 +68,16 @@ def test_all_analytics_views_use_the_same_deduplicated_database_snapshot(client,
                     agent,
                     "post_json",
                     AsyncMock(
-                        return_value={
-                            "candidates": [
-                                {
-                                    "content": {
-                                        "role": "model",
-                                        "parts": [
-                                            {
-                                                "functionCall": {
-                                                    "name": "finish",
-                                                    "args": {
-                                                        "text": summary_text,
-                                                        "artifact_ids": list(run.artifacts),
-                                                        "sections": [
-                                                            {
-                                                                "kind": "database",
-                                                                "text": summary_text,
-                                                                "source_ids": ["s1"],
-                                                            }
-                                                        ],
-                                                    },
-                                                },
-                                            }
-                                        ],
-                                    }
-                                }
-                            ],
-                        }
+                        return_value=response(
+                            "finish",
+                            {
+                                "text": summary_text,
+                                "artifact_ids": list(run.artifacts),
+                                "sections": [
+                                    {"kind": "database", "text": summary_text, "source_ids": ["s1"]}
+                                ],
+                            },
+                        )
                     ),
                 )
                 answer = await agent.answer(ChatIn(message="Уся аналітика"), session)

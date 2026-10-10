@@ -105,7 +105,7 @@ export function AgentAnswer({ response }: { response: AgentResponse }) {
       if (!section && !items.length) return null
       return <section className={`ag-evidence-section ag-origin-${kind}`} key={kind}>
         <b className="ag-section-title">{labels[kind]}</b>
-        {kind === 'public_web' && <small className="ag-origin-note">Зовнішні матеріали. Збіг підприємства та зміст джерела потребують окремої перевірки.</small>}
+        {kind === 'public_web' && <small className="ag-origin-note">Зовнішні матеріали. Статус перевірки вказано біля кожного джерела.</small>}
         {section && renderText(section.text)}
         {section && !!section.source_ids.length && <div className="ag-inline-evidence">{section.source_ids.filter(id => sources.has(id)).map(id => {
           const entry = sources.get(id)!
@@ -115,11 +115,11 @@ export function AgentAnswer({ response }: { response: AgentResponse }) {
       </section>
     }) : <>{renderText(response.text)}{renderArtifacts(response.artifacts)}</>}
     {!!response.actions?.length && <div className="ag-actions">{response.actions.map((action, i) => <Link key={i} className="btn btn-sm" to={action.kind === 'show_companies' ? `/map?agent_ids=${action.employer_ids.join(',')}` : `/map?co=${action.employer_id}&layers=supplier,parent&network=1`}>{action.kind === 'show_companies' ? 'Показати підприємства на карті' : 'Показати зв’язки на карті'}</Link>)}<small>Відкриє карту з поточної відповіді.</small></div>}
-    {response.map_action && byId[response.map_action.employer_id] && <div className="ag-actions"><Link className="btn btn-sm" to={mapActionHref(response.map_action)}>{response.map_action.kind === 'show_relations' ? 'Відкрити зв’язки цього підприємства' : 'Наблизити підприємство на карті'}</Link></div>}
+    {response.map_action && byId[response.map_action.employer_id] && <div className="ag-actions"><Link className="btn btn-sm" to={mapActionHref(response.map_action)}>{response.map_action.kind === 'show_hiring_places' ? 'Показати місця найму на карті' : response.map_action.kind === 'show_relations' ? 'Відкрити зв’язки цього підприємства' : 'Наблизити підприємство на карті'}</Link></div>}
     {!!visibleSources.length && <section className="ag-evidence" aria-label="Джерела відповіді">
       <h3>Джерела та матеріали</h3><ol>{visibleSources.map(source => {
         const entry = sources.get(source.id)!
-        return <li key={source.id} id={entry.anchor} tabIndex={-1}><div><SourceLink source={source} /><span className="ag-source-site">{site(source.url) ?? 'Джерело'}</span>{source.origin && <small>{labels[source.origin]}</small>}{source.published_at && <time dateTime={source.published_at}>{date(source.published_at)}</time>}{source.retrieved_at && <small>Отримано {date(source.retrieved_at)}</small>}{source.excerpt && <details><summary>Використаний фрагмент</summary><p>{source.excerpt}</p></details>}</div></li>
+        return <li key={source.id} id={entry.anchor} tabIndex={-1}><div><SourceLink source={source} /><span className="ag-source-site">{site(source.url) ?? 'Джерело'}</span>{source.origin && <small>{labels[source.origin]}</small>}{source.origin === 'public_web' && <small>{source.verification === 'user_verified' ? 'Перевірено користувачем' : 'Не перевірено'}</small>}{source.published_at && <time dateTime={source.published_at}>{date(source.published_at)}</time>}{source.retrieved_at && <small>Отримано {date(source.retrieved_at)}</small>}{source.excerpt && <details><summary>Використаний фрагмент</summary><p>{source.excerpt}</p></details>}</div></li>
       })}</ol>
     </section>}
     {response.as_of && <small className="ag-snapshot">Дані бази станом на {date(response.as_of)}</small>}

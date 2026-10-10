@@ -85,14 +85,16 @@ async def list_reviews(session: AsyncSession, vacancy_id: int) -> list[dict[str,
     return [dict(row) for row in result.mappings()]
 
 
-async def _insert(statement: str, values: dict[str, Any]) -> dict[str, Any]:
+async def _insert(
+    statement: str, values: dict[str, Any], *, extra_ddl: list[str] | None = None
+) -> dict[str, Any]:
     # Schema creation is transactional and serialized within the service. It runs only
     # when someone explicitly saves a review, using a separate write connection.
     async with _schema_lock:
         async with engine.begin() as conn:
             # The advisory lock also serializes first saves across workers/replicas.
             await conn.execute(text("SELECT pg_advisory_xact_lock(20261006, 1)"))
-            for ddl in DDL:
+            for ddl in [*DDL, *(extra_ddl or [])]:
                 await conn.execute(text(ddl))
             result = await conn.execute(text(statement), values)
             return dict(result.mappings().one())

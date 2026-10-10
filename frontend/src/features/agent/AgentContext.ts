@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import type { AgentTarget, MapView, WebPermission } from './types'
+import type { Research } from './research'
 
 export type AgentAction = { label: string; to: string }
 
@@ -18,6 +19,7 @@ export type AgentState = {
   webPermission: WebPermission | null
   chooseWebAccess: (access: 'allowed' | 'db_only') => void
   startNewChat: () => void
+  rememberResearch: (record: Research) => void
   open: () => void
   close: () => void
   toggle: () => void

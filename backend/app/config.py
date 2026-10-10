@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -29,6 +30,18 @@ class Settings(BaseSettings):
     )
     gpt_model: str = "gpt-6-luna"
     agent_enabled: bool = True
+    rag_enabled: bool = True
+    rag_provider: Literal["local", "openai"] = "openai"
+    rag_embedding_model: str = "text-embedding-3-large"
+    rag_dimensions: int = Field(default=1024, ge=1, le=2000)
+    embedding_base_url: str = "https://api.openai.com/v1"
+    embedding_api_key: str = ""
+    rag_cache_dir: str = str(Path(__file__).resolve().parents[1] / ".cache/rag")
+    rag_local_model_file: str = "onnx/model_qint8_avx512_vnni.onnx"
+    rag_threads: int = Field(default=2, ge=1, le=8)
+    rag_top_k: int = Field(default=4, ge=1, le=8)
+    rag_min_similarity: float | None = Field(default=None, ge=0, le=1)
+    rag_context_bytes: int = Field(default=3600, ge=1000, le=8000)
     mcp_enabled: bool = True
     mcp_api_key: str = ""
     mcp_public_url: str = ""

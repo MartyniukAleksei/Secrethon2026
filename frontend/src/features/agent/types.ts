@@ -11,7 +11,7 @@ export type ScopeTotals = { employers: number; vacancies: number; salary_samples
 export type AgentSource = { id: string; title: string; url: string; published_at?: string | null; origin?: 'database' | 'public_web'; retrieved_at?: string; excerpt?: string | null; verification?: string }
 export type AgentSection = { kind: 'database' | 'public_web' | 'analysis'; text: string; source_ids: string[] }
 export type ResultAction = { kind: 'show_companies'; employer_ids: number[] } | { kind: 'show_relations'; employer_id: number }
-export type MapAction = { kind: 'focus_company' | 'show_relations'; employer_id: number }
+export type MapAction = { kind: 'focus_company' | 'show_relations' | 'show_hiring_places'; employer_id: number; employer_ids?: number[]; places?: { employer_id: number; lat: number; lng: number }[] }
 export type AgentRow = {
   id: string | number | null; label: string; value: number | null; vacancies: number; salary_samples: number; source_id?: string
   domain?: string; median_salary?: number | null; recent_30d?: number; share?: number; trend?: number[]
@@ -30,7 +30,7 @@ export type AgentArtifact = DataArtifact | MentionsArtifact | RelationsArtifact
 export type WebAccess = 'ask' | 'allowed' | 'db_only'
 export type WebPermission = { company: string; days: number }
 export type AgentResponse = { text: string; sources: AgentSource[]; artifacts: AgentArtifact[]; as_of: string | null; tools_used: string[]; sections?: AgentSection[]; actions?: ResultAction[]; map_action?: MapAction | null; context?: AgentPageContext; scope_totals?: ScopeTotals | null; evidence?: unknown[]; generated_at?: string; web_permission?: WebPermission }
-export type AgentRequest = { message: string; history: { role: 'user' | 'assistant'; text: string }[]; context: AgentPageContext; web_access?: WebAccess }
+export type AgentRequest = { message: string; history: { role: 'user' | 'assistant'; text: string }[]; context: AgentPageContext; web_access?: WebAccess; approved_context?: string[] }
 
 export async function sendAgentRequest(payload: AgentRequest, signal: AbortSignal): Promise<AgentResponse> {
   const response = await fetch('/api/agent/chat', {

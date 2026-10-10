@@ -17,7 +17,7 @@ import './MapSlot.css'
 import type { Bounds, MapView } from '../features/agent/types'
 import { insideBounds, normalizeBounds } from '../features/agent/mapBounds'
 import { useAgent } from '../features/agent/AgentContext'
-import { mapExtras } from './mapNavigation'
+import { hiringLocations, mapExtras, markerLocation, type MarkerLocation } from './mapNavigation'
 import type { LeafletConnection } from './LeafletMap'
 import { cameraPadding, companyLocation } from './mapCamera'
 
@@ -33,7 +33,9 @@ const COUNTRY_CENTER = [95, 62]
 const CLUSTER_OFF_ZOOM = 15
 const CLUSTER_COLOR = HIRING_COLOR
 const SITE_CLUSTER_COLOR = '#334155'
-const clusterIcon = (color: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" fill="${color}" fill-opacity=".9" stroke="white" stroke-width="3"/></svg>`)}`
+// Keep the count inside the icon: separate MapGL labels can remain visible when
+// the clusterer hides cached markers during zooming and overlap the new count.
+const clusterIcon = (color: string, count: number) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" fill="${color}" fill-opacity=".9" stroke="white" stroke-width="3"/><text x="22" y="22" dy=".35em" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="${String(count).length > 3 ? 11 : 14}">${count}</text></svg>`)}`
 type Spot = { employer_id: number; lat: number; lng: number }
 type Place = { lng: number; lat: number; ids: number[] }
 /** Places at (almost) one spot, ~10 m: one marker that lists every employer there. */
@@ -96,6 +98,8 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
   const navigate = useNavigate()
   const filters = useFilters()
   const [params] = useSearchParams()
+  const selectedMarker = useMemo(() => markerLocation(params, selectedId), [params, selectedId])
+  const requestedHiring = useMemo(() => hiringLocations(params), [params])
   const initialLayers = params.get('layers')?.split(',') ?? []
   const say = useToast()
   const root = useRef<HTMLDivElement>(null)
@@ -108,6 +112,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
   const [attempt, setAttempt] = useState(0)
   const [mode, setMode] = useState<'2d' | '3d'>('2d')
   const [showMarkers, setShowMarkers] = useState(true)
+  useEffect(() => { if (requestedHiring.length) setShowMarkers(true) }, [requestedHiring])
   const [showSites, setShowSites] = useState(true)
   const [showSupply, setShowSupply] = useState(() => initialLayers.includes('supplier'))
   const [showHoldings, setShowHoldings] = useState(() => initialLayers.includes('parent'))
@@ -118,7 +123,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
   // Only the selected company's holdings and/or supply chains (all the links, step by step).
   const [focusKinds, setFocusKinds] = useState(() => ({ parent: params.get('network') === '1' && initialLayers.includes('parent'), supplier: params.get('network') === '1' && initialLayers.includes('supplier'), other: params.get('network') === '1' && params.get('network_other') === '1' }))
-  const [placeList, setPlaceList] = useState<number[] | null>(null)
+  const [placeList, setPlaceList] = useState<Place | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [theme, setTheme] = useState(document.documentElement.className)
   const pointsState = useApi(`map-points:${attempt}`, api.mapPoints)
@@ -142,7 +147,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     return counts
   }, [filtered, filteredSites, byId])
   const selectedCompany = selectedId != null ? byId[selectedId]?.gur_company_id ?? null : null
-  const focusing = selectedId != null && (focusKinds.parent || focusKinds.supplier || focusKinds.other)
+  const focusing = !requestedHiring.length && selectedId != null && (focusKinds.parent || focusKinds.supplier || focusKinds.other)
   // The companies linked to the selected one by the chosen kinds, directly or through others.
   const focus = useMemo(() => {
     if (!focusing || selectedCompany == null) return null
@@ -171,8 +176,9 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     }
     return filteredAll.filter((p) => !hiddenCategories.size || !hiddenCategories.has(byId[p.employer_id] ? categoryKey(byId[p.employer_id]) : 'none'))
   }, [focusing, focus, hiddenCategories, byId, selectedId])
-  const points = useMemo(() => shown(allPoints, filtered), [shown, allPoints, filtered])
-  const sites = useMemo(() => shown(allSites, filteredSites), [shown, allSites, filteredSites])
+  const hiringFocus = requestedHiring.length > 0
+  const points = useMemo(() => hiringFocus ? allPoints.filter(p => requestedHiring.some(q => q.employer_id === p.employer_id && q.lat === p.lat && q.lng === p.lng)) : shown(allPoints, filtered), [shown, allPoints, filtered, requestedHiring, hiringFocus])
+  const sites = useMemo(() => hiringFocus ? [] : shown(allSites, filteredSites), [shown, allSites, filteredSites, hiringFocus])
   const located = new Set([...(showMarkers ? points : []), ...(showSites ? sites : [])].map((p) => p.employer_id)).size
   const vacancies = points.reduce((sum, point) => sum + point.vacancies, 0)
   // One spot per company for relation lines: its head office by the register, else the
@@ -238,6 +244,8 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     if (!API_KEY || !container.current) return
     let cancelled = false
     let map: MapGL | undefined
+    let sizeObserver: ResizeObserver | undefined
+    let resizeFrame = 0
     setError('')
     setEngine(null)
     const timer = setTimeout(() => {
@@ -247,13 +255,24 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
       if (cancelled || !container.current) return
       map = new sdk.Map(container.current, {
         key: API_KEY, center: COUNTRY_CENTER, zoom: 3, zoomControl: false, enableTrackResize: true,
+        loopWorld: true,
       })
       mapRef.current = map
+      const resizeMap = () => {
+        cancelAnimationFrame(resizeFrame)
+        resizeFrame = requestAnimationFrame(() => map?.invalidateSize())
+      }
+      // Grid/panel changes can resize the container without a window resize.
+      // Update the renderer as soon as layout settles, including during loading.
+      sizeObserver = new ResizeObserver(resizeMap)
+      sizeObserver.observe(container.current)
+      resizeMap()
       map.on('error', () => {
         if (!cancelled) setError('Не вдалося завантажити карту 2ГІС. Перевірте доступ і ключ API.')
       })
       map.on('styleload', () => {
         clearTimeout(timer)
+        resizeMap()
         if (!cancelled) { setError(''); setEngine(sdk) }
       })
     }).catch(() => {
@@ -263,6 +282,8 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     return () => {
       cancelled = true
       clearTimeout(timer)
+      sizeObserver?.disconnect()
+      cancelAnimationFrame(resizeFrame)
       map?.destroy()
       mapRef.current = null
     }
@@ -282,11 +303,11 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     const clusterer = new Clusterer(map, {
       radius: 55,
       disableClusteringAtZoom: CLUSTER_OFF_ZOOM,
-      clusterStyle: { icon: clusterIcon(CLUSTER_COLOR), size: [44, 44], labelColor: '#ffffff', labelFontSize: 14 },
+      clusterStyle: (count) => ({ icon: clusterIcon(CLUSTER_COLOR, count), size: [44, 44], labelText: '' }),
     })
     clusterer.load(places(points).map((place) => ({
       coordinates: [place.lng, place.lat],
-      icon: hiringIcon(), size: [18, 18], anchor: [9, 9], userData: place.ids,
+      icon: hiringIcon(), size: [18, 18], anchor: [9, 9], userData: place,
       ...(place.ids.length > 1 ? { label: { text: String(place.ids.length), color: '#ffffff', fontSize: 11, offset: [0, -16], haloRadius: 1, haloColor: '#1c1f19' } } : {}),
     })))
     clusterer.on('click', (event) => {
@@ -296,9 +317,9 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
         map.setCenter(event.lngLat)
         map.setZoom(zoom)
       } else {
-        const ids: number[] = event.target.data.userData
-        if (ids.length === 1) navigate(filters.href('/map', mapExtras(params, ids[0])))
-        else setPlaceList(ids)
+        const place: Place = event.target.data.userData
+        if (place.ids.length === 1) navigate(filters.href('/map', mapExtras(params, place.ids[0], place)))
+        else setPlaceList(place)
       }
     })
     return () => clusterer.destroy()
@@ -310,7 +331,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     const clusterer = new Clusterer(map, {
       radius: 55,
       disableClusteringAtZoom: CLUSTER_OFF_ZOOM,
-      clusterStyle: { icon: clusterIcon(SITE_CLUSTER_COLOR), size: [44, 44], labelColor: '#ffffff', labelFontSize: 14 },
+      clusterStyle: (count) => ({ icon: clusterIcon(SITE_CLUSTER_COLOR, count), size: [44, 44], labelText: '' }),
     })
     // Several sites at one spot: the first one's kind draws the pin (head offices come first).
     const kindAt = new Map<string, ApiMapSite['kind']>()
@@ -320,7 +341,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
       return {
         coordinates: [place.lng, place.lat],
         icon: siteIcon(markerColor(byId[place.ids[0]] ? effectiveCategory(byId[place.ids[0]]) : null), kind),
-        size: [32, 40], anchor: [16, 40], userData: place.ids, zIndex: 2,
+        size: [32, 40], anchor: [16, 40], userData: place, zIndex: 2,
         ...(place.ids.length > 1 ? { label: { text: String(place.ids.length), color: '#ffffff', fontSize: 11, offset: [0, -24], haloRadius: 1, haloColor: '#1c1f19' } } : {}),
       }
     }))
@@ -330,9 +351,9 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
         map.setCenter(event.lngLat)
         map.setZoom(zoom)
       } else {
-        const ids: number[] = event.target.data.userData
-        if (ids.length === 1) navigate(filters.href('/map', mapExtras(params, ids[0])))
-        else setPlaceList(ids)
+        const place: Place = event.target.data.userData
+        if (place.ids.length === 1) navigate(filters.href('/map', mapExtras(params, place.ids[0], place)))
+        else setPlaceList(place)
       }
     })
     return () => clusterer.destroy()
@@ -391,7 +412,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     const map = mapRef.current
     if (!engine || !map) return
     const frame = () => {
-      const selected = !focusing ? companyLocation(points, sites, selectedId) : undefined
+      const selected = hiringFocus ? undefined : selectedMarker ?? (!focusing ? companyLocation(points, sites, selectedId) : undefined)
       const padding = root.current ? cameraPadding(root.current) : { top: 80, bottom: 100, left: 50, right: 50 }
       map.setPadding(selected ? padding : { top: 0, bottom: 0, left: 0, right: 0 }, { duration: 0 })
       if (selected) {
@@ -406,7 +427,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
     const card = root.current?.querySelector('.map-pop')
     if (card) resize.observe(card)
     return () => resize.disconnect()
-  }, [engine, selectedId, points, sites, focusing])
+  }, [engine, selectedId, selectedMarker, points, sites, focusing, hiringFocus])
 
   useEffect(() => {
     pitch.current = mode === '3d' ? 45 : 0
@@ -426,7 +447,8 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
         coordinates: [s.lng, s.lat], icon: siteIcon(SELECTED_COLOR, s.kind), size: [40, 50], anchor: [20, 50], zIndex: 10,
       })),
     ]
-    markers.forEach((marker) => marker.on('click', () => navigate(filters.href('/map', mapExtras(params, selectedId)))))
+    const locations = [...hiring, ...own]
+    markers.forEach((marker, index) => marker.on('click', () => navigate(filters.href('/map', mapExtras(params, selectedId, locations[index])))))
     return () => markers.forEach((marker) => marker.destroy())
   }, [engine, selectedId, points, sites, showMarkers, showSites, navigate, filters, params])
 
@@ -457,7 +479,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
   // Without 2GIS (no key, an error or no answer in 15 s) the same places go on OpenStreetMap.
   const fallback = !API_KEY || !!error
   const colorOf = useCallback((id: number) => markerColor(byId[id] ? effectiveCategory(byId[id]) : null), [byId])
-  const select = useCallback((id: number) => navigate(filters.href('/map', mapExtras(params, id))), [navigate, filters, params])
+  const select = useCallback((id: number, marker: MarkerLocation) => navigate(filters.href('/map', mapExtras(params, id, marker))), [navigate, filters, params])
   const status = fallback ? '' : !engine ? 'Завантаження карти 2ГІС…' : ''
   const selectedMissing = selectedId !== undefined && ![...points, ...sites].some((p) => p.employer_id === selectedId)
   return (
@@ -465,7 +487,7 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
       <div className="map-canvas" ref={container} aria-label="Карта місць найму на базі 2ГІС" />
       {fallback && (
         <Suspense fallback={null}>
-          <LeafletMap points={showMarkers ? points : EMPTY} sites={showSites ? sites : EMPTY_SITES} selectedId={selectedId} colorOf={colorOf} onSelect={select} onBoundsChange={onBoundsChange} connections={leafletConnections} focusNetwork={focusing} onRelationSelect={selectLeafletRelation} />
+          <LeafletMap points={showMarkers || hiringFocus ? points : EMPTY} sites={showSites ? sites : EMPTY_SITES} selectedId={selectedId} selectedMarker={selectedMarker} colorOf={colorOf} onSelect={select} onBoundsChange={onBoundsChange} connections={leafletConnections} focusNetwork={focusing} focusHiring={hiringFocus} onRelationSelect={selectLeafletRelation} />
         </Suspense>
       )}
       <div className="map-tl">
@@ -618,10 +640,10 @@ export function MapSlot({ employers, selectedId, children, onContextChange, sear
       </div>}
       {placeList && (
         <div className="map-link-pop" role="dialog" aria-label="Роботодавці в одній точці">
-          <div className="map-link-head"><strong>В одній точці: {placeList.length}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити" onClick={() => setPlaceList(null)}><Icon name="x" /></button></div>
+          <div className="map-link-head"><strong>В одній точці: {placeList.ids.length}</strong><button type="button" className="btn btn-icon btn-sm" aria-label="Закрити" onClick={() => setPlaceList(null)}><Icon name="x" /></button></div>
           <div className="map-place-list">
-            {placeList.map((id) => byId[id] && (
-              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(filters.href('/map', mapExtras(params, id))) }}>
+            {placeList.ids.map((id) => byId[id] && (
+              <button key={id} type="button" onClick={() => { setPlaceList(null); navigate(filters.href('/map', mapExtras(params, id, placeList))) }}>
                 <img className="map-legend-pin" src={siteIcon(markerColor(effectiveCategory(byId[id])), 'head_office')} alt="" />
                 <span>{byId[id].name}</span>
               </button>

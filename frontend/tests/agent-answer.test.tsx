@@ -5,11 +5,29 @@ import { MemoryRouter } from 'react-router'
 import { AgentAnswer } from '../src/features/agent/AgentAnswer'
 import { AgentChart } from '../src/features/agent/AgentCharts'
 import type { AgentResponse, DataArtifact } from '../src/features/agent/types'
+import { mapActionHref } from '../src/features/agent/mapActions'
+import { hiringLocations } from '../src/components/mapNavigation'
+
+test('hiring map route preserves several places and rejects invalid coordinates', () => {
+  const places = [{ employer_id: 1, lat: 55, lng: 37 }, { employer_id: 2, lat: 56, lng: 38 }]
+  const route = mapActionHref({ kind: 'show_hiring_places', employer_id: 1, employer_ids: [1, 2], places })
+  assert.deepEqual(hiringLocations(new URL(route, 'https://example.com').searchParams), places)
+  assert.deepEqual(hiringLocations(new URLSearchParams({ hiring_places: '[{"employer_id":1,"lat":999,"lng":37}]' })), [])
+})
 
 const sources = [{ id: 's1', title: 'Картка підприємства', url: '/companies/1' }, { id: 's8', title: 'Офіційний реєстр', url: 'https://www.example.com/registry' }]
 const base: AgentResponse = { text: '', sources, artifacts: [], as_of: '2026-10-05T12:00:00Z', tools_used: [] }
 const artifact: DataArtifact = { id: 'a1', kind: 'bar', title: 'Найм', unit: 'вакансій', rows: [{ id: 1, label: 'Підприємство', value: 4, median_salary: 75000, vacancies: 4, salary_samples: 2, recent_30d: 3, share: 100, lower: 60000, upper: 80000, trend: [0, 0, 1, 1, 0, 2], domain: 'uav' }], scope: { days: 0, as_of: base.as_of, active_only: true, category: null, region_id: null } }
 const render = (response: AgentResponse) => renderToStaticMarkup(<MemoryRouter><AgentAnswer response={response} /></MemoryRouter>)
+
+test('saved web sources show their explicit user verification status', () => {
+  const html = render({ ...base, text: '[s1] [s8]', sources: [
+    { ...sources[0], url: 'https://example.com/news', origin: 'public_web', verification: 'user_verified' },
+    { ...sources[1], origin: 'public_web', verification: 'unverified' },
+  ] })
+  assert.match(html, /Перевірено користувачем/)
+  assert.match(html, /Не перевірено/)
+})
 
 test('structured Markdown and grouped citations point to the final named sources', () => {
   const html = render({ ...base, text: '## Санкції та найм\n\n**4 вакансії** [s1, s8].\n\n- Підтверджені дані\n- Обмеження вибірки' })

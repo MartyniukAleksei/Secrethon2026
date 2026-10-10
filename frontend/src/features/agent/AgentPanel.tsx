@@ -92,7 +92,7 @@ export function AgentPanel({ fullscreen, onToggleFullscreen, onClose }: Props) {
           <Icon name="spark" />
           {tab === 'chat' ? 'Агент' : 'Збережені дослідження'}
         </b>
-        <span className="ag-subtitle">{tab === 'chat' ? 'Відповідає з наших даних і показує джерела' : 'Схвалені відповіді та джерела на цьому пристрої'}</span>
+        <span className="ag-subtitle">{tab === 'chat' ? 'Відповідає з наших даних і показує джерела' : 'Схвалені відповіді та джерела з БД і цього пристрою'}</span>
         <div className="ag-head-actions">
         <button className="btn btn-ghost btn-sm ag-new-chat" type="button" title="Почати новий чат" onClick={newChat}>Новий чат</button>
         <button className="btn btn-ghost btn-icon btn-sm" type="button" aria-label={tab === 'chat' ? 'Збережені дослідження' : 'Повернутися до чату'} title={tab === 'chat' ? 'Збережені дослідження' : 'Повернутися до чату'} onClick={() => setTab(tab === 'chat' ? 'research' : 'chat')}>

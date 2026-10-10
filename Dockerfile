@@ -23,6 +23,7 @@ COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/app ./app
+COPY backend/scripts ./scripts
 COPY --from=frontend /frontend/dist ./static
 
 # Railway provides $PORT

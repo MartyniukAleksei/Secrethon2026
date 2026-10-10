@@ -1,4 +1,5 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock
 
 from test_agent import response
@@ -49,7 +50,7 @@ def test_default_request_pauses_before_tavily_and_does_not_consume_web_budget(mo
     assert result["web_permission"] == {"company": "Перевірене підприємство", "days": 7}
     assert result["sources"] == [] and result["map_action"] is None
     assert provider.await_count == 1
-    assert provider.call_args.args[3] == "Gemini"
+    assert provider.call_args.args[3] == "GPT"
 
     async def direct_tool():
         run = agent.Run(None, agent.Context())
@@ -81,12 +82,10 @@ def test_database_only_blocks_even_a_model_attempt_and_removes_web_tool(monkeypa
     assert result["sources"] == []
     agent.employers.get_employer.assert_not_awaited()
     for call in provider.call_args_list:
-        assert call.args[3] == "Gemini"
-        assert "search_mentions" not in {
-            t["name"] for t in call.args[1]["tools"][0]["functionDeclarations"]
-        }
-    replies = provider.call_args_list[1].args[1]["contents"][2]["parts"]
-    assert "database only" in replies[0]["functionResponse"]["response"]["error"]
+        assert call.args[3] == "GPT"
+        assert "search_mentions" not in {t["function"]["name"] for t in call.args[1]["tools"]}
+    replies = provider.call_args_list[1].args[1]["messages"][3:]
+    assert "database only" in json.loads(replies[0]["content"])["error"]
 
 
 def test_permission_allows_tavily_with_preserved_provenance(monkeypatch):
@@ -115,7 +114,7 @@ def test_permission_allows_tavily_with_preserved_provenance(monkeypatch):
         agent.answer(agent.ChatIn(message="Знайди новини", web_access="allowed"), None)
     )
     assert "web_permission" not in result
-    assert [call.args[3] for call in provider.call_args_list] == ["Gemini", "Tavily", "Gemini"]
+    assert [call.args[3] for call in provider.call_args_list] == ["GPT", "Tavily", "GPT"]
     assert result["sections"][0]["kind"] == "public_web"
     assert result["sources"][1]["origin"] == "public_web"
     assert result["sources"][1]["excerpt"] == "Заява"

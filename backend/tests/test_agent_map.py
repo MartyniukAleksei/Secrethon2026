@@ -335,6 +335,81 @@ def test_tool_loop_returns_verified_map_command(monkeypatch):
 
 
 @pytest.mark.parametrize(
+    ("page", "referenced", "has_coordinates", "expected"),
+    [
+        ("map", [41], True, {"kind": "focus_company", "employer_id": 41}),
+        ("map", [41, 99], True, None),
+        ("map", [], True, None),
+        ("map", [41], False, None),
+        ("other", [41], True, None),
+    ],
+)
+def test_named_company_focuses_map_when_model_omits_command(
+    monkeypatch, page, referenced, has_coordinates, expected
+):
+    from test_agent import response
+
+    async def scenario():
+        original = agent.Run.tool
+
+        async def tools(run, name, raw):
+            if name == "company_profile":
+                # The currently selected company and last inspected profile differ
+                # from the company cited in the answer.
+                run.profiles = {41: {"id": 41, "name": "Алабуга"}, 99: {"id": 99, "name": "Інша"}}
+                run.profile_id = 99
+                for ident, profile in run.profiles.items():
+                    run.source(profile["name"], f"/companies/{ident}")
+                return {"profile": run.profiles[41]}
+            return await original(run, name, raw)
+
+        monkeypatch.setattr(agent.Run, "tool", tools)
+        points = AsyncMock(
+            return_value=[{"employer_id": 41, "lat": 55.8, "lng": 52.1}] if has_coordinates else []
+        )
+        monkeypatch.setattr(agent.employers, "map_points", points)
+        refs = ["s1" if ident == 41 else "s2" for ident in referenced]
+        monkeypatch.setattr(
+            agent,
+            "post_json",
+            AsyncMock(
+                side_effect=[
+                    response("company_profile", {"employer_id": 41}),
+                    response(
+                        "finish",
+                        {
+                            "text": "Відповідь про підприємство",
+                            "sections": [
+                                {
+                                    "kind": "database" if refs else "analysis",
+                                    "text": "Відповідь про підприємство",
+                                    "source_ids": refs,
+                                }
+                            ],
+                        },
+                    ),
+                ]
+            ),
+        )
+        result = await agent.answer(
+            agent.ChatIn(
+                message="Розкажи про Алабугу", context=agent.Context(page=page, company_id=99)
+            ),
+            None,
+        )
+        assert result["map_action"] == expected
+        if expected:
+            assert result["evidence"][-1]["arguments"] == {
+                "employer_id": 41,
+                "map_mode": "focus_company",
+            }
+        if page == "other" or len(referenced) != 1:
+            points.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
     "question",
     [
         "Покажи зв'язки Алабуги",
