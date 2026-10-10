@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { ApiMethodology, ApiStats } from '../api/types'
 import { ClassificationFlow } from '../components/ClassificationFlow'
 import { DiscoveryLog } from '../components/DiscoveryLog'
+import { IMPORTANCE_DEFINITION } from '../components/rating/RatingParts'
 import { useData } from '../data/DataContext'
 import { useApi } from '../data/useApi'
 import { fmt, longDate } from '../domain/format'
@@ -17,6 +18,7 @@ const SECTIONS = [
   ['flow', 'Як класифікуємо'],
   ['classes', 'Класи'],
   ['vacancy-directions', 'Галузі вакансій: JEV і GPT'],
+  ['rating', 'Рейтинг важливості'],
   ['verification', 'Перевірка'],
   ['mcp', 'MCP'],
   ['search', 'Як ми шукали'],
@@ -110,6 +112,14 @@ export function MethodologyPage() {
         <Flow stats={stats} />
         {data ? <Classes data={data} /> : <div className="skeleton method-skeleton" />}
         <VacancyClassificationMethod />
+        <section className="panel" id="rating">
+          <h3>Рейтинг важливості</h3>
+          <p>{IMPORTANCE_DEFINITION}</p>
+          <p className="method-note">
+            Формула, ваги систем, перевірка на зовнішньому еталоні, чутливість і слабкі місця методики — на сторінці{' '}
+            <Link to="/rating?tab=method">«Рейтинг»</Link>.
+          </p>
+        </section>
         {data ? <Verification data={data} /> : <div className="skeleton method-skeleton" />}
         {data ? <Mcp mcp={data.mcp} /> : <div className="skeleton method-skeleton" />}
         <section className="panel" id="search">

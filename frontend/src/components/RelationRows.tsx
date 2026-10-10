@@ -3,7 +3,7 @@ import type { ApiRelation } from '../api/types'
 import { relationName } from '../domain/labels'
 import { CompanyMark } from '../ui/CompanyMark'
 
-/** Companies related to this one in the GUR database. Links to their employer profile when we have one. */
+/** Companies related to this one in the GUR database: their employer card, else the legal entity's page. */
 export function RelationRows({ relations }: { relations: ApiRelation[] }) {
   if (!relations.length) return <p className="empty-row">Зв'язків у базі ГУР не знайдено</p>
   return (
@@ -26,7 +26,7 @@ export function RelationRows({ relations }: { relations: ApiRelation[] }) {
         return r.employer_id != null ? (
           <Link key={key} className="chain-row" to={`/companies/${r.employer_id}`}>{body}</Link>
         ) : (
-          <div key={key} className="chain-row static">{body}</div>
+          <Link key={key} className="chain-row" to={`/enterprises/${r.company_id}`}>{body}</Link>
         )
       })}
     </div>

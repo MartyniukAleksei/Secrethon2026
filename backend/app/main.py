@@ -17,7 +17,7 @@ from app.config import settings
 from app.db import engine
 from app.mcp_server import create_server
 from app.mcp_server import http_app as mcp_http_app
-from app.repository import employers
+from app.repository import employers, rating
 from app.reviews import engine as review_engine
 
 # Built frontend (frontend/dist). In Docker it is copied to /app/static.
@@ -95,6 +95,19 @@ async def company_page(employer_id: str, session: Session, tab: str | None = Non
     )
     if card_id is not None and card_id != int(employer_id):
         return RedirectResponse(f"/companies/{card_id}" + (f"/{tab}" if tab else ""), 301)
+    index = STATIC_DIR / "index.html"
+    if not index.is_file():
+        return Response(status_code=404)
+    return FileResponse(index)
+
+
+@app.get("/enterprises/{company_id}", include_in_schema=False)
+async def enterprise_page(company_id: str, session: Session) -> Response:
+    """A legal entity that has an employer card opens as the card."""
+    if company_id.isdigit() and len(company_id) < 19:
+        url = (await rating.page_urls(session, [int(company_id)])).get(int(company_id))
+        if url and url.startswith("/companies/"):
+            return RedirectResponse(url, 301)
     index = STATIC_DIR / "index.html"
     if not index.is_file():
         return Response(status_code=404)

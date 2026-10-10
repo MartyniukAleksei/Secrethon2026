@@ -119,6 +119,12 @@
   --sector-electronics: #CC79A7;
   --sector-other: #7A7F70;
 
+  /* ---- Категорії рейтингу важливості: БпЛА, ракети, КАБ; оцінка за аналогами ---- */
+  --focus-drone: #D97A1F;
+  --focus-missile: #B8324A;
+  --focus-kab: #3F7F6E;
+  --focus-peer: #8A8780;
+
   /* ---- Графіки і карта ---- */
   --chart-grid: #E3E6DC;
   --chart-axis: var(--label-2);
@@ -167,6 +173,11 @@
   --sector-uav: #3D9BD6;
   --sector-aviation: #A48BDB;
   --sector-other: #9A9F8F;
+
+  --focus-drone: #F0A050;
+  --focus-missile: #E9667E;
+  --focus-kab: #6FC0A9;
+  --focus-peer: #8F8C84;
 
   --chart-grid: #2A2E25;
   --map-land: #171B14;

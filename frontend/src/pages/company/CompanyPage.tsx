@@ -24,6 +24,9 @@ import { RelationsTab } from './RelationsTab'
 import { SourcesTab } from './SourcesTab'
 import { VacanciesTab } from './VacanciesTab'
 import { CompanySites } from './CompanySites'
+import { HiddenAccountsBadge } from '../../components/rating/Finance'
+import { supplyCount } from '../../components/rating/rating'
+import { SupplyChainPanel } from '../../components/rating/SupplyChain'
 import './CompanyPage.css'
 
 export type TabProps = { employer: EmployerDetail }
@@ -33,6 +36,7 @@ const TABS: { id: string; label: string; render: (p: TabProps) => ReactNode }[] 
   { id: 'vacancies', label: 'Вакансії', render: (p) => <VacanciesTab {...p} /> },
   { id: 'analytics', label: 'Аналітика', render: (p) => <AnalyticsTab {...p} /> },
   { id: 'chain', label: "Зв'язки", render: (p) => <RelationsTab {...p} /> },
+  { id: 'supply', label: 'Ланцюг постачання', render: ({ employer }) => <SupplyChainPanel chain={employer.supply_chain} /> },
   {
     id: 'map',
     label: 'На карті',
@@ -146,6 +150,11 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
         </div>
         <div className="prof-employer-badges">
           <EmployerBadgeGroups employer={e} />
+          {e.finance?.disclosure && (
+            <div className="prof-disclosure">
+              <HiddenAccountsBadge status={e.finance.disclosure.status} lastPeriod={e.finance.disclosure.last_period} />
+            </div>
+          )}
         </div>
         <dl className="prof-stats">
           <div className="card"><dt>{shownVacancies(e).label}</dt><dd>{fmt(shownVacancies(e).value)}</dd></div>
@@ -164,6 +173,7 @@ function Profile({ employer: loaded, tab }: { employer: EmployerDetail; tab: (ty
                 <Link key={t.id} className="tab" role="tab" to={`/companies/${e.id}/${t.id}`} aria-selected={t.id === tab.id}>
                   {t.label}
                   {t.id === 'chain' && gur && gur.relations.length > 0 ? ` ${gur.relations.length}` : ''}
+                  {t.id === 'supply' && supplyCount(e.supply_chain) > 0 ? ` ${supplyCount(e.supply_chain)}` : ''}
                 </Link>
               ))}
             </div>

@@ -239,3 +239,93 @@ INSERT INTO judge_review (run_id, item_kind, item_id, stratum, our_label, judge_
   (20, 'company', 570, 'vpk/decided', 'vpk', 'vpk', true, true, 0.95, 'Разработчик вооружения.'),
   (20, 'company', 600, 'vpk/review', 'vpk', 'out', false, false, 0.7, 'Нет фактов о военной продукции.'),
   (20, 'vacancy', 1, 'vpk/company', 'vpk', 'vpk', true, true, 0.9, 'Завод КБП.');
+
+-- Importance rating (run `importance_rating`, migrations 0015–0020). КБП is first by a GUR bill of
+-- materials; «Завод без вакансій» (700) has no employer card and opens as /enterprises/700;
+-- Алабуга is found in texts; ВК is estimated from peers. The older run 30 must not be read.
+INSERT INTO company (company_id, inn, name_full_ru, name_short_ru, country_id, description_uk) VALUES
+  (700, '1800000000', 'АО «ЗАВОД БЕЗ ВАКАНСИЙ»', 'АО «Завод»', 1, 'Виробник радіовисотомірів.');
+INSERT INTO company_section (company_id, section, url_uk)
+VALUES (700, 'components/companies', 'https://war-sanctions.gur.gov.ua/components/companies/77');
+INSERT INTO company_registry (company_id, source, inn, address, fetched_at)
+VALUES (700, 'egrul', '1800000000', 'Удмуртская Респ, г Ижевск', '2026-10-01T00:00:00Z');
+UPDATE company_registry SET ogrn = '1021800000000', status = 'ACTIVE' WHERE company_id = 700;
+INSERT INTO company_site (company_id, kind, source, name, address, region) VALUES
+  (700, 'head_office', 'dadata', 'АО «Завод»', 'г Ижевск, ул Заводская, д 1', 'Удмуртская Респ');
+UPDATE company_site SET region = 'Тульская обл' WHERE company_id = 570 AND kind = 'head_office';
+UPDATE company_site SET region = 'г Москва' WHERE company_id = 570 AND kpp = '772801001';
+
+UPDATE weapon SET name_ru = 'Тестовая ракета', focus = 'missile' WHERE weapon_slug = 'test-weapon';
+INSERT INTO weapon (weapon_slug, url, name_ru, name_uk, focus, segment, lead_company_id) VALUES
+  ('page-geran', 'https://war-sanctions.gur.gov.ua/page-geran', 'Герань-2', 'Герань-2', 'drone', 'long_range', NULL),
+  ('page-umpk', 'https://war-sanctions.gur.gov.ua/page-umpk', 'УМПК', 'УМПК', 'kab', NULL, 570);
+INSERT INTO weapon_part (weapon_slug, part_key, part_kind, name_uk, url) VALUES
+  ('page-umpk', 'part:1', 'part', 'Радіовисотомір А-079', 'https://war-sanctions.gur.gov.ua/components/part/1'),
+  ('page-umpk', 'sub:2', 'subsystem', 'Система керування', NULL);
+INSERT INTO weapon_part_maker (weapon_slug, part_key, role, company_id, maker_name) VALUES
+  ('page-umpk', 'part:1', 'maker', 700, 'АО «Завод»'),
+  ('page-umpk', 'sub:2', 'involved', 570, 'АО «КБП»');
+
+INSERT INTO classifier_run (run_id, classifier, version, params, started_at) VALUES
+  (30, 'importance_rating', 'rating-old', '{}', '2026-10-08T00:00:00Z'),
+  (31, 'supply_extract', 'supply-test', NULL, '2026-10-09T00:00:00Z'),
+  (32, 'importance_rating', 'rating-test', '{
+    "q": 0.86, "runs": 300, "alpha": 0.38, "delta": 0.3, "gamma": 0.4, "frontline_share": 0.5,
+    "link_precision": {"gur": 1.0, "exa": 0.89}, "p_levels": {"vpk/decided": 0.93},
+    "counts": {"ranked": 4, "bom": 2, "evidence": 1, "peer": 1, "structural": 2},
+    "validation": {"spearman_sanction_date": -0.2034, "spearman_n": 3},
+    "systems": [
+      {"system": "page-umpk", "name": "УМПК", "focus": "kab", "segment": null, "weight": 1.0,
+       "parts": 2, "parts_with_maker": 2, "coop": 1, "carriers": ["page-su-34", null]},
+      {"system": "page-su-34", "name": "Су-34", "focus": "carrier", "segment": null, "weight": 0,
+       "parts": 0, "parts_with_maker": 0, "coop": 0, "carriers": null}],
+    "sensitivity": [{"variant": "Сумма по деталям вместо узкого места", "top20": 13, "top50": 38, "top100": 79}],
+    "weaknesses": [{"title": "1. Покрытие", "problem": "Мало спецификаций.", "impact": "Топ — из ГУР.", "action": "Добавлять источники."}],
+    "anchor_notes": {"КБП": "Через кооперацию."},
+    "checks": {
+      "anchors": [{"anchor": "КБП", "company_id": 570, "name": "АО «КБП»", "rank": 1}],
+      "recall": {"Наш рейтинг": {"n": 2, "top50": 2, "top100": 2, "top200": 2, "spearman_sanctions": -0.15}},
+      "external": [{"company_ru": "АО «Завод»", "focus": "kab", "systems": "УМПК", "role": "maker",
+                    "source": "SECO", "source_url": "https://example.com/seco", "company_id": 700, "independent": true}],
+      "judge_supply": {"exa": {"agree": 23, "n": 25}}}}', '2026-10-09T23:00:00Z');
+
+INSERT INTO company_rating (run_id, company_id, rank, score, score_by_focus, rank_med, rank_lo, rank_hi, tier, p_vpk, breakdown) VALUES
+  (30, 522, 1, 0.9, '{}', 1, 1, 1, 'peer', 0.5, '{}'),
+  (32, 570, 1, 0.2086, '{"kab": 0.1334, "missile": 0.0752}', 1, 1, 3, 'bom', NULL,
+   '{"class": "serial_assembly", "n_systems": 1,
+     "shapley": {"base": 0.2014, "confirmation": -0.0024, "scale": 0.0096},
+     "systems": [{"system": "page-umpk", "name": "УМПК", "focus": "kab", "via": "part", "part": "Система керування",
+                  "n_suppliers": 1, "D": 0.77, "value": 0.1334, "weight": 1.0}]}'),
+  (32, 700, 2, 0.1, '{"kab": 0.1}', 2, 1, 4, 'bom', NULL,
+   '{"class": "sole_part", "n_systems": 1, "shapley": {"base": 0.1, "confirmation": 0, "scale": 0},
+     "systems": [{"system": "page-umpk", "name": "УМПК", "focus": "kab", "via": "part", "part": "Радіовисотомір А-079",
+                  "n_suppliers": 1, "D": 0.77, "value": 0.1, "weight": 1.0}]}'),
+  (32, 600, 3, 0.05, '{"drone": 0.05}', 3, 2, 4, 'evidence', NULL,
+   '{"class": "serial_assembly", "n_systems": 1, "shapley": {"base": 0.05, "confirmation": 0, "scale": 0},
+     "systems": [{"system": "page-geran", "name": "Герань-2", "focus": "drone", "via": "assembly", "part": "финальная сборка",
+                  "n_suppliers": 0, "D": 0.5, "value": 0.05, "weight": 1.0}]}'),
+  (32, 522, 4, 0.01, '{}', 4, 3, 4, 'peer', 0.93,
+   '{"peer": {"method": "jev", "g": 0.0104, "scale": 1.03, "p": 0.93, "category_evidence": true,
+              "roles": {"sole_part": 0.4, "part_among_many": 0.45, "serial_assembly": 0.15}},
+     "shapley": {"base": 0, "confirmation": 0, "scale": 0}}');
+INSERT INTO rating_unit (run_id, kind, unit, score, score_by_focus, hhi, members) VALUES
+  (32, 'domain', 'missiles_space', 0.21, '{"kab": 0.13, "missile": 0.08}', 1, 1),
+  (32, 'domain', 'unknown', 0.1, '{"kab": 0.1}', 1, 1),
+  (32, 'region', 'Тульская обл', 0.2, '{"kab": 0.13, "missile": 0.07}', 1, 1),
+  (32, 'region', 'г Москва', 0.01, '{"kab": 0.01}', 1, 1),
+  (32, 'holding', 'АТ "ВК"', 0.21, '{"kab": 0.13, "missile": 0.08}', 1, 1);
+
+INSERT INTO company_supply (run_id, source, company_id, company_name, weapon_slug, system_text, focus, role, part_text, quote, url, verified) VALUES
+  (31, 'exa', 600, 'Алабуга', 'page-geran', 'Герань', 'drone', 'serial_assembly', NULL,
+   'На заводе в Алабуге собирают «Герань-2».', 'https://example.com/geran', true),
+  (31, 'exa', 600, 'Алабуга', NULL, 'беспилотники', 'drone', 'part_supplier', 'корпуса',
+   'Поставляет корпуса для беспилотников.', 'https://example.com/hulls', true),
+  (31, 'exa', 600, 'Алабуга', NULL, NULL, 'drone', 'cooperation', NULL, 'Непроверенная цитата.', NULL, false);
+
+INSERT INTO company_financial (company_id, year, metric, scope, amount, currency, evidence_type, source_url, source) VALUES
+  (600, 2020, 'revenue', 'legal_entity', 840000000, 'RUB', 'official_filing', 'https://bo.nalog.gov.ru/organizations-card/1', 'gir_bo'),
+  (600, 2021, 'revenue', 'legal_entity', 2500000000, 'RUB', 'official_filing', 'https://bo.nalog.gov.ru/organizations-card/1', 'gir_bo'),
+  (600, 2021, 'assets', 'legal_entity', 3100000000, 'RUB', 'official_filing', 'https://bo.nalog.gov.ru/organizations-card/1', 'gir_bo');
+INSERT INTO company_disclosure (company_id, source, inn, status, last_period, checked_at) VALUES
+  (600, 'gir_bo', '1650000000', 'stopped', 2021, '2026-10-09T00:00:00Z'),
+  (570, 'gir_bo', '7105514574', 'not_found', NULL, '2026-10-09T00:00:00Z');

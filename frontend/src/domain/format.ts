@@ -7,6 +7,19 @@ export const pct = (share: number) => `${Math.round(share * 100)}%`
 
 export const money = (rub: number | null | undefined) => (rub == null ? '—' : `${fmt(rub)} ₽`)
 
+/** Rubles in round words: "2,5 млрд ₽", "840 млн ₽", "95 тис. ₽". */
+export function rub(n: number): string {
+  const short = (x: number) => x.toLocaleString('uk-UA', { maximumFractionDigits: x < 10 ? 1 : 0 })
+  if (Math.abs(n) >= 1e9) return `${short(n / 1e9)} млрд ₽`
+  if (Math.abs(n) >= 1e6) return `${short(n / 1e6)} млн ₽`
+  if (Math.abs(n) >= 1e3) return `${short(n / 1e3)} тис. ₽`
+  return `${fmt(n)} ₽`
+}
+
+/** A score or share with fixed decimals, comma as separator: dec(0.20861, 4) → "0,2086". */
+export const dec = (n: number, digits: number) =>
+  n.toLocaleString('uk-UA', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+
 export const moneyK = (rub: number | null | undefined) => (rub == null ? '—' : `${fmt(Math.round(rub / 1000))} тис. ₽`)
 
 const PERIODS: Record<string, string> = { MONTH: 'на місяць', SHIFT: 'за зміну', HOUR: 'за годину', FLY_IN_FLY_OUT: 'за вахту' }

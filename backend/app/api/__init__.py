@@ -1,6 +1,17 @@
 from fastapi import APIRouter
 
-from app.api import agent, discovery, employers, export, health, methodology, stats, vacancies
+from app.api import (
+    agent,
+    discovery,
+    employers,
+    enterprises,
+    export,
+    health,
+    methodology,
+    rating,
+    stats,
+    vacancies,
+)
 
 # Everything under /api; the rest of the paths are served as the SPA (see app/main.py).
 # Endpoints read the pipeline's database read-only; the only writes are human reviews,
@@ -14,3 +25,5 @@ router.include_router(agent.router)
 router.include_router(export.router)
 router.include_router(discovery.router)
 router.include_router(methodology.router)
+router.include_router(rating.router)
+router.include_router(enterprises.router)

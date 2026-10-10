@@ -1,0 +1,10 @@
+/* Сторінка юрособи без картки роботодавця: шапка й блоки картки підприємства без найму. */
+
+.ent-full { color: var(--label-2); font-size: 13.5px; margin-top: 2px; }
+.ent-ids { margin: 8px 8px 0; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); column-gap: 28px; }
+.ent-ids div { border-top: 0; border-bottom: 1px solid var(--stroke); }
+.ent-cls { padding: 8px 14px 6px; }
+.ent-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.ent-body .panel { margin-top: 0 !important; }
+.ent-sub { font-size: 14.5px; font-weight: 600; margin: 12px 10px 6px; }
+.ent-pad { padding: 0 6px 6px; }

@@ -341,6 +341,11 @@ export type ApiEmployerDetail = ApiEmployer & {
   /** A branch card: the card of its head office. */
   parent_card_id: number | null
   match_conflicts: ApiMatchConflict[]
+  /** Importance rating, supply chain, accounts and GUR portal profiles; none without a legal entity. */
+  rating: ApiCompanyRating | null
+  supply_chain: ApiSupplyChain | null
+  finance: ApiFinance | null
+  sections: ApiGurSection[]
 }
 
 /** Vacancies per value of each filter field, counted under all the other filters. */
@@ -515,4 +520,174 @@ export type ApiMethodology = {
   } | null
   human: { employer_reviews: number; employer_cards: number; vacancy_human: number; vacancy_llm: number }
   mcp: { enabled: boolean; url: string; key: string | null; tools: { name: string; description: string }[] }
+}
+
+/* ---------- Рейтинг важливості ---------- */
+
+export type RatingTier = 'bom' | 'evidence' | 'peer'
+export type ScoreByFocus = Partial<Record<FocusKey, number>>
+
+export type ApiRatingRun = { run_id: number; version: string; started_at: string }
+
+/** A ranked legal entity; `url` is its card, or /enterprises/{company_id} without one. */
+export type ApiRatingRow = {
+  rank: number
+  /** Place in the current ordering: the rank, or the place by one category's contribution. */
+  position: number
+  company_id: number
+  name: string | null
+  inn: string | null
+  score: number
+  score_by_focus: ScoreByFocus
+  rank_med: number | null
+  rank_lo: number | null
+  rank_hi: number | null
+  tier: RatingTier
+  p_vpk: number | null
+  direction_domain: string | null
+  direction_label: string | null
+  regions: string[]
+  disclosure: 'found' | 'not_found' | 'stopped' | null
+  url: string
+}
+
+export type ApiRatingList = {
+  run: ApiRatingRun | null
+  total: number
+  items: ApiRatingRow[]
+  facets: { domains: string[]; regions: string[] }
+}
+
+export type ApiRatingUnit = { unit: string; score: number; score_by_focus: ScoreByFocus; hhi: number | null; members: number | null }
+
+export type ApiRatingSystemShare = {
+  system: string
+  name: string
+  focus: string
+  via: string
+  part: string | null
+  n_suppliers: number
+  D: number
+  value: number
+  weight?: number
+}
+
+/** Why the score: per-system contributions or the peer estimate, and the Shapley split. */
+export type ApiRatingBreakdown = {
+  class?: string
+  n_systems?: number
+  systems?: ApiRatingSystemShare[]
+  shapley?: { base: number; confirmation: number; scale: number }
+  peer?: {
+    method: string
+    g: number
+    scale: number
+    p: number
+    roles: Record<string, number>
+    category_evidence?: boolean
+  }
+}
+
+export type ApiCompanyRating = {
+  rank: number
+  ranked: number
+  company_id: number
+  score: number
+  score_by_focus: ScoreByFocus
+  rank_med: number | null
+  rank_lo: number | null
+  rank_hi: number | null
+  tier: RatingTier
+  p_vpk: number | null
+  breakdown: ApiRatingBreakdown
+}
+
+export type ApiSupplyChain = {
+  /** GUR bills of materials: parts and subsystems the company makes or is involved in. */
+  bom: { weapon_slug: string; system: string | null; focus: string | null; part_kind: string; part: string | null; part_url: string | null; role: 'maker' | 'involved' }[]
+  /** Lead maker / designer by GUR. */
+  lead: ApiWeaponRef[]
+  /** In the GUR cooperation list, part not named. */
+  cooperation: ApiWeaponRef[]
+  /** Verified quotes from texts. */
+  claims: { source: string; role: string; weapon_slug: string | null; system: string | null; focus: string | null; part_text: string | null; quote: string; url: string | null }[]
+}
+export type ApiWeaponRef = { weapon_slug: string; system: string | null; focus: string | null; url: string | null }
+
+export type ApiFinance = {
+  rows: { year: number; metric: string; amount: number; currency: string; source: string; source_url: string }[]
+  /** ГИР БО: found, not_found (hidden), stopped (hidden after `last_period`). */
+  disclosure: { status: 'found' | 'not_found' | 'stopped'; last_period: number | null; checked_at: string } | null
+}
+
+export type ApiGurSection = { section: string; url: string | null }
+
+export type ApiRatingDetail = { rating: ApiCompanyRating; url: string; supply_chain: ApiSupplyChain; finance: ApiFinance }
+
+export type ApiRatingSystem = {
+  system: string
+  name: string
+  focus: string
+  segment: 'long_range' | 'frontline' | null
+  weight: number
+  parts: number
+  parts_with_maker: number
+  coop: number
+  carriers: (string | null)[] | null
+}
+
+export type ApiRatingRecall = { n: number; top50: number; top100: number; top200: number; spearman_sanctions: number | null }
+
+/** `classifier_run.params` of the rating run: model, systems, checks, weak points. */
+export type ApiRatingParams = {
+  alpha?: number
+  delta?: number
+  gamma?: number
+  q?: number
+  frontline_share?: number
+  runs?: number
+  link_precision?: Record<string, number>
+  p_levels?: Record<string, number>
+  counts?: { ranked: number; bom: number; evidence: number; peer: number; structural?: number }
+  systems?: ApiRatingSystem[]
+  sensitivity?: { variant: string; top20: number; top50: number; top100: number }[]
+  validation?: { spearman_sanction_date: number | null; spearman_n: number }
+  checks?: {
+    anchors?: { anchor: string; company_id: number | null; name: string | null; rank: number | null }[]
+    recall?: Record<string, ApiRatingRecall>
+    external?: { company_ru: string; focus: string; systems: string; role: string; source: string; source_url: string | null; company_id: number | null; independent: boolean }[]
+    judge_supply?: Record<string, { agree: number; n: number }>
+  }
+  anchor_notes?: Record<string, string>
+  weaknesses?: { title: string; problem: string; impact: string; action: string }[]
+}
+
+export type ApiRatingMeta = { run: ApiRatingRun; params: ApiRatingParams; urls: Record<string, string> }
+
+/** A legal entity without an employer card: GUR, register, rating, supply chain, accounts. */
+export type ApiEnterprise = {
+  company_id: number
+  name: string
+  name_full: string | null
+  inn: string | null
+  ogrn: string | null
+  kpp: string | null
+  country: string | null
+  address: string | null
+  registry: { address: string | null; head: string | null } | null
+  status: string | null
+  liquidated_on: string | null
+  description_uk: string | null
+  products_uk: string[] | null
+  logo_url: string | null
+  website: string | null
+  classification: ApiCompanyClassification | null
+  sanctions: { jurisdiction: string; jurisdiction_name: string | null; listed_on: string | null }[]
+  relations: ApiRelation[]
+  sites: ApiCompanySite[]
+  sections: ApiGurSection[]
+  rating: ApiCompanyRating | null
+  supply_chain: ApiSupplyChain
+  finance: ApiFinance
+  card_url: string | null
 }

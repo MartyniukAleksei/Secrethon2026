@@ -68,6 +68,7 @@ def test_sdk_negotiation_lists_tools_resource_and_prompt(monkeypatch):
                 "analytics",
                 "vacancies",
                 "overview",
+                "rating",
                 "search_mentions",
             }
             assert all(tool.annotations.readOnlyHint for tool in tools)
@@ -173,7 +174,7 @@ def test_app_can_restart_mcp_lifespan(monkeypatch):
     async def scenario():
         for _ in range(2):
             async with client_session() as session:
-                assert len((await session.list_tools()).tools) == 6
+                assert len((await session.list_tools()).tools) == 7
 
     asyncio.run(scenario())
 

@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.repository import rating
 from app.repository.sql import (
     AS_OF,
     CARD_OF,
@@ -355,7 +356,64 @@ async def get_employer(session: AsyncSession, employer_id: int) -> Row | None:
         await _parent_card(session, company_id) if employer["is_branch"] else None
     )
     employer["match_conflicts"] = await _match_conflicts(session, profile_ids)
+    employer.update(await _company_extras(session, company_id))
     return employer
+
+
+async def _company_extras(session: AsyncSession, company_id: int | None) -> Row:
+    """Importance rating, supply chain, accounts and GUR profiles of the legal entity."""
+    if company_id is None:
+        return {"rating": None, "supply_chain": None, "finance": None, "sections": []}
+    return await rating.extras(session, company_id)
+
+
+async def get_enterprise(session: AsyncSession, company_id: int) -> Row | None:
+    """A legal entity as a page of its own: for companies with no employer card (no vacancies),
+    such as plants known from GUR bills of materials. Duplicates resolve to their canonical."""
+    result = await session.execute(
+        text("""
+            SELECT c.company_id,
+                   coalesce(c.name_short_uk, c.name_short_ru, c.name_full_uk, c.name_full_ru)
+                       AS name,
+                   coalesce(c.name_full_uk, c.name_full_ru) AS name_full,
+                   coalesce(c.inn, reg.inn) AS inn, coalesce(c.ogrn, reg.ogrn) AS ogrn, c.kpp,
+                   co.name_uk AS country, coalesce(c.address_uk, reg.address) AS address,
+                   reg.status, coalesce(c.liquidated_on, reg.liquidated_on) AS liquidated_on,
+                   c.description_uk, c.products_uk, c.logo_url, c.website
+            FROM company c
+            LEFT JOIN company_registry reg USING (company_id)
+            LEFT JOIN country co ON co.country_id = c.country_id
+            WHERE c.company_id = coalesce(
+                (SELECT canonical_id FROM company_duplicate WHERE company_id = :cid), :cid)
+        """),
+        {"cid": company_id},
+    )
+    row = result.mappings().first()
+    if row is None:
+        return None
+    enterprise = dict(row)
+    company_id = enterprise["company_id"]
+    enterprise["name"] = enterprise["name"] or f"Юрособа {company_id}"
+    enterprise["registry"] = await _company_registry(session, company_id)
+    enterprise["classification"] = await _company_classification(session, company_id)
+    gur = await _gur_company(session, company_id)
+    enterprise["sanctions"] = gur["sanctions"] if gur else []
+    enterprise["relations"] = gur["relations"] if gur else []
+    sites = await session.execute(
+        text(f"""
+            SELECT {SITE_COLUMNS}, ({SITE_ON_MAP}) AS on_map
+            FROM company_site s WHERE s.company_id = :cid
+            ORDER BY s.kind DESC, s.name
+        """),
+        {"cid": company_id},
+    )
+    enterprise["sites"] = [dict(r) for r in sites.mappings()]
+    enterprise.update(await _company_extras(session, company_id))
+    card = await rating.page_urls(session, [company_id])
+    enterprise["card_url"] = (
+        card[company_id] if card[company_id].startswith("/companies/") else None
+    )
+    return enterprise
 
 
 async def _card_sources(session: AsyncSession, card_id: int) -> list[Row]:

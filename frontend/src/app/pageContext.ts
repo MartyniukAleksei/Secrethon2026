@@ -3,7 +3,7 @@ import { matchPath, useLocation } from 'react-router'
 
 export type PageContext = { label: string; section: Section; companyId?: number }
 
-export type Section = 'overview' | 'map' | 'companies' | 'vacancies' | 'methodology' | 'opendata' | ''
+export type Section = 'overview' | 'map' | 'companies' | 'rating' | 'vacancies' | 'methodology' | 'opendata' | ''
 
 /** What the user is looking at: drives the active nav item, document title and the agent's context. */
 export function usePageContext(): PageContext {
@@ -14,6 +14,8 @@ export function usePageContext(): PageContext {
   if (pathname === '/map') return { label: 'Карта', section: 'map', companyId: co }
   const company = matchPath('/companies/:id/*', pathname)
   if (company) return { label: 'Підприємство', section: 'companies', companyId: Number(company.params.id) }
+  if (matchPath('/enterprises/:id', pathname)) return { label: 'Юрособа', section: 'rating' }
+  if (pathname === '/rating') return { label: 'Рейтинг важливості', section: 'rating' }
   if (pathname === '/companies') return { label: 'Каталог підприємств', section: 'companies' }
   if (pathname === '/vacancies/professions') return { label: 'Професії', section: 'vacancies' }
   if (pathname === '/vacancies') return { label: 'Вакансії', section: 'vacancies' }

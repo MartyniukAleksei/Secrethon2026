@@ -1,4 +1,4 @@
-import type { ApiMapSite, ApiMethodology, ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportCoverage, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
+import type { ApiEnterprise, ApiRatingDetail, ApiRatingList, ApiRatingMeta, ApiRatingUnit, RatingTier, FocusKey, ApiMapSite, ApiMethodology, ApiDiscoveryCount, ApiDiscoveryPage, ApiEmployer, ApiExportCatalog, ExportCoverage, ExportFormat, ApiEmployerDetail, ApiEmployerReview, ApiEmployerReviewInput, ApiMapNetwork, ApiMapPoint, ApiProfession, ApiStats, ApiVacancyDetail, ApiVacancyFacets, ApiVacancyPage, ApiVacancyReview, ApiVacancyReviewInput } from './types'
 
 export class ApiError extends Error {
   readonly status: number
@@ -59,6 +59,18 @@ export type VacancyQuery = {
   offset?: number
 }
 
+export type RatingQuery = {
+  /** Only companies contributing to the category, by that contribution. */
+  focus?: FocusKey
+  tier?: RatingTier
+  domain?: string
+  region?: string
+  /** Name or INN. */
+  q?: string
+  limit?: number
+  offset?: number
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
   if (!res.ok) throw new ApiError(res.status, path)
@@ -88,6 +100,11 @@ export const api = {
   methodology: (signal?: AbortSignal) => get<ApiMethodology>('/methodology', signal),
   discovery: (params: { company_id?: number; provider?: string; status?: string; q?: string; limit?: number; offset?: number }, signal?: AbortSignal) =>
     get<ApiDiscoveryPage>(`/discovery${query(params)}`, signal),
+  rating: (params: RatingQuery, signal?: AbortSignal) => get<ApiRatingList>(`/rating${query(params)}`, signal),
+  ratingMeta: (signal?: AbortSignal) => get<ApiRatingMeta>('/rating/meta', signal),
+  ratingUnits: (kind: 'domain' | 'region' | 'holding', signal?: AbortSignal) => get<ApiRatingUnit[]>(`/rating/units?kind=${kind}`, signal),
+  ratingDetail: (companyId: number, signal?: AbortSignal) => get<ApiRatingDetail>(`/rating/${companyId}`, signal),
+  enterprise: (companyId: number, signal?: AbortSignal) => get<ApiEnterprise>(`/enterprises/${companyId}`, signal),
   professions: (params: Omit<VacancyQuery, 'employer_id' | 'title' | 'q' | 'sort' | 'offset'>, signal?: AbortSignal) =>
     get<ApiProfession[]>(`/professions${query(params)}`, signal),
 }

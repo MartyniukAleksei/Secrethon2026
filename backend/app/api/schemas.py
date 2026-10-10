@@ -313,6 +313,186 @@ class MatchConflictOut(BaseModel):
     evidence: dict | None
 
 
+Tier = Literal["bom", "evidence", "peer"]
+
+
+class RatingRunOut(BaseModel):
+    run_id: int
+    version: str
+    started_at: datetime
+
+
+class RatingRowOut(BaseModel):
+    """A ranked legal entity; `url` is its card, or /enterprises/{company_id} without one."""
+
+    rank: int
+    # Place in the current ordering: the rank, or the place by one category's contribution.
+    position: int
+    company_id: int
+    name: str | None
+    inn: str | None
+    score: float
+    score_by_focus: dict[str, float]
+    rank_med: int | None
+    rank_lo: int | None
+    rank_hi: int | None
+    tier: Tier
+    p_vpk: float | None
+    direction_domain: str | None
+    direction_label: str | None
+    regions: list[str]
+    # ГИР БО accounts: found, not_found (hidden), stopped (hidden after last_period).
+    disclosure: Literal["found", "not_found", "stopped"] | None
+    url: str
+
+
+class RatingFacetsOut(BaseModel):
+    domains: list[str]
+    regions: list[str]
+
+
+class RatingListOut(BaseModel):
+    run: RatingRunOut | None
+    total: int
+    items: list[RatingRowOut]
+    facets: RatingFacetsOut
+
+
+class RatingUnitOut(BaseModel):
+    unit: str
+    score: float
+    score_by_focus: dict[str, float]
+    hhi: float | None
+    members: int | None
+
+
+class RatingMetaOut(BaseModel):
+    """The run's parameters, systems, checks and weak points (`classifier_run.params`);
+    `urls` maps the companies named in the checks to their pages."""
+
+    run: RatingRunOut
+    params: dict
+    urls: dict[int, str]
+
+
+class CompanyRatingOut(BaseModel):
+    """The company's place in the latest rating, with the breakdown of its score."""
+
+    rank: int
+    ranked: int
+    company_id: int
+    score: float
+    score_by_focus: dict[str, float]
+    rank_med: int | None
+    rank_lo: int | None
+    rank_hi: int | None
+    tier: Tier
+    p_vpk: float | None
+    breakdown: dict
+
+
+class BomPartOut(BaseModel):
+    weapon_slug: str
+    system: str | None
+    focus: str | None
+    part_kind: str
+    part: str | None
+    part_url: str | None
+    role: Literal["maker", "involved"]
+
+
+class WeaponRefOut(BaseModel):
+    weapon_slug: str
+    system: str | None
+    focus: str | None
+    url: str | None
+
+
+class SupplyClaimOut(BaseModel):
+    source: str
+    role: str
+    weapon_slug: str | None
+    system: str | None
+    focus: str | None
+    part_text: str | None
+    quote: str
+    url: str | None
+
+
+class SupplyChainOut(BaseModel):
+    """GUR bills of materials (bom), lead maker by GUR, cooperation lists, verified quotes."""
+
+    bom: list[BomPartOut]
+    lead: list[WeaponRefOut]
+    cooperation: list[WeaponRefOut]
+    claims: list[SupplyClaimOut]
+
+
+class FinancialRowOut(BaseModel):
+    year: int
+    metric: str
+    amount: float
+    currency: str
+    source: str
+    source_url: str
+
+
+class DisclosureOut(BaseModel):
+    status: Literal["found", "not_found", "stopped"]
+    last_period: int | None
+    checked_at: datetime
+
+
+class FinanceOut(BaseModel):
+    rows: list[FinancialRowOut]
+    disclosure: DisclosureOut | None
+
+
+class GurSectionOut(BaseModel):
+    section: str
+    url: str | None
+
+
+class RatingDetailOut(BaseModel):
+    """A row of the rating opened: the breakdown, the supply chain and the accounts."""
+
+    rating: CompanyRatingOut
+    url: str
+    supply_chain: SupplyChainOut
+    finance: FinanceOut
+
+
+class EnterpriseOut(BaseModel):
+    """A legal entity without an employer card (no vacancies): GUR, register, rating."""
+
+    company_id: int
+    name: str
+    name_full: str | None
+    inn: str | None
+    ogrn: str | None
+    kpp: str | None
+    country: str | None
+    address: str | None
+    registry: CompanyRegistryOut | None
+    # Register status (ACTIVE, LIQUIDATING, LIQUIDATED, ...) and the liquidation date.
+    status: str | None
+    liquidated_on: date | None
+    description_uk: str | None
+    products_uk: list[str] | None
+    logo_url: str | None
+    website: str | None
+    classification: CompanyClassificationOut | None
+    sanctions: list[SanctionOut]
+    relations: list[RelationOut]
+    sites: list[CompanySiteOut]
+    sections: list[GurSectionOut]
+    rating: CompanyRatingOut | None
+    supply_chain: SupplyChainOut
+    finance: FinanceOut
+    # The employer card of the same legal entity, when it has one (the page moves there).
+    card_url: str | None
+
+
 class EmployerDetailOut(EmployerOut):
     monthly: list[MonthPoint]
     professions: list[ProfessionOut]
@@ -334,6 +514,11 @@ class EmployerDetailOut(EmployerOut):
     # A branch card: the card of its head office, if there is one.
     parent_card_id: int | None
     match_conflicts: list[MatchConflictOut]
+    # Importance rating, supply chain, accounts and GUR portal profiles of the legal entity.
+    rating: CompanyRatingOut | None = None
+    supply_chain: SupplyChainOut | None = None
+    finance: FinanceOut | None = None
+    sections: list[GurSectionOut] = []
 
 
 class VacancyOut(BaseModel):

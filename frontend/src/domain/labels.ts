@@ -175,6 +175,8 @@ export const DOMAINS: Record<string, string> = {
   finance: 'Фінанси',
   civil_other: 'Цивільна діяльність',
 }
+/** Industry of a rating row or unit; the rating counts companies with no industry as `unknown`. */
+export const domainName = (d: string | null | undefined) => (d && d !== 'unknown' ? DOMAINS[d] ?? d : 'Не визначено')
 export const ROLES: Record<string, string> = {
   manufacturer: 'Виробник',
   component_supplier: 'Постачальник компонентів',
@@ -256,3 +258,58 @@ export const DISCOVERY_STATUS: Record<DiscoveryStatus, string> = {
 }
 export const PROVIDERS: Record<string, string> = { exa: 'Exa (вебпошук)', opensanctions: 'OpenSanctions', agy: 'Agent' }
 export const DISCOVERY_NOTE = 'Результати пошуку без підтвердженого факту зберігаються з 09.10.2026.'
+
+/* ---------- Рейтинг важливості ---------- */
+
+export const RATING_FOCUSES: FocusKey[] = ['drone', 'missile', 'kab']
+/** Weapon categories, with the aircraft that carry them. */
+export const WEAPON_FOCUS: Record<string, string> = { drone: 'БпЛА', missile: 'Ракети', kab: 'КАБ', carrier: 'Носій', other: 'Інше' }
+/** «для ракет»: a claim that names the category, not the system. */
+export const WEAPON_FOCUS_FOR: Record<string, string> = { drone: 'для БпЛА', missile: 'для ракет', kab: 'для КАБ', carrier: 'для носіїв' }
+/** How well the company's place is backed. */
+export const TIERS: Record<string, string> = { bom: 'специфікації ГУР', evidence: 'знайдено в текстах', peer: 'оцінка за аналогами' }
+export const TIER_HINT: Record<string, string> = {
+  bom: 'Підприємство є в специфікаціях систем або в списку кооперації на порталі ГУР',
+  evidence: 'Зв’язок із системами знайдено лише в текстах: дослівні цитати, перевірені на сторінці-джерелі',
+  peer: 'Зв’язків постачання не знайдено: бал оцінено за подібними підприємствами',
+}
+/** The bottleneck through which the company holds a system (`breakdown.systems[].via`). */
+export const VIA: Record<string, string> = {
+  part: 'деталь',
+  assembly: 'фінальне складання',
+  design: 'головна розробка',
+  carrier: 'через носій',
+  cooperation: 'кооперація (деталь невідома)',
+}
+/** Class of the company in the rating / role probabilities of a peer estimate. */
+export const RATING_CLASS: Record<string, string> = {
+  serial_assembly: 'серійне складання',
+  sole_part: 'єдиний відомий постачальник деталі',
+  part_among_many: 'один з постачальників',
+  rnd_only: 'лише розробка',
+  equipment_or_material: 'обладнання / матеріали',
+  not_focus: 'поза фокусом',
+}
+/** Role in a supply claim from texts (`company_supply.role`). */
+export const SUPPLY_ROLE: Record<string, string> = {
+  serial_assembly: 'серійне виробництво',
+  developer: 'розробка',
+  part_supplier: 'постачання деталі',
+  cooperation: 'кооперація',
+  equipment: 'обладнання',
+  repair: 'ремонт',
+}
+export const SUPPLY_SOURCE: Record<string, string> = {
+  gur_description: 'опис ГУР',
+  exa: 'відкриті джерела',
+  facts: 'перевірений факт',
+  vacancy: 'вакансії',
+}
+/** Sections of the GUR «War & Sanctions» portal a company is listed in. */
+export const GUR_SECTIONS: Record<string, string> = {
+  rostec: 'Ростех',
+  'uav/companies': 'БпЛА → Підприємства',
+  'tools/company': 'Верстати → Підприємства',
+  'sanctions/companies': 'Санкції → Компанії',
+  'components/companies': 'Компоненти у зброї → Задіяні підприємства',
+}

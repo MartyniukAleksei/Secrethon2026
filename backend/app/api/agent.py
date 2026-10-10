@@ -17,11 +17,20 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.agent_provider import ProviderError, post_json
 from app.agent_scope import MapScope, scope_ids
+from app.api import rating as rating_api
 from app.api.deps import Session
-from app.api.schemas import EmployerDetailOut, EmployerOut, StatsOut, VacancyOut
+from app.api.schemas import (
+    EmployerDetailOut,
+    EmployerOut,
+    RatingDetailOut,
+    RatingRowOut,
+    StatsOut,
+    VacancyOut,
+)
 from app.config import settings
 from app.repository import agent as queries
 from app.repository import agent_charts, employers, stats, vacancies
+from app.repository import rating as rating_repo
 from app.repository.sql import AS_OF
 from app.repository.vacancies import VacancyFilter
 from app.search import fold, variants
@@ -67,6 +76,12 @@ class ToolArgs(BaseModel):
     only_sanctioned: bool = False
     view: agent_charts.View = "auto"
     map_mode: Literal["focus_company", "show_relations"] = "focus_company"
+    # Importance rating: one company's breakdown, or the list filtered by these.
+    company_id: int | None = Field(default=None, gt=0)
+    focus: Literal["drone", "missile", "kab"] | None = None
+    tier: Literal["bom", "evidence", "peer"] | None = None
+    domain: str | None = Field(default=None, max_length=40)
+    region: str | None = Field(default=None, max_length=80)
 
     @field_validator("employer_ids")
     @classmethod
@@ -180,6 +195,27 @@ TOOLS = [
         "Global ALL TIME platform totals, snapshot date and region directory. "
         "Does not apply page filters.",
         {},
+        [],
+    ),
+    declaration(
+        "rating",
+        "Importance rating of VPK companies: the share of Russian drone, missile and "
+        "guided-bomb (KAB) output that depends on a company (GUR bills of materials, "
+        "bottleneck part). Without company_id: ranked list, filtered by name/INN query, "
+        "focus (sorts by that category's contribution), tier, domain, region (Russian "
+        "name as in company_site, e.g. 'г Москва'). With company_id (legal entity id from "
+        "this tool or company_profile.company_id): rank, 90% rank interval and why — "
+        "contributions per weapon system with the bottleneck, Shapley corrections, "
+        "supply chain and accounts. A dependence estimate, not a vulnerability score.",
+        {
+            "query": STRING,
+            "company_id": INTEGER,
+            "focus": {**STRING, "enum": ["drone", "missile", "kab"]},
+            "tier": {**STRING, "enum": ["bom", "evidence", "peer"]},
+            "domain": STRING,
+            "region": STRING,
+            "limit": INTEGER,
+        },
         [],
     ),
     declaration(
@@ -655,6 +691,8 @@ class Run:
                 "subset_limit": args.limit,
                 "unit": unit,
             }
+        if name == "rating":
+            return await self.rating(args)
         if name == "vacancies":
             self.as_of = (await self.session.execute(text(f"SELECT {AS_OF}"))).scalar_one()
             total, rows = await vacancies.list_vacancies(
@@ -672,6 +710,39 @@ class Run:
                 "as_of": self.as_of,
             }
         return {"error": "Unknown tool"}
+
+    async def rating(self, args: ToolArgs) -> dict:
+        if args.company_id:
+            extras = await rating_repo.extras(self.session, args.company_id)
+            if extras["rating"] is None:
+                return {"error": "Company is not in the importance rating"}
+            url = (await rating_repo.page_urls(self.session, [args.company_id]))[args.company_id]
+            detail = RatingDetailOut.model_validate({**extras, "url": url}).model_dump()
+            detail["supply_chain"]["claims"] = detail["supply_chain"]["claims"][:10]
+            detail["source_id"] = self.source(
+                "Рейтинг важливості", f"/rating?company={args.company_id}"
+            )
+            return detail
+        run, rows, _ = await rating_api.ranked(
+            self.session, args.focus, args.tier, args.domain, args.region, args.query or None
+        )
+        if run is None:
+            return {"error": "No importance rating run"}
+        items = [
+            RatingRowOut.model_validate(r).model_dump(exclude={"rank_med", "p_vpk"})
+            for r in rows[: args.limit]
+        ]
+        for row in items:
+            row["source_id"] = self.source(row["name"] or "Юрособа", row["url"])
+        return {
+            "run": {k: run[k] for k in ("run_id", "version", "started_at")},
+            "total": len(rows),
+            "items": items,
+            "source_id": self.source("Рейтинг важливості", "/rating"),
+            "method": "score = share of focus output depending on the company; tier bom = GUR "
+            "bills of materials, evidence = verified quotes, peer = estimated from similar "
+            "companies; rank_lo/rank_hi = 90% Monte Carlo interval",
+        }
 
     async def mentions(self, profile: dict, days: int | None) -> dict:
         if self.web_access == "db_only":

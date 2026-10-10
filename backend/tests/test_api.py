@@ -698,3 +698,139 @@ def test_methodology(client: TestClient) -> None:
     assert [t["name"] for t in data["mcp"]["tools"]][0] == "search_employers"
     assert data["mcp"]["url"].endswith("/mcp/")
     assert data["mcp"]["key"] is None  # the test site has no password: the key stays hidden
+
+
+def test_rating_list(client: TestClient) -> None:
+    rating = client.get("/api/rating").json()
+    assert rating["run"]["version"] == "rating-test"  # the latest run, not the older run 30
+    assert rating["total"] == 4
+    items = rating["items"]
+    assert [r["company_id"] for r in items] == [570, 700, 600, 522]
+    assert [r["position"] for r in items] == [1, 2, 3, 4]
+    kbp = items[0]
+    assert kbp["url"] == "/companies/1"  # the head card, not the Moscow branch card 6
+    assert kbp["direction_domain"] == "missiles_space"
+    assert set(kbp["regions"]) == {"Тульская обл", "г Москва"}
+    assert kbp["disclosure"] == "not_found"
+    assert items[1]["url"] == "/enterprises/700"  # no employer card
+    assert items[1]["direction_domain"] is None
+    assert rating["facets"]["domains"] == ["missiles_space", "uav", "unknown"]
+    assert "Удмуртская Респ" in rating["facets"]["regions"]
+
+
+def test_rating_filters(client: TestClient) -> None:
+    kab = client.get("/api/rating?focus=kab").json()["items"]
+    assert [(r["company_id"], r["position"]) for r in kab] == [(570, 1), (700, 2)]
+    drone = client.get("/api/rating?focus=drone").json()["items"]
+    assert [(r["company_id"], r["rank"], r["position"]) for r in drone] == [(600, 3, 1)]
+    assert client.get("/api/rating?tier=peer").json()["total"] == 1
+    assert [r["company_id"] for r in client.get("/api/rating?domain=unknown").json()["items"]] == [
+        700,
+        522,
+    ]
+    assert client.get("/api/rating?region=г Москва").json()["total"] == 1
+    assert client.get("/api/rating?q=7105514").json()["items"][0]["company_id"] == 570
+    assert client.get("/api/rating?q=завод").json()["items"][0]["company_id"] == 700
+    page = client.get("/api/rating?limit=2&offset=2").json()
+    assert page["total"] == 4
+    assert [r["rank"] for r in page["items"]] == [3, 4]
+
+
+def test_rating_meta_and_units(client: TestClient) -> None:
+    meta = client.get("/api/rating/meta").json()
+    assert meta["params"]["counts"]["ranked"] == 4
+    assert meta["urls"] == {"570": "/companies/1", "700": "/enterprises/700"}
+    regions = client.get("/api/rating/units?kind=region").json()
+    assert [u["unit"] for u in regions] == ["Тульская обл", "г Москва"]
+    assert client.get("/api/rating/units?kind=holding").json()[0]["members"] == 1
+    assert client.get("/api/rating/units?kind=other").status_code == 422
+
+
+def test_rating_detail(client: TestClient) -> None:
+    detail = client.get("/api/rating/600").json()
+    assert detail["rating"]["rank"] == 3
+    assert detail["rating"]["ranked"] == 4
+    assert detail["rating"]["breakdown"]["systems"][0]["via"] == "assembly"
+    assert detail["url"] == "/companies/2"
+    claims = detail["supply_chain"]["claims"]
+    # Verified only; a named system before a claim about a category
+    assert [c["system"] for c in claims] == ["Герань-2", "беспилотники"]
+    finance = detail["finance"]
+    assert [(f["year"], f["metric"]) for f in finance["rows"]] == [
+        (2020, "revenue"),
+        (2021, "assets"),
+        (2021, "revenue"),
+    ]
+    assert finance["disclosure"]["status"] == "stopped"
+    assert finance["disclosure"]["last_period"] == 2021
+    assert client.get("/api/rating/523").status_code == 404
+
+
+def test_employer_rating_blocks(client: TestClient) -> None:
+    kbp = client.get("/api/employers/1").json()
+    assert kbp["rating"]["rank"] == 1
+    chain = kbp["supply_chain"]
+    assert chain["bom"] == [
+        {
+            "weapon_slug": "page-umpk",
+            "system": "УМПК",
+            "focus": "kab",
+            "part_kind": "subsystem",
+            "part": "Система керування",
+            "part_url": None,
+            "role": "involved",
+        }
+    ]
+    assert [w["weapon_slug"] for w in chain["lead"]] == ["page-umpk"]
+    assert [w["weapon_slug"] for w in chain["cooperation"]] == ["test-weapon"]
+    assert kbp["finance"]["disclosure"]["status"] == "not_found"
+    assert kbp["sections"] == [
+        {"section": "rostec", "url": "https://war-sanctions.gur.gov.ua/rostec/1921"}
+    ]
+    agency = client.get("/api/employers/4").json()
+    assert agency["rating"] is None and agency["supply_chain"] is None
+
+
+def test_enterprise(client: TestClient) -> None:
+    plant = client.get("/api/enterprises/700").json()
+    assert plant["name"] == "АО «Завод»"
+    assert plant["ogrn"] == "1021800000000"
+    assert plant["status"] == "ACTIVE"
+    assert plant["country"] == "російська федерація"
+    assert plant["classification"] is None
+    assert plant["rating"]["rank"] == 2
+    assert plant["supply_chain"]["bom"][0]["part"] == "Радіовисотомір А-079"
+    assert plant["sections"][0]["section"] == "components/companies"
+    assert plant["sites"][0]["kind"] == "head_office"
+    assert plant["card_url"] is None
+    assert client.get("/api/enterprises/570").json()["card_url"] == "/companies/1"
+    assert client.get("/api/enterprises/999999").status_code == 404
+    redirect = client.get("/enterprises/570", follow_redirects=False)
+    assert redirect.status_code == 301
+    assert redirect.headers["location"] == "/companies/1"
+    assert client.get("/enterprises/700", follow_redirects=False).status_code != 301
+
+
+def test_agent_rating_tool(client: TestClient) -> None:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.api.agent import Context, Run
+
+    async def call(args: dict) -> dict:
+        engine = make_engine(settings.database_url, poolclass=NullPool)
+        try:
+            async with AsyncSession(engine) as session:
+                run = Run(session, Context())
+                return {**await run.tool("rating", args), "sources": run.sources}
+        finally:
+            await engine.dispose()
+
+    ranked = asyncio.run(call({"focus": "kab", "limit": 1}))
+    assert ranked["total"] == 2
+    assert [r["company_id"] for r in ranked["items"]] == [570]
+    assert ranked["items"][0]["source_id"] in ranked["sources"]
+    detail = asyncio.run(call({"company_id": 700}))
+    assert detail["rating"]["rank"] == 2
+    assert detail["url"] == "/enterprises/700"
+    assert detail["supply_chain"]["bom"][0]["role"] == "maker"
+    assert "error" in asyncio.run(call({"company_id": 523}))

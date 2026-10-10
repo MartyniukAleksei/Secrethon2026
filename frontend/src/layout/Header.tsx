@@ -11,6 +11,7 @@ const FILTERED = new Set<Section>(['companies', 'vacancies', 'map'])
 const NAV: { section: Section; to: string; label: string }[] = [
   { section: 'overview', to: '/', label: 'Огляд' },
   { section: 'companies', to: '/companies', label: 'Підприємства' },
+  { section: 'rating', to: '/rating', label: 'Рейтинг' },
   { section: 'vacancies', to: '/vacancies', label: 'Вакансії' },
   { section: 'map', to: '/map', label: 'Карта' },
   { section: 'opendata', to: '/open-data', label: 'Відкриті дані' },

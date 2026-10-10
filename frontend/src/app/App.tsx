@@ -10,6 +10,8 @@ import { MethodologyPage } from '../pages/MethodologyPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { OpenDataPage } from '../pages/OpenDataPage'
 import { OverviewPage } from '../pages/OverviewPage'
+import { EnterprisePage } from '../pages/EnterprisePage'
+import { RatingPage } from '../pages/RatingPage'
 import { RegionPage } from '../pages/RegionPage'
 import { VacanciesPage } from '../pages/VacanciesPage'
 import { VacancyPage } from '../pages/VacancyPage'
@@ -30,6 +32,8 @@ export function App() {
                   <Route path="map" element={<MapPage />} />
                   <Route path="companies" element={<CompaniesPage />} />
                   <Route path="companies/:id/:tab?" element={<CompanyPage />} />
+                  <Route path="rating" element={<RatingPage />} />
+                  <Route path="enterprises/:id" element={<EnterprisePage />} />
                   <Route path="vacancies" element={<VacanciesPage tab="listings" />} />
                   <Route path="vacancies/professions" element={<VacanciesPage tab="professions" />} />
                   <Route path="vacancies/:id" element={<VacancyPage />} />
