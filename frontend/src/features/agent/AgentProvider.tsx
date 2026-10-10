@@ -5,7 +5,7 @@ import { useFilters } from '../../state/FiltersContext'
 import { AgentContext, type AgentMessage, type AgentState } from './AgentContext'
 import { AgentAnswer } from './AgentAnswer'
 import { ResearchDraft } from './ResearchDraft'
-import { sendAgentRequest, type AgentRequest, type AgentTarget, type MapView, type WebPermission } from './types'
+import { progressLabel, sendAgentRequest, type AgentRequest, type AgentTarget, type MapView, type WebPermission } from './types'
 import { useData } from '../../data/DataContext'
 import { mapActionHref } from './mapActions'
 import { researchContext, type Research } from './research'
@@ -26,6 +26,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [panelTab, setPanelTab] = useState<'chat' | 'research'>('chat')
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [typing, setTyping] = useState(false)
+  const [progress, setProgress] = useState<string | null>(null)
   const [webPermission, setWebPermission] = useState<WebPermission | null>(null)
   const waitingForPermission = useRef<QuestionSnapshot | null>(null)
   const nextId = useRef(1)
@@ -54,6 +55,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     approvedContext.current = []
     setMessages([])
     setTyping(false)
+    setProgress(null)
     setWebPermission(null)
     setPanelTab('chat')
     setOpen(true)
@@ -66,9 +68,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     busy.current = true
     setPanelTab('chat')
     setTyping(true)
+    setProgress(null)
     const controller = new AbortController()
     pending.current = controller
-    void sendAgentRequest(payload, controller.signal).then(response => {
+    const onProgress = (step: Parameters<typeof progressLabel>[0]) => {
+      if (!controller.signal.aborted && pending.current === controller) setProgress(progressLabel(step))
+    }
+    void sendAgentRequest(payload, controller.signal, onProgress).then(response => {
       if (controller.signal.aborted || pending.current !== controller) return
       const action = response.map_action
       if (action && ['focus_company', 'show_relations', 'show_hiring_places'].includes(action.kind) && Number.isSafeInteger(action.employer_id) && ctx.current.byId[action.employer_id] && ctx.current.locationKey === locationKey && window.location.href === requestedLocation) {
@@ -94,7 +100,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       if (pending.current !== controller) return
       busy.current = false
       pending.current = null
-      if (!controller.signal.aborted) setTyping(false)
+      if (!controller.signal.aborted) {
+        setTyping(false)
+        setProgress(null)
+      }
     })
   }, [navigate, rememberResearch])
 
@@ -146,6 +155,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       isOpen,
       messages,
       typing,
+      progress,
       webPermission, chooseWebAccess,
       startNewChat,
       rememberResearch,
@@ -157,7 +167,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       target, setTarget, mapView, setMapView, comparisonIds,
       toggleComparison: (id: number) => setComparisonIds(ids => ids.includes(id) ? ids.filter(i => i !== id) : ids.length < 5 ? [...ids, id] : ids),
     }),
-    [isOpen, messages, typing, ask, target, mapView, comparisonIds, setMapView, panelTab, webPermission, chooseWebAccess, startNewChat, rememberResearch],
+    [isOpen, messages, typing, progress, ask, target, mapView, comparisonIds, setMapView, panelTab, webPermission, chooseWebAccess, startNewChat, rememberResearch],
   )
 
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>

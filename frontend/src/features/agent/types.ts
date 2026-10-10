@@ -32,15 +32,58 @@ export type WebPermission = { company: string; days: number }
 export type AgentResponse = { text: string; sources: AgentSource[]; artifacts: AgentArtifact[]; as_of: string | null; tools_used: string[]; sections?: AgentSection[]; actions?: ResultAction[]; map_action?: MapAction | null; context?: AgentPageContext; scope_totals?: ScopeTotals | null; evidence?: unknown[]; generated_at?: string; web_permission?: WebPermission }
 export type AgentRequest = { message: string; history: { role: 'user' | 'assistant'; text: string }[]; context: AgentPageContext; web_access?: WebAccess; approved_context?: string[] }
 
-export async function sendAgentRequest(payload: AgentRequest, signal: AbortSignal): Promise<AgentResponse> {
-  const response = await fetch('/api/agent/chat', {
+export type AgentProgress = { stage: 'thinking'; round: number } | { stage: 'tool'; tool: string }
+
+const toolLabels: Record<string, string> = {
+  search_knowledge: 'Шукаю в базі знань', saved_research: 'Переглядаю збережені дослідження',
+  search_employers: 'Шукаю підприємства', company_profile: 'Читаю профіль підприємства',
+  analytics: 'Рахую аналітику', vacancies: 'Переглядаю вакансії', overview: 'Збираю загальну статистику',
+  rating: 'Перевіряю рейтинг', search_mentions: 'Шукаю публічні згадки', show_on_map: 'Готую карту',
+}
+
+export function progressLabel(progress: AgentProgress): string {
+  if (progress.stage === 'tool') return `${toolLabels[progress.tool] ?? 'Працюю з даними'}…`
+  return progress.round > 1 ? 'Аналізую зібрані дані…' : 'Аналізую запитання…'
+}
+
+const failure = 'Не вдалося отримати відповідь агента. Спробуйте ще раз.'
+
+/** Streams the agent run over SSE: progress events while it works, then one result or error. */
+export async function sendAgentRequest(payload: AgentRequest, signal: AbortSignal, onProgress?: (progress: AgentProgress) => void): Promise<AgentResponse> {
+  const response = await fetch('/api/agent/chat/stream', {
     method: 'POST', signal,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify(payload),
   })
-  if (!response.ok) {
+  if (!response.ok || !response.body) {
     const error = await response.json().catch(() => null)
-    throw new Error(typeof error?.detail === 'string' ? error.detail : 'Не вдалося отримати відповідь агента. Спробуйте ще раз.')
+    throw new Error(typeof error?.detail === 'string' ? error.detail : failure)
   }
-  return await response.json() as AgentResponse
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+  let buffer = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) throw new Error(failure)
+    buffer += value.replace(/\r\n?/g, '\n')
+    let end
+    while ((end = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, end)
+      buffer = buffer.slice(end + 2)
+      let event = 'message'
+      const data: string[] = []
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
+      }
+      if (!data.length) continue
+      const parsed: unknown = JSON.parse(data.join('\n'))
+      if (event === 'progress') onProgress?.(parsed as AgentProgress)
+      else if (event === 'result') { void reader.cancel(); return parsed as AgentResponse }
+      else if (event === 'error') {
+        void reader.cancel()
+        const detail = (parsed as { detail?: unknown }).detail
+        throw new Error(typeof detail === 'string' ? detail : failure)
+      }
+    }
+  }
 }

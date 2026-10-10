@@ -16,6 +16,8 @@ export type AgentState = {
   isOpen: boolean
   messages: AgentMessage[]
   typing: boolean
+  /** Live status of the running agent request, streamed from the server. */
+  progress: string | null
   webPermission: WebPermission | null
   chooseWebAccess: (access: 'allowed' | 'db_only') => void
   startNewChat: () => void
