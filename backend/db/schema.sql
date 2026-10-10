@@ -1846,7 +1846,11 @@ CREATE TABLE public.company_registry (
     inn text NOT NULL,
     address text,
     head text,
-    fetched_at timestamp with time zone NOT NULL
+    fetched_at timestamp with time zone NOT NULL,
+    -- 0005 has many more register columns; these are the ones the enterprise page reads.
+    ogrn text,
+    status text,
+    liquidated_on date
 );
 
 CREATE TABLE public.company_classification (
@@ -2023,3 +2027,206 @@ CREATE TABLE company_site (
 );
 
 CREATE INDEX company_site_company_idx ON company_site (company_id);
+
+-- 0015–0020 (pipeline): weapon bills of materials, supply claims, ГИР БО accounts, importance rating; as is
+-- (vacancy_system_mention skipped: the site does not read it).
+-- 0015: weapon systems as bills of materials (GUR landing pages /page-<slug>, /ballistics/<slug>,
+-- parsed by `company-parse gur-systems`, loaded by `company-db load-gur`) and launch statistics
+-- per system (`company-db load-usage`). Input of the importance rating.
+
+-- Systems without a GUR landing (Kalibr, Kinzhal, ...) are rows too: the rating needs their
+-- usage weight and their serial plants. They have no url.
+--   source  : 'gur' (portal weapon/landing), 'usage' (only in launch statistics)
+--   focus   : drone, missile, kab (customer focus), carrier (aircraft carrying focus weapons),
+--             other (air defence, artillery)
+--   segment : drones only: 'long_range' (Shahed/Geran family, Molniya) or 'frontline'
+ALTER TABLE weapon ALTER COLUMN url DROP NOT NULL;
+ALTER TABLE weapon
+    ADD COLUMN source          text NOT NULL DEFAULT 'gur' CHECK (source IN ('gur', 'usage')),
+    ADD COLUMN focus           text CHECK (focus IN ('drone', 'missile', 'kab', 'carrier', 'other')),
+    ADD COLUMN segment         text CHECK (segment IN ('long_range', 'frontline')),
+    ADD COLUMN lead_gur_id     int,             -- «Головний виробник та конструктор»
+    ADD COLUMN lead_company_id bigint REFERENCES company ON DELETE SET NULL,
+    ADD COLUMN lead_name       text,
+    ADD COLUMN carrier_text    text,            -- «Носій» as published
+    ADD COLUMN characteristics jsonb;           -- «Характеристики» label -> value
+
+-- Parts tree of a system. part_key is stable across loads:
+--   'part:<component part_id>'  a part with its own page /components/part/{id}
+--   'sub:<kc id>'               a subsystem (?kc[c1]=<id>) — the page lists companies, not parts
+--   'name:<name>'               a card without a link (e.g. «ФАБ-500Т з УМПК-ПД» on Su-34)
+--   'lead', 'serial:<n>'        lead maker / serial plant parts (part_kind lead / serial_assembly)
+--   'carrier:<slug>'            a carrier aircraft as a part of the weapon it carries
+--   part_kind : part, subsystem, lead (GUR lead developer/maker), serial_assembly (found serial
+--               plant), carrier
+--   source    : gur_landing, exa, dataset, manual
+CREATE TABLE weapon_part (
+    weapon_slug   text NOT NULL REFERENCES weapon ON DELETE CASCADE,
+    part_key      text NOT NULL,
+    parent_key    text,
+    part_kind     text NOT NULL CHECK (part_kind IN ('part', 'subsystem', 'lead', 'serial_assembly',
+                                                     'carrier')),
+    part_id       int REFERENCES component,
+    carrier_slug  text REFERENCES weapon,
+    name_uk       text,
+    country       text,                         -- «Країна виробника» of the part
+    url           text,
+    source        text NOT NULL DEFAULT 'gur_landing',
+    PRIMARY KEY (weapon_slug, part_key)
+);
+
+-- Who makes a part. Makers without a portal profile (foreign makers, names only) have no
+-- company_id; they still count as suppliers of the part.
+--   role : maker («Виробник»; companies of a subsystem page), involved («Задіяні компанії»)
+CREATE TABLE weapon_part_maker (
+    maker_id      bigserial PRIMARY KEY,
+    weapon_slug   text NOT NULL,
+    part_key      text NOT NULL,
+    role          text NOT NULL CHECK (role IN ('maker', 'involved')),
+    company_id    bigint REFERENCES company ON DELETE CASCADE,
+    maker_gur_id  int,
+    maker_name    text,
+    source        text NOT NULL DEFAULT 'gur_landing',
+    evidence      jsonb,                        -- url/quote for makers found outside GUR
+    FOREIGN KEY (weapon_slug, part_key) REFERENCES weapon_part ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX weapon_part_maker_uniq
+    ON weapon_part_maker (weapon_slug, part_key, role, coalesce(company_id::text, maker_name));
+CREATE INDEX weapon_part_maker_company_idx ON weapon_part_maker (company_id);
+
+-- Launches per system from the Ukrainian Air Force reports (Kaggle piterfm/massive-missile-
+-- attacks-on-ukraine). A report line naming several models ("X-101/X-555 and Kalibr") is split
+-- equally between them.
+--   period : '12m' (12 months before the dataset's last date), 'all'
+CREATE TABLE weapon_usage (
+    weapon_slug  text    NOT NULL REFERENCES weapon ON DELETE CASCADE,
+    period       text    NOT NULL CHECK (period IN ('12m', 'all')),
+    launched     numeric NOT NULL,
+    models       text[],                        -- dataset model names counted here
+    source       text    NOT NULL,              -- dataset ref
+    as_of        date    NOT NULL,
+    PRIMARY KEY (weapon_slug, period, source)
+);
+
+-- 0016: claims that a company makes or supplies something for a weapon system, found in texts
+-- (company-supply: GUR descriptions, earlier search facts, Exa search) and mentions of systems
+-- in vacancies (company-supply --vacancies). Input of the importance rating; GUR BOM rows live
+-- in weapon_part / weapon_part_maker, not here.
+
+-- One classifier_run 'supply_extract' per extraction run (version = run label). Reloading a run
+-- replaces its rows.
+--   source : gur_description (portal description text), facts (verified company_fact quotes of
+--            an earlier enrichment run), exa (new search), vacancy (several vacancies name it)
+--   role   : serial_assembly (makes/assembles the system itself), developer (designs it),
+--            part_supplier (a named part or unit), cooperation (takes part, item unclear),
+--            equipment (machine tools, materials, test equipment), repair
+--   part_key : matched weapon_part when the claimed part is in the GUR BOM, else NULL
+CREATE TABLE company_supply (
+    supply_id     bigserial PRIMARY KEY,
+    run_id        int    NOT NULL REFERENCES classifier_run ON DELETE CASCADE,
+    source        text   NOT NULL CHECK (source IN ('gur_description', 'facts', 'exa', 'vacancy')),
+    company_id    bigint REFERENCES company ON DELETE CASCADE,  -- NULL: maker not identified
+    company_name  text   NOT NULL,                 -- as written in the source
+    weapon_slug   text   REFERENCES weapon ON DELETE CASCADE,  -- NULL: system not identified
+    system_text   text,                            -- as written in the source
+    focus         text   CHECK (focus IN ('drone', 'missile', 'kab', 'carrier', 'other')),
+    role          text   NOT NULL CHECK (role IN ('serial_assembly', 'developer', 'part_supplier',
+                                                  'cooperation', 'equipment', 'repair')),
+    part_text     text,
+    part_key      text,
+    quote         text   NOT NULL,
+    url           text,
+    fact_id       bigint REFERENCES company_fact ON DELETE SET NULL,
+    verified      boolean NOT NULL,                -- quote found in the source text
+    match_note    text                             -- how company and system were matched
+);
+
+CREATE INDEX company_supply_company_idx ON company_supply (company_id);
+CREATE INDEX company_supply_run_idx ON company_supply (run_id);
+
+
+-- 0017: annual accounts from ГИР БО (bo.nalog.gov.ru, `company-parse gir-bo`, loaded by
+-- `company-db load-gir-bo`) and whether a company's accounts are publicly disclosed at all.
+
+-- Official filings: revenue (line 2110) and total assets (line 1600), legal entity, RAS.
+ALTER TABLE company_financial DROP CONSTRAINT company_financial_metric_check;
+ALTER TABLE company_financial ADD CONSTRAINT company_financial_metric_check CHECK (metric IN (
+    'revenue', 'consolidated_revenue', 'net_profit', 'investment', 'assets'));
+ALTER TABLE company_financial DROP CONSTRAINT company_financial_evidence_type_check;
+ALTER TABLE company_financial ADD CONSTRAINT company_financial_evidence_type_check CHECK (
+    evidence_type IN ('corporate_statement', 'secondary_reporting', 'official_filing'));
+
+-- Disclosure of accounts in ГИР БО. Companies of the consolidated register of the defence
+-- industry and strategic enterprises may restrict access (Government decree 1102 of
+-- 04.07.2023): such a company is not found, or its published years stop early. Banks report to
+-- the Bank of Russia and are not checked here.
+--   status : found (statements published), not_found (no organisation for the INN),
+--            stopped (last published year before last_year_expected)
+CREATE TABLE company_disclosure (
+    company_id   bigint NOT NULL REFERENCES company ON DELETE CASCADE,
+    source       text   NOT NULL,                -- 'gir_bo'
+    inn          text   NOT NULL,
+    status       text   NOT NULL CHECK (status IN ('found', 'not_found', 'stopped')),
+    last_period  smallint,                       -- last year with published statements
+    checked_at   timestamptz NOT NULL,
+    PRIMARY KEY (company_id, source)
+);
+-- 0018: GUR section «Компоненти у зброї → Задіяні підприємства» (/components/companies/{id}):
+-- makers in weapon bills of materials that are in no other section (`company-parse
+-- gur-components-companies`, loaded by `company-db load-gur`).
+ALTER TABLE company_section DROP CONSTRAINT company_section_section_check;
+ALTER TABLE company_section ADD CONSTRAINT company_section_section_check CHECK (section IN (
+    'rostec', 'uav/companies', 'tools/company', 'sanctions/companies', 'components/companies'));
+
+-- 0019: importance rating of VPK companies (`company-rating`, docs/rating_methodology.md).
+-- One classifier_run 'importance_rating' per run (version = label; params: model parameters,
+-- the classification / supply / usage runs it used, validation results).
+
+-- One row per ranked company.
+--   tier      : bom (in a GUR bill of materials or cooperation list), evidence (only verified
+--               text claims), peer (no supply link: estimated from similar companies)
+--   score     : I(c), expected share of focus-system output that depends on the company
+--   score_by_focus : {"drone": .., "missile": .., "kab": ..}
+--   rank_med, rank_lo, rank_hi : median and 90% interval of the rank over the Monte Carlo runs
+--   breakdown : contributions per system with the bottleneck part, Shapley split of the
+--               confirmation and scale corrections, or the peer estimate's factors
+CREATE TABLE company_rating (
+    run_id          int    NOT NULL REFERENCES classifier_run ON DELETE CASCADE,
+    company_id      bigint NOT NULL REFERENCES company ON DELETE CASCADE,
+    rank            int    NOT NULL,
+    score           double precision NOT NULL,
+    score_by_focus  jsonb  NOT NULL,
+    rank_med        int,
+    rank_lo         int,
+    rank_hi         int,
+    tier            text   NOT NULL CHECK (tier IN ('bom', 'evidence', 'peer')),
+    p_vpk           real,
+    breakdown       jsonb  NOT NULL,
+    PRIMARY KEY (run_id, company_id)
+);
+
+CREATE INDEX company_rating_company_idx ON company_rating (company_id);
+
+-- The same model for groups of companies treated as one supplier (shares of a part summed over
+-- members). Companies estimated from peers are not included.
+--   kind : region (production sites from company_site), domain (direction_domain),
+--          holding (top parent by company_edge 'parent')
+--   hhi  : concentration of the members' scores within the unit (Σ share²)
+CREATE TABLE rating_unit (
+    run_id          int    NOT NULL REFERENCES classifier_run ON DELETE CASCADE,
+    kind            text   NOT NULL CHECK (kind IN ('region', 'domain', 'holding')),
+    unit            text   NOT NULL,
+    score           double precision NOT NULL,
+    score_by_focus  jsonb  NOT NULL,
+    hhi             real,
+    members         int,
+    PRIMARY KEY (run_id, kind, unit)
+);
+
+-- 0020: the LLM judge also checks supply claims (company_supply, item_id = supply_id): does the
+-- quote say that this company makes or supplies something for this weapon system?
+-- One classifier_run 'llm_judge' with version 'supply-<label>' (company-supply judge).
+ALTER TABLE judge_review DROP CONSTRAINT judge_review_item_kind_check;
+ALTER TABLE judge_review ADD CONSTRAINT judge_review_item_kind_check
+    CHECK (item_kind IN ('company', 'vacancy', 'supply'));

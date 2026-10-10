@@ -116,3 +116,4 @@ table.data.about-coop-table ul { margin: 0; padding-left: 16px; }
 .card-sources a { display: inline-flex; align-items: center; gap: 4px; }
 .card-sources .fact-detail { margin-left: auto; font-size: 12px; color: var(--label-2); }
 .card-sources svg { width: 13px; height: 13px; flex: none; }
+.prof-disclosure { margin-top: 8px; }

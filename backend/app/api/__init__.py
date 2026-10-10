@@ -4,9 +4,11 @@ from app.api import (
     agent,
     discovery,
     employers,
+    enterprises,
     export,
     health,
     methodology,
+    rating,
     research,
     stats,
     vacancies,
@@ -25,3 +27,5 @@ router.include_router(agent.router)
 router.include_router(export.router)
 router.include_router(discovery.router)
 router.include_router(methodology.router)
+router.include_router(rating.router)
+router.include_router(enterprises.router)

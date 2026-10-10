@@ -169,8 +169,11 @@ def model_messages(
         if not candidates:
             break
         _, index, body, target, key = max(candidates, key=lambda entry: entry[0])
-        del target[key]
+        removed = target.pop(key)
         metadata = target.setdefault("_model_excerpt", {})
+        if isinstance(removed, list):
+            omitted = metadata.setdefault("omitted", {})
+            omitted[key] = omitted.get(key, 0) + len(removed)
         metadata["detail_fields_omitted"] = metadata.get("detail_fields_omitted", 0) + 1
         result[index]["content"] = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
     # Long repair loops accumulate call envelopes even after evidence is compact.

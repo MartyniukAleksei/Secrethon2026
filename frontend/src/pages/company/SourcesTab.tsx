@@ -1,5 +1,6 @@
+import { Link } from 'react-router'
 import { longDate } from '../../domain/format'
-import { sourceName } from '../../domain/labels'
+import { GUR_SECTIONS, sourceName } from '../../domain/labels'
 import type { TabProps } from './CompanyPage'
 
 const ext = (href: string | null | undefined, label: string) =>
@@ -32,7 +33,15 @@ export function SourcesTab({ employer: e }: TabProps) {
         <dl className="facts">
           <div><dt>Вакансії</dt><dd>{sourceName(e.source)}</dd></div>
           <div><dt>Профіль роботодавця</dt><dd>{ext(e.profile_url, 'Відкрити')}</dd></div>
-          <div><dt>Картка в базі ГУР</dt><dd>{ext(gur?.gur_url, 'war-sanctions.gur.gov.ua')}</dd></div>
+          {e.sections.length > 0 ? e.sections.map((s) => (
+            <div key={s.section}><dt>ГУР: {GUR_SECTIONS[s.section] ?? s.section}</dt><dd>{ext(s.url, 'war-sanctions.gur.gov.ua')}</dd></div>
+          )) : <div><dt>Картка в базі ГУР</dt><dd>{ext(gur?.gur_url, 'war-sanctions.gur.gov.ua')}</dd></div>}
+          {e.supply_chain && e.supply_chain.claims.length > 0 && (
+            <div>
+              <dt>Цитати про постачання систем озброєння</dt>
+              <dd><Link to={`/companies/${e.id}/supply`}>{e.supply_chain.claims.length}</Link></dd>
+            </div>
+          )}
           {companyAddress && (
             <div className="facts-address facts-location">
               <dt>Місце підприємства</dt>

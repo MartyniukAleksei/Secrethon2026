@@ -103,7 +103,9 @@ def test_large_overview_is_excerpted_without_mutating_full_evidence_or_call_ids(
     body = json.loads(result[-1]["content"])
     assert body["vacancies"] == 42000 and body["source_id"] == "s1"
     assert body["artifact_ids"] == ["a1", "a2"]
-    assert body["_model_excerpt"]["omitted"]["regions_list"] == 80 - len(body["regions_list"])
+    assert body["_model_excerpt"]["omitted"]["regions_list"] == 80 - len(
+        body.get("regions_list", [])
+    )
     assert result[-1]["tool_call_id"] == result[-2]["tool_calls"][0]["id"]
     assert len(evidence["regions_list"]) == 80
 

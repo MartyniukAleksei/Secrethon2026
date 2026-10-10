@@ -1,0 +1,78 @@
+/* Рейтинг важливості: стек-бари категорій, інтервал рангу, водоспад Шеплі, ланцюг постачання, фінанси. */
+
+.rt-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--label-2); font-weight: 500; }
+.rt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+.rt-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--fill-2); min-width: 120px; }
+.rt-stack span { display: block; height: 100%; flex: none; }
+
+.rt-ci { position: relative; height: 14px; min-width: 120px; }
+.rt-ci i { position: absolute; top: 50%; translate: 0 -50%; }
+.rt-ci .track { left: 0; right: 0; height: 2px; background: var(--stroke); }
+.rt-ci .rng { height: 6px; border-radius: 3px; background: var(--primary); opacity: .35; }
+.rt-ci .med { width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--primary); }
+
+.rt-tier.bom { background: var(--info-soft); color: var(--info); }
+.rt-tier.evidence { background: color-mix(in srgb, var(--focus-kab) 18%, transparent); color: var(--focus-kab); }
+.rt-tier.peer { background: var(--fill-2); color: var(--label-2); }
+
+.rt-hint { text-decoration: underline dotted var(--label-3); text-underline-offset: 4px; cursor: help; }
+.rt-note { margin-top: 6px; }
+.rt-pad { padding: 0 10px 10px; }
+.rt-src { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--label-2); }
+
+/* Розклад балу */
+.rt-breakdown { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px 24px; }
+.rt-breakdown h4, .rt-detail h4 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.rt-breakdown table.data, .rt-detail table.data { min-width: 0; font-size: 13px; }
+.rt-breakdown table.data td { padding: 7px 10px; }
+.rt-wrap { white-space: normal !important; }
+table.data.rt-systems td:first-child { min-width: 180px; }
+
+.rt-waterfall { display: grid; gap: 6px; font-size: 13px; }
+.rt-wf-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) 64px; gap: 10px; align-items: center; }
+.rt-wf-row .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rt-wf-track { position: relative; height: 12px; background: var(--fill-2); border-radius: 3px; }
+.rt-wf-track i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.rt-wf-row.total { border-top: 1px solid var(--stroke); padding-top: 6px; font-weight: 700; }
+
+.rt-peer p { font-size: 13.5px; margin-bottom: 6px; }
+table.data.rt-roles { min-width: 0; max-width: 360px; margin-bottom: 8px; }
+table.data.rt-roles td { padding: 5px 10px; }
+
+/* Ланцюг постачання */
+.rt-chain { display: grid; gap: 10px; padding: 0 6px 6px; }
+.rt-chain-group { background: var(--fill-1); border-radius: var(--r-card); padding: 10px 14px; }
+.rt-chain-group h5 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; font-weight: 600; margin: 0 0 6px; }
+.rt-chain-group h5 a { color: inherit; }
+.rt-chain-group ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.rt-chain-group li { font-size: 13.5px; line-height: 20px; }
+.rt-chain-group li .badge { margin-right: 4px; vertical-align: 1px; }
+.rt-chain-group q { display: block; margin-top: 2px; color: var(--label-2); font-style: italic; }
+
+/* Фінанси */
+.rt-finance { display: grid; gap: 8px; }
+.rt-hidden { font-size: 13.5px; line-height: 20px; color: var(--label-2); }
+.rt-hidden .badge { margin-right: 6px; }
+table.data.rt-fin-table { min-width: 0; max-width: 560px; font-size: 13.5px; }
+table.data.rt-fin-table td { padding: 6px 10px; }
+.rt-fin-bar { width: 40%; }
+.rt-fin-bar i { display: block; height: 8px; border-radius: 4px; background: var(--primary); opacity: .55; }
+.rt-fin-other { margin: 0; padding-left: 18px; font-size: 13.5px; }
+
+/* Картка «Місце в рейтингу» */
+.rt-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; padding: 4px 10px 10px; align-items: start; }
+.rt-card-rank { display: grid; justify-items: start; padding: 10px 16px; border-radius: var(--r-card); background: var(--fill-1); }
+.rt-card-rank strong { font-family: var(--ff-display); font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -.02em; }
+.rt-card-rank span { font-size: 13px; color: var(--label-2); }
+.rt-card-rank small { margin-top: 4px; font-size: 12px; color: var(--label-3); font-weight: 500; }
+.rt-card-body { display: grid; gap: 10px; min-width: 0; }
+.rt-card-score { display: grid; gap: 6px; max-width: 420px; }
+.rt-top-systems { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; }
+.rt-how { justify-self: start; margin-left: -10px; }
+
+@media (max-width: 720px) {
+  .rt-breakdown { grid-template-columns: minmax(0, 1fr); }
+  .rt-card { grid-template-columns: minmax(0, 1fr); }
+  .rt-wf-row { grid-template-columns: 100px minmax(0, 1fr) 60px; }
+}

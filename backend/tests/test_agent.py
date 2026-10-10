@@ -37,6 +37,10 @@ def test_sources_reject_active_or_external_local_links():
     assert agent.safe_url("/vacancies") == "/vacancies"
     assert agent.safe_url("/vacancies/42") == "/vacancies/42"
     assert agent.safe_url("/vacancies/../evil") is None
+    assert agent.safe_url("/enterprises/42") == "/enterprises/42"
+    assert agent.safe_url("/rating?company=42") == "/rating?company=42"
+    assert agent.safe_url("/rating") == "/rating"
+    assert agent.safe_url("/rating?company=42&redirect=evil") is None
 
 
 def response(name, args):

@@ -195,6 +195,35 @@ def register_tools(server: FastMCP) -> None:
         """All-time platform totals, database snapshot date and region directory."""
         return await execute_tool("overview", {})
 
+    @server.tool(annotations=READ_ONLY)
+    async def rating(
+        company_id: PositiveId | None = None,
+        query: Annotated[str, Field(max_length=200)] = "",
+        focus: Literal["drone", "missile", "kab"] | None = None,
+        tier: Literal["bom", "evidence", "peer"] | None = None,
+        domain: Annotated[str | None, Field(max_length=40)] = None,
+        region: Annotated[str | None, Field(max_length=80)] = None,
+        limit: Limit = 10,
+    ) -> dict[str, Any]:
+        """Importance rating: share of drone/missile/KAB output that depends on a company.
+
+        Without company_id: ranked legal entities, filtered by name/INN, focus (sorted by
+        that category), evidence tier, industry, region. With company_id: rank, 90% interval
+        and why (systems and bottleneck parts, Shapley corrections, supply chain, accounts).
+        """
+        return await execute_tool(
+            "rating",
+            {
+                "company_id": company_id,
+                "query": query,
+                "focus": focus,
+                "tier": tier,
+                "domain": domain,
+                "region": region,
+                "limit": limit,
+            },
+        )
+
     @server.tool(annotations=WEB_SEARCH)
     async def search_mentions(
         employer_id: PositiveId,

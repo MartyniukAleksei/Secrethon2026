@@ -13,6 +13,7 @@ const PAGES: [string, string, IconName][] = [
   ['Огляд', '/', 'grid'],
   ['Карта', '/map', 'map'],
   ['Підприємства', '/companies', 'factory'],
+  ['Рейтинг важливості', '/rating', 'graph'],
   ['Вакансії', '/vacancies', 'briefcase'],
   ['Професії', '/vacancies/professions', 'list'],
   ['Сигнали', '/signals', 'bell'],

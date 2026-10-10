@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import type { ApiProfileSource } from '../../api/types'
 import { longDate } from '../../domain/format'
 import { categoryOf, effectiveCategory } from '../../domain/labels'
+import { FinancePanel } from '../../components/rating/Finance'
+import { RatingCard } from '../../components/rating/RatingCard'
 import type { TabProps } from './CompanyPage'
 import { GurAbout } from './GurAbout'
 import { useGurAbout } from './useGurAbout'
@@ -63,6 +65,7 @@ export function OverviewTab({ employer: e }: TabProps) {
 
   return (
     <div className="prof-overview">
+      {e.company_id != null && <RatingCard rating={e.rating} companyId={e.company_id} />}
       <section className="panel">
         <div className="panel-head"><h3>Напрями діяльності</h3>{probableMatch}</div>
         {tags.length > 0 ? (
@@ -113,6 +116,7 @@ export function OverviewTab({ employer: e }: TabProps) {
           </div>
         )}
       </section>
+      {e.finance && (e.finance.rows.length > 0 || e.finance.disclosure) && <FinancePanel finance={e.finance} />}
     </div>
   )
 }
