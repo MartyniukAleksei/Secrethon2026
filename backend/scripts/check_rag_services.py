@@ -19,10 +19,12 @@ async def main():
     engine = make_engine(settings.database_url)
     try:
         async with engine.connect() as connection:
-            available = await connection.execute(text(
-                "SELECT name, default_version, installed_version "
-                "FROM pg_available_extensions WHERE name = 'vector'"
-            ))
+            available = await connection.execute(
+                text(
+                    "SELECT name, default_version, installed_version "
+                    "FROM pg_available_extensions WHERE name = 'vector'"
+                )
+            )
             print("pgvector:", json.dumps([dict(row) for row in available.mappings()]))
     except Exception as exc:
         print("Database probe failed:", type(exc).__name__)
@@ -33,15 +35,23 @@ async def main():
     try:
         with urlopen(request, timeout=30) as response:
             models = json.load(response)
-        print("Embedding models:", [row["id"] for row in models.get("data", [])
-                                     if "embed" in row.get("id", "").lower()])
+        print(
+            "Embedding models:",
+            [row["id"] for row in models.get("data", []) if "embed" in row.get("id", "").lower()],
+        )
     except (HTTPError, URLError, TimeoutError):
         print("Model listing unavailable")
     try:
-        result = await post_json(base + "/embeddings", {
-            "model": "text-embedding-3-small", "input": ["Company manufactures equipment."],
-            "encoding_format": "float",
-        }, {"Authorization": "Bearer " + settings.gpt_api_key}, "Embeddings")
+        result = await post_json(
+            base + "/embeddings",
+            {
+                "model": "text-embedding-3-small",
+                "input": ["Company manufactures equipment."],
+                "encoding_format": "float",
+            },
+            {"Authorization": "Bearer " + settings.gpt_api_key},
+            "Embeddings",
+        )
         print("Embeddings API: OK; dimensions:", len(result["data"][0]["embedding"]))
     except ProviderError as exc:
         print("Embeddings API unavailable:", exc.status, exc.reason)

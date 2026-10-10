@@ -140,16 +140,16 @@ async def approve(payload: ResearchIn, session: Session, background_tasks: Backg
             if employer_id is None:
                 raise HTTPException(404, "Підприємство не знайдено.")
         saved = await research.save_research(
-                {
-                    "id": payload.id,
-                    "title": payload.title,
-                    "question": payload.question,
-                    "employer_id": employer_id,
-                    "parent_id": payload.parent_id,
-                    "context": payload.context.model_dump(mode="json"),
-                    "approved_info": payload.response.model_dump(mode="json"),
-                }
-            )
+            {
+                "id": payload.id,
+                "title": payload.title,
+                "question": payload.question,
+                "employer_id": employer_id,
+                "parent_id": payload.parent_id,
+                "context": payload.context.model_dump(mode="json"),
+                "approved_info": payload.response.model_dump(mode="json"),
+            }
+        )
         background_tasks.add_task(rag.index_approved, saved)
         return jsonable_encoder(saved)
     except (SQLAlchemyError, OSError):

@@ -21,8 +21,9 @@ async def main():
             raise SystemExit("No indexed passages for employer 4653 yet")
         assert all(row["employer_id"] == 4653 for row in values)
         print(f"Retrieved passages: {len(values)}", flush=True)
-        result = await answer(ChatIn(message=question,
-                                    context={"page": "map", "company_id": 4064}), session)
+        result = await answer(
+            ChatIn(message=question, context={"page": "map", "company_id": 4064}), session
+        )
     assert result["map_action"]["employer_id"] == 4653
     assert not result.get("web_permission")
     assert result["sources"]

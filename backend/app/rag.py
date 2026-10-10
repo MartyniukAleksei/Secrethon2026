@@ -194,8 +194,10 @@ async def retrieve(session, query: str, employer_id: int | None = None) -> list[
         threshold = 0.70 if settings.rag_provider == "local" else 0.25
     # Exact distance within an employer avoids approximate-index post-filter
     # omissions. Global search can use the dimension-specific HNSW expression.
-    vector_column = "embedding" if employer_id else (
-        f"embedding::public.vector({int(settings.rag_dimensions)})"
+    vector_column = (
+        "embedding"
+        if employer_id
+        else (f"embedding::public.vector({int(settings.rag_dimensions)})")
     )
     rows = await session.execute(
         text(f"""
